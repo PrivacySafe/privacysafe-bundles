@@ -1,2 +1,2 @@
-# Privacysafe published bundles
+# PrivacySafe published bundles
 
