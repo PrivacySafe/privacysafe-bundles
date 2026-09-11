@@ -10,7 +10,7 @@ Published PrivacySafe application bundles, release artifacts, and related distri
 
 This repository provides published PrivacySafe bundles and release materials in a simple, inspectable location.
 
-It is intended primarily to provide a source for **Android builds and release artifacts**, including material that can be inspected by users, downstream distributors, and alternative or replacement app stores such as [F-Droid](https://f-droid.org/).
+It is intended primarily to provide a source reference and tooling for **Android builds and release artifacts**, including and pointing to material that can be inspected by users, downstream distributors, and alternative or replacement app stores such as [F-Droid](https://f-droid.org/).
 
 PrivacySafe's canonical Android application ID is:
 
@@ -22,9 +22,11 @@ PrivacySafe is Free/Libre and Open Source Software (FLOSS). This repository is p
 
 ## Bundles and releases
 
-Published artifacts are stored under [`bundles/`](bundles/).
+Published informational artifacts are stored under [`bundles/`](bundles/). These files, for android and desktop, point to versions of respective platforms and 3NWeb app versions that comprise each bundle.
 
-GitHub Releases may also be used for versioned release artifacts and release metadata.
+Plaform and bundled apps' sources are published in [Codeberg](https://codeberg.org/PrivacySafe) and [Github](https://github.com/PrivacySafe). `tools/` contains easy scripts to collect these for bundling.
+
+GitHub Releases have both collected sources for given bundle version and relevant build artifacts, like signed `apk` for Android.
 
 Where practical, each release should make it easy to identify:
 
