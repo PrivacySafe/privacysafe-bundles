@@ -1,0 +1,20 @@
+{
+  "type": "android",
+  "platform": "0.21.10",
+  "apps": {
+    "launcher.app.privacysafe.io": "0.11.35",
+    "startup.app.privacysafe.io": "0.10.8"
+  },
+  "app-packs": {
+    "chat.app.privacysafe.io": "0.12.17",
+    "contacts.app.privacysafe.io": "0.8.37",
+    "files.app.privacysafe.io": "0.8.4",
+    "inbox.app.privacysafe.io": "0.3.41",
+    "treasure.app.privacysafe.io": "0.2.3"
+  },
+  "date": "26.09",
+  "buildNum": 21,
+  "bundleId": "26.09-0.21.10.21",
+  "versionCode": 12609021,
+  "versionName": "26.09-0.21.10.21"
+}
