@@ -28,7 +28,7 @@ Plaform and bundled apps' sources are published in [Codeberg](https://codeberg.o
 
 GitHub Releases have both collected sources for given bundle version and relevant build artifacts, like signed `apk` for Android.
 
-Where practical, each release should make it easy to identify:
+Each release makes it easy to identify:
 
 - the PrivacySafe version;
 - the target platform;
@@ -37,7 +37,7 @@ Where practical, each release should make it easy to identify:
 - checksums or other integrity information; and
 - information needed by downstream distributors to review the release.
 
-For Android, architecture names should follow Android ABI terminology where applicable, for example:
+For Android, architecture names follow Android ABI terminology where applicable, for example:
 
 ```text
 arm64-v8a
@@ -49,7 +49,7 @@ See [`SOURCE.md`](SOURCE.md) for the expected bundle-to-source provenance inform
 
 One of the primary purposes of this repository is to make PrivacySafe Android release material easy to locate and inspect outside Google Play.
 
-This includes supporting review by alternative app stores and downstream distributors such as [F-Droid](https://f-droid.org/), as well as users who prefer to inspect or obtain PrivacySafe through Free Software distribution channels.
+This includes supporting review by alternative app stores and downstream distributors such as [F-Droid](https://f-droid.org/), as well as users who prefer to inspect or obtain PrivacySafe through free software distribution channels.
 
 F-Droid and similar projects may build applications from source according to their own reproducibility, metadata, signing, and inclusion requirements. Artifacts published here are therefore release and distribution references; their presence here does not imply acceptance by or publication through any particular third-party app store.
 
@@ -63,23 +63,13 @@ For the main PrivacySafe project and downloads, see:
 
 ## Source code
 
-PrivacySafe publishes its client and server source code through the PrivacySafe organization:
+PrivacySafe publishes its client and server source code: 
 
 - [PrivacySafe on GitHub](https://github.com/PrivacySafe)
 - [PrivacySafe on Codeberg](https://codeberg.org/PrivacySafe)
 - [PrivacySafe website](https://privacysafe.app/)
 
 Relevant platform source includes the [PrivacySafe Android Platform Bundle](https://github.com/PrivacySafe/privacysafe-platform-android-bundle), which packages the PrivacySafe platform and 3NWeb applications for Android distribution.
-
-Release artifacts in this repository should be traceable to the corresponding source wherever practical.
-
-## Integrity and reproducibility
-
-Published release artifacts should be accompanied by checksums or equivalent integrity information when available.
-
-Downstream distributors and users should verify release artifacts before relying on them. Where reproducible-build information is available, it should be published alongside or linked from the relevant release.
-
-This repository must never contain private signing keys, passwords, recovery material, access tokens, or other release secrets.
 
 ## 🛡️ Ivy Cyber
 
