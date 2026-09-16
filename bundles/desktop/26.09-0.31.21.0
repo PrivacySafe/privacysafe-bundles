@@ -1,0 +1,23 @@
+{
+  "type": "desktop",
+  "platform": "0.31.21",
+  "apps": {
+    "launcher.app.privacysafe.io": "0.11.36",
+    "startup.app.privacysafe.io": "0.10.9"
+  },
+  "app-packs": {
+    "chat.app.privacysafe.io": "0.12.21",
+    "contacts.app.privacysafe.io": "0.8.40",
+    "files.app.privacysafe.io": "0.8.5",
+    "inbox.app.privacysafe.io": "0.3.42",
+    "treasure.app.privacysafe.io": "0.2.3"
+  },
+  "runtimes": {
+    "deno": "2.7.12"
+  },
+  "date": "26.09",
+  "buildNum": 0,
+  "bundleId": "26.09-0.31.21.0",
+  "bundle": "0.31.21+0",
+  "version": "0.31.21000"
+}
