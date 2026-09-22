@@ -10,7 +10,7 @@ Primary named contributors and development organizations include:
 * **PrivacySafe Foundation, Inc.** - <https://privacysafe.foundation>
 * **Ivy Cyber LLC** - <https://ivycyber.com>
 
-Unless a file or component carries a different notice, copyright is held by **Ivy Cyber LLC**. 3NSoft, Inc., and PrivacySafe Foundation, Inc., and Ivy Cyber LLC contribute development and documentation work to PrivacySafe and 3NWeb.
+Unless a file or component carries a different notice, copyright is held by **Ivy Cyber LLC**. 3NSoft, Inc., PrivacySafe Foundation, Inc., and Ivy Cyber LLC contribute development and documentation work to PrivacySafe and 3NWeb.
 
 Contribution requirements, including copyright assignment terms, are described in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
