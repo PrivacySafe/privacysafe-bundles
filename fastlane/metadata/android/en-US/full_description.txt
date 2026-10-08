@@ -1,0 +1,15 @@
+PrivacySafe gives you encrypted chat and video calls inside a secure zone for your treasure: passwords, passports, and other sensitive data. Sign up for free, without sharing a phone number.
+
+• Chat privately with individuals and groups. Send messages, share files, and keep conversations organized. Your chats are stored on a zero-knowledge filesystem designed so the server cannot read your private communication.
+
+• Make encrypted voice and video calls from the same secure environment. PrivacySafe brings you conversations, contacts, and calls without requiring your phone number as your identity.
+
+• Protect the information you cannot afford to lose. PrivacySafe Treasure gives you an encrypted place for passwords, recovery phrases, payment cards, passports, and other sensitive information. PrivacySafe Storage helps you organize and share encrypted files and folders with people or teams.
+
+• Choose your PrivacySafe identity. Start free with a PrivacySafe account, upgrade for additional storage and premium identity options, or deploy PrivacySafe using your own domain.
+
+• You hold the keys. PrivacySafe uses a zero-knowledge architecture designed to keep your private data encrypted from the services that store and synchronize it. No ads. No third-party advertising trackers. No phone number required.
+
+• PrivacySafe is Free/Libre and Open Source Software (FLOSS). Client and server source code is publicly available, and PrivacySafe is built on the public 3NWeb protocols and filesystem. You can inspect the software and the technology behind it yourself.
+
+• PrivacySafe is published by Ivy Cyber with development support from PrivacySafe Foundation, a 501(c)(3) nonprofit public charity. The Foundation stewards upstream software development, public standards, documentation, education, and public-interest security research, while Ivy Cyber provides PrivacySafe products, services, and hosting.
