@@ -1,6 +1,6 @@
 {
   "type": "android",
-  "platform": "0.21.23",
+  "platform": "0.21.24",
   "apps": {
     "launcher.app.privacysafe.io": "0.11.44",
     "startup.app.privacysafe.io": "0.10.11"
@@ -10,11 +10,11 @@
     "contacts.app.privacysafe.io": "0.8.47",
     "files.app.privacysafe.io": "0.8.10",
     "inbox.app.privacysafe.io": "0.3.47",
-    "treasure.app.privacysafe.io": "0.2.7"
+    "treasure.app.privacysafe.io": "0.2.8"
   },
   "date": "26.10",
-  "buildNum": 16,
-  "bundleId": "26.10-0.21.23.16",
-  "versionCode": 12610016,
-  "versionName": "26.10-0.21.23.16"
+  "buildNum": 17,
+  "bundleId": "26.10-0.21.24.17",
+  "versionCode": 12610017,
+  "versionName": "26.10-0.21.24.17"
 }
