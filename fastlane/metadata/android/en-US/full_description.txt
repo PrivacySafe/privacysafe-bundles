@@ -1,4 +1,4 @@
-PrivacySafe gives you encrypted chat and video calls inside a secure zone for your treasure: passwords, passports, and other sensitive data. Sign up for free, without sharing a phone number.
+PrivacySafe is a secure encrypted zone that you own and control, with chats and video calls, with place for your treasure: passwords, passports, and other sensitive data. You can run your own sovereign server, or sign up for free, without sharing a phone number.
 
 • Chat privately with individuals and groups. Send messages, share files, and keep conversations organized. Your chats are stored on a zero-knowledge filesystem designed so the server cannot read your private communication.
 
@@ -6,9 +6,11 @@ PrivacySafe gives you encrypted chat and video calls inside a secure zone for yo
 
 • Protect the information you cannot afford to lose. PrivacySafe Treasure gives you an encrypted place for passwords, recovery phrases, payment cards, passports, and other sensitive information. PrivacySafe Storage helps you organize and share encrypted files and folders with people or teams.
 
-• Choose your PrivacySafe identity. Start free with a PrivacySafe account, upgrade for additional storage and premium identity options, or deploy PrivacySafe using your own domain.
+• Choose your PrivacySafe identity. Start free with a PrivacySafe account, upgrade for additional storage and premium identity options, or deploy PrivacySafe using your own domain and your own server.
 
 • You hold the keys. PrivacySafe uses a zero-knowledge architecture designed to keep your private data encrypted from the services that store and synchronize it. No ads. No third-party advertising trackers. No phone number required.
+
+• Use same identity on several devices simultaneously. PrivacySafe platform is also available on Linux, Mac and Windows operating systems.
 
 • PrivacySafe is Free/Libre and Open Source Software (FLOSS). Client and server source code is publicly available, and PrivacySafe is built on the public 3NWeb protocols and filesystem. You can inspect the software and the technology behind it yourself.
 

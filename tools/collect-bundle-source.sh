@@ -58,6 +58,7 @@ then
 	download_from "$platform_repo" "v$(info .platform)" "$platform_dir" || exit $?
 	echo "$(info .versionName)" > $platform_dir/app/version-name
 	echo "$(info .versionCode)" > $platform_dir/app/version-code
+	echo "true" > $platform_dir/app/enable-r8-minifications || exit $?
 elif [ "$type" == "desktop" ]
 then
 	platform_repo="privacysafe-platform-electron"
