@@ -1,0 +1,16 @@
+strictDepBuilds: false
+
+allowBuilds:
+  '@parcel/watcher': true
+  electron: true
+  vue-demi: true
+
+minimumReleaseAgeExclude:
+  - '@intlify/core-base@11.4.13'
+  - '@intlify/devtools-types@11.4.13'
+  - '@intlify/message-compiler@11.4.13'
+  - '@intlify/shared@11.4.13'
+  - '@types/node@24.19.1'
+  - '@vue/language-core@3.3.12'
+  - vue-i18n@11.4.13
+  - vue-tsc@3.3.12

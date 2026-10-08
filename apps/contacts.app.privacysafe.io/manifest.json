@@ -1,0 +1,166 @@
+{
+  "name": "Contacts",
+  "appDomain": "contacts.app.privacysafe.io",
+  "version": "0.8.47",
+  "description": "Private address book for your contact list.",
+  "icon": "logo.png",
+  "publisher": "Ivy Cyber",
+  "website": "https://privacysafe.app",
+  "contact": "support@ivycyber.com",
+  "policy": "https://ivycyber.com/privacy",
+  "terms": "https://ivycyber.com/terms",
+  "license": "AGPL-3.0-or-later",
+  "source": "https://github.com/PrivacySafe/contacts.app.privacysafe.io",
+
+  "components": {
+    "/index.html": {
+      "startedBy": "user",
+      "runtime": "web-gui",
+      "formFactor": ["desktop", "tablet"],
+      "capsRequested": {
+        "apps": "opener",
+        "logToPlatform": true,
+        "mailerid": true,
+        "keyrings": "all",
+        "shell": {
+          "fileDialog": "all",
+          "clipboard": "all",
+          "startAppCmds": {
+            "otherApps": {
+              "chat.app.privacysafe.io": ["open-chat-with"],
+              "inbox.app.privacysafe.io": ["open-inbox-with"]
+            }
+          },
+          "fsResource": {
+            "otherApps": {
+              "launcher.app.privacysafe.io": "ui-settings"
+            }
+          },
+          "userNotifications": true,
+          "scanUrlQR": true,
+          "openDashboard": true
+        },
+        "storage": {
+          "appFS": "default"
+        },
+        "appRPC": ["AppContactsInternal", "AppContactsNew"],
+        "connectivity": "check"
+      },
+      "windowOpts": {
+        "width": 760,
+        "height": 720,
+        "minWidth": 760,
+        "minHeight": 680
+      },
+      "startCmds": {
+        "add-contact": {
+          "otherApps": "*"
+        }
+      }
+    },
+
+    "/index-mobile.html": {
+      "startedBy": "user",
+      "runtime": "web-gui",
+      "formFactor": "phone",
+      "capsRequested": {
+        "apps": "opener",
+        "logToPlatform": true,
+        "mailerid": true,
+        "keyrings": "all",
+        "shell": {
+          "fileDialog": "all",
+          "clipboard": "all",
+          "startAppCmds": {
+            "otherApps": {
+              "chat.app.privacysafe.io": ["open-chat-with"],
+              "inbox.app.privacysafe.io": ["open-inbox-with"]
+            }
+          },
+          "fsResource": {
+            "otherApps": {
+              "launcher.app.privacysafe.io": "ui-settings"
+            }
+          },
+          "userNotifications": true,
+          "scanUrlQR": true,
+          "openDashboard": true
+        },
+        "storage": {
+          "appFS": "default"
+        },
+        "appRPC": ["AppContactsInternal"],
+        "connectivity": "check"
+      },
+      "startCmds": {
+        "add-contact": {
+          "otherApps": "*"
+        }
+      }
+    },
+
+    "/contactDenoServices.js": {
+      "services": {
+        "AppContacts": {
+          "thisAppComponents": "*",
+          "otherApps": "*"
+        },
+        "AppContactsInternal": {
+          "thisAppComponents": "*"
+        },
+        "AppContactsNew": {
+          "thisAppComponents": ["/index.html", "/index-mobile.html"]
+        }
+      },
+      "runtime": "deno",
+      "capsRequested": {
+        "logToPlatform": true,
+        "mailerid": true,
+        "mail": {
+          "preflightsTo": "all"
+        },
+        "shell": {
+          "startAppCmds": {
+            "thisApp": ["add-contact"]
+          },
+          "userNotifications": true,
+          "fsResource": {
+            "otherApps": {
+              "launcher.app.privacysafe.io": "ui-settings"
+            }
+          }
+        },
+        "storage": {
+          "appFS": "default"
+        },
+        "connectivity": "check"
+      }
+    }
+  },
+
+  "launchers": [
+    {
+      "name": "Contacts",
+      "icon": "logo.png",
+      "description": "Private address book for your contact list.",
+      "component": "/index.html",
+      "formFactor": ["desktop", "tablet"]
+    },
+    {
+      "name": "Contacts",
+      "icon": "logo.png",
+      "description": "Private address book for your contact list.",
+      "component": "/index-mobile.html",
+      "formFactor": "phone"
+    }
+  ],
+
+  "launchOnSystemStartup": [
+    {
+      "name": "Contacts service",
+      "component": "/contactDenoServices.js",
+      "icon": "logo.png",
+      "description": "Warms up contacts app service"
+    }
+  ]
+}

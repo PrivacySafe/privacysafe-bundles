@@ -1,0 +1,55 @@
+workflow:
+  rules:
+    # introduction of rules in jobs messes up default workflow that
+    # doesn't have an additional pipeline run on merge request, hence,
+    # to suppress it we use this rule applied to all
+    - if: '$CI_PIPELINE_SOURCE != "merge_request_event"'
+
+
+stages:
+  - build
+  - test
+  - ci tools
+  - pack
+  - publish
+
+
+ci tools:
+  stage: ci tools
+  image: node-24
+  script:
+    - chmod u+x ci/*.sh
+    - ci/get-ci-scripts.sh
+  artifacts:
+    paths:
+      - ci
+    expire_in: 3days
+
+
+pack:
+  stage: pack
+  image: node-24
+  script:
+    - ci/apps/pack-source.sh $SRC_ITEMS
+    - ci/apps/pack-production.sh
+  artifacts:
+    paths:
+      - ci
+      - ${APP_DOMAIN}-*
+    expire_in: 3days
+
+
+publish:
+  stage: publish
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  inherit:
+    variables: true
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+  trigger:
+    include:
+      - artifact: ci/pipelines/publish-app.yml
+        job: ci tools
+    strategy: depend

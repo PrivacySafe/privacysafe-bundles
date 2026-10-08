@@ -1,0 +1,13 @@
+{
+  "iceServers": [
+    {
+      "urls": ["stun:45.62.207.107:443"]
+    },
+    {
+      "urls": ["turns:45.62.207.107:443"],
+      "username": "chat-app",
+      "credential": "WLIvWVDTrxHpy78GknE6tNsNiqjNNFU5mN4qSUU"
+    }
+  ],
+  "iceTransportPolicy": "all"
+}

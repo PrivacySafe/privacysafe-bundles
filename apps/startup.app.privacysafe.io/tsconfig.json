@@ -1,0 +1,46 @@
+{
+  "compilerOptions": {
+    "noEmit": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "target": "esnext",
+    "module": "esnext",
+    "useDefineForClassFields": true,
+    "strictNullChecks": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": false,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "jsxImportSource": "vue",
+    "noImplicitThis": true,
+    "strict": true,
+    "importHelpers": true,
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": [
+      "vite/client",
+      "@types/node"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+    "plugins": [{
+      "name": "@vuedx/typescript-plugin-vue"
+    }]
+  },
+  "include": [
+    "vite.config.ts",
+    "src/**/*",
+    "@types/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "public",
+    "app"
+  ]
+}

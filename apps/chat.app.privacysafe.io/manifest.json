@@ -1,0 +1,331 @@
+{
+  "name": "Chat",
+  "appDomain": "chat.app.privacysafe.io",
+  "version": "0.12.29",
+  "icon": "logo.png",
+  "description": "Send secure text messages, share files or start a video meeting.",
+
+  "publisher": "Ivy Cyber",
+  "website": "https://privacysafe.app",
+  "contact": "support@ivycyber.com",
+  "policy": "https://ivycyber.com/privacy",
+  "terms": "https://ivycyber.com/terms",
+  "license": "AGPL-3.0-or-later",
+  "source": "https://github.com/PrivacySafe/chat.app.privacysafe.io",
+
+  "components": {
+    "/index.html": {
+      "startedBy": "user",
+      "runtime": "web-gui",
+      "formFactor": ["desktop", "tablet"],
+      "capsRequested": {
+        "logToPlatform": true,
+        "mailerid": true,
+        "mail": {
+          "preflightsTo": "all",
+          "sendingTo": "all",
+          "receivingFrom": "all"
+        },
+        "shell": {
+          "fileDialog": "all",
+          "deviceFiles": "all",
+          "userNotifications": true,
+          "startAppCmds": {
+            "otherApps": {
+              "contacts.app.privacysafe.io": ["add-contact"]
+            }
+          },
+          "fsResource": {
+            "otherApps": {
+              "launcher.app.privacysafe.io": "ui-settings"
+            }
+          },
+          "openDashboard": true,
+          "openURL": [
+            {
+              "schema": "https",
+              "anyDomain": true
+            }
+          ],
+          "openFile": "all",
+          "openFolder": "all",
+          "clipboard": "all"
+        },
+        "storage": {
+          "appFS": "default",
+          "sysFS": "all"
+        },
+        "appRPC": ["AppChatsInternal", "VideoGUIOpener"],
+        "otherAppsRPC": [
+          {
+            "app": "contacts.app.privacysafe.io",
+            "service": "AppContacts"
+          }
+        ],
+        "mediaDevices": {
+          "microphones": "use",
+          "cameras": "use",
+          "speakers": "use"
+        },
+        "connectivity": "check"
+      },
+      "windowOpts": {
+        "width": 1200,
+        "height": 600,
+        "minWidth": 800,
+        "minHeight": 512,
+        "maxWidth": 1440
+      },
+      "startCmds": {
+        "open-chat-with": {
+          "thisAppComponents": ["/background-instance.mjs"],
+          "otherApps": "*"
+        },
+        "incoming-call": {
+          "thisAppComponents": ["/background-instance.mjs"]
+        }
+      }
+    },
+
+    "/index-mobile.html": {
+      "startedBy": "user",
+      "runtime": "web-gui",
+      "formFactor": "phone",
+      "capsRequested": {
+        "logToPlatform": true,
+        "mailerid": true,
+        "mail": {
+          "preflightsTo": "all",
+          "sendingTo": "all",
+          "receivingFrom": "all"
+        },
+        "shell": {
+          "fileDialog": "all",
+          "deviceFiles": "all",
+          "userNotifications": true,
+          "startAppCmds": {
+            "otherApps": {
+              "contacts.app.privacysafe.io": ["add-contact"]
+            }
+          },
+          "fsResource": {
+            "otherApps": {
+              "launcher.app.privacysafe.io": "ui-settings"
+            }
+          },
+          "openDashboard": true,
+          "openURL": [
+            {
+              "schema": "https",
+              "anyDomain": true
+            }
+          ],
+          "openFile": "all",
+          "openFolder": "all",
+          "clipboard": "all"
+        },
+        "storage": {
+          "appFS": "default",
+          "sysFS": "all"
+        },
+        "appRPC": ["AppChatsInternal", "VideoGUIOpener"],
+        "otherAppsRPC": [
+          {
+            "app": "contacts.app.privacysafe.io",
+            "service": "AppContacts"
+          }
+        ],
+        "mediaDevices": {
+          "microphones": "use",
+          "cameras": "use",
+          "speakers": "use"
+        },
+        "connectivity": "check"
+      },
+      "windowOpts": {
+        "width": 360,
+        "height": 768,
+        "minWidth": 360,
+        "minHeight": 768,
+        "maxWidth": 360,
+        "maxHeight": 768
+      },
+      "startCmds": {
+        "open-chat-with": {
+          "thisAppComponents": ["/background-instance.mjs"],
+          "otherApps": "*"
+        },
+        "incoming-call": {
+          "thisAppComponents": ["/background-instance.mjs"]
+        }
+      }
+    },
+
+    "/video-chat.html": {
+      "services": {
+        "VideoChatComponent": {
+          "thisAppComponents": ["/background-instance.mjs"]
+        }
+      },
+      "runtime": "web-gui",
+      "formFactor": ["desktop", "tablet"],
+      "capsRequested": {
+        "logToPlatform": true,
+        "mailerid": true,
+        "mail": {
+          "preflightsTo": "all",
+          "sendingTo": "all",
+          "receivingFrom": "all"
+        },
+        "shell": {
+          "fsResource": {
+            "otherApps": {
+              "launcher.app.privacysafe.io": "ui-settings"
+            }
+          }
+        },
+        "mediaDevices": {
+          "cameras": "all",
+          "microphones": "all",
+          "speakers": "all",
+          "screens": "all",
+          "windows": "all"
+        },
+        "webrtc": "all"
+      },
+      "forOneConnectionOnly": true,
+      "windowOpts": {
+        "minWidth": 800,
+        "minHeight": 600
+      }
+    },
+
+    "/video-chat-mobile.html": {
+      "services": {
+        "VideoChatComponent": {
+          "thisAppComponents": ["/background-instance.mjs"]
+        }
+      },
+      "runtime": "web-gui",
+      "formFactor": "phone",
+      "capsRequested": {
+        "logToPlatform": true,
+        "mailerid": true,
+        "mail": {
+          "preflightsTo": "all",
+          "sendingTo": "all",
+          "receivingFrom": "all"
+        },
+        "shell": {
+          "fsResource": {
+            "otherApps": {
+              "launcher.app.privacysafe.io": "ui-settings"
+            }
+          }
+        },
+        "mediaDevices": {
+          "cameras": "all",
+          "microphones": "all",
+          "speakers": "all",
+          "screens": "all",
+          "windows": "all"
+        },
+        "webrtc": "all"
+      },
+      "forOneConnectionOnly": true,
+      "windowOpts": {
+        "width": 360,
+        "height": 768,
+        "minWidth": 360,
+        "minHeight": 768,
+        "maxWidth": 360,
+        "maxHeight": 768
+      }
+    },
+
+    "/background-instance.mjs": {
+      "services": {
+        "AppChatsInternal": {
+          "thisAppComponents": ["/index.html", "/index-mobile.html"]
+        },
+        "VideoGUIOpener": {
+          "thisAppComponents": ["/index.html", "/index-mobile.html"]
+        },
+        "VideoChatComponent": {
+          "thisAppComponents": ["/index.html", "/index-mobile.html"]
+        }
+      },
+      "runtime": "deno",
+      "capsRequested": {
+        "appRPC": ["VideoChatComponent"],
+        "otherAppsRPC": [
+          {
+            "app": "contacts.app.privacysafe.io",
+            "service": "AppContacts"
+          }
+        ],
+        "logToPlatform": true,
+        "mailerid": true,
+        "mail": {
+          "preflightsTo": "all",
+          "sendingTo": "all",
+          "receivingFrom": "all",
+          "config": "all"
+        },
+        "shell": {
+          "startAppCmds": {
+            "thisApp": ["incoming-call", "open-chat-with"]
+          },
+          "userNotifications": true,
+          "fsResource": {
+            "thisApp": "ice-servers",
+            "otherApps": {
+              "launcher.app.privacysafe.io": "ui-settings"
+            }
+          }
+        },
+        "storage": {
+          "appFS": "default"
+        }
+      }
+    }
+  },
+
+  "exposedFSResources": {
+    "ice-servers": {
+      "allow": {
+        "thisAppComponents": ["/background-instance.mjs"]
+      },
+      "appStorage": "local",
+      "path": "/constants/ice-servers.json",
+      "itemType": "file",
+      "initValueSrc": "/ice-servers.json"
+    }
+  },
+
+  "launchers": [
+    {
+      "name": "Chat",
+      "icon": "logo.png",
+      "description": "Send secure text messages, share files or start a video meeting.",
+      "component": "/index.html",
+      "formFactor": ["desktop", "tablet"]
+    },
+    {
+      "name": "Chat",
+      "icon": "logo.png",
+      "description": "Send secure text messages, share files or start a video meeting.",
+      "component": "/index-mobile.html",
+      "formFactor": "phone"
+    }
+  ],
+
+  "launchOnSystemStartup": [
+    {
+      "name": "Messaging background service",
+      "component": "/background-instance.mjs",
+      "icon": "logo.png",
+      "description": "Starts background process to observe messaging and show notifications when new messages arrive"
+    }
+  ]
+}

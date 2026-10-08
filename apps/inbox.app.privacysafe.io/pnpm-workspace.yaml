@@ -1,0 +1,6 @@
+strictDepBuilds: false
+
+allowBuilds:
+  '@parcel/watcher': true
+  electron: true
+  vue-demi: true

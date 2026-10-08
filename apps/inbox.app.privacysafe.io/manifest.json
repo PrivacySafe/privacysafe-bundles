@@ -1,0 +1,175 @@
+{
+  "name": "Inbox",
+  "appDomain": "inbox.app.privacysafe.io",
+  "version": "0.3.47",
+  "description": "Send and receive encrypted messages with an improved version of email.",
+  "icon": "logo.png",
+
+  "publisher": "Ivy Cyber",
+  "website": "https://privacysafe.app",
+  "contact": "support@ivycyber.com",
+  "policy": "https://ivycyber.com/privacy",
+  "terms": "https://ivycyber.com/terms",
+  "license": "AGPL-3.0-or-later",
+  "source": "https://github.com/PrivacySafe/inbox.app.privacysafe.io",
+
+  "components": {
+    "/index.html": {
+      "startedBy": "user",
+      "runtime": "web-gui",
+      "formFactor": ["desktop", "tablet"],
+      "capsRequested": {
+        "apps": "opener",
+        "logout": "all",
+        "logToPlatform": true,
+        "mailerid": true,
+        "connectivity": "check",
+        "appRPC": ["AppInboxInternal"],
+        "shell": {
+          "fileDialog": "all",
+          "userNotifications": true,
+          "fsResource": {
+            "otherApps": {
+              "launcher.app.privacysafe.io": "ui-settings"
+            }
+          },
+          "openDashboard": true
+        },
+        "otherAppsRPC": [
+          {
+            "app": "contacts.app.privacysafe.io",
+            "service": "AppContacts"
+          }
+        ]
+      },
+      "windowOpts": {
+        "width": 1200,
+        "height": 680,
+        "minWidth": 1024,
+        "minHeight": 600,
+        "maxWidth": 1680
+      },
+      "startCmds": {
+        "open-inbox-with": {
+          "thisAppComponents": ["/background-instance.mjs"],
+          "otherApps": "*"
+        },
+        "open-inbox-msg": {
+          "thisAppComponents": ["/background-instance.mjs"]
+        }
+      }
+    },
+
+    "/index-mobile.html": {
+      "startedBy": "user",
+      "runtime": "web-gui",
+      "formFactor": "phone",
+      "capsRequested": {
+        "apps": "opener",
+        "logout": "all",
+        "logToPlatform": true,
+        "mailerid": true,
+        "connectivity": "check",
+        "appRPC": ["AppInboxInternal"],
+        "shell": {
+          "fileDialog": "all",
+          "userNotifications": true,
+          "fsResource": {
+            "otherApps": {
+              "launcher.app.privacysafe.io": "ui-settings"
+            }
+          },
+          "openDashboard": true
+        },
+        "otherAppsRPC": [
+          {
+            "app": "contacts.app.privacysafe.io",
+            "service": "AppContacts"
+          }
+        ]
+      },
+      "windowOpts": {
+        "width": 360,
+        "height": 768,
+        "minWidth": 360,
+        "minHeight": 768,
+        "maxWidth": 360,
+        "maxHeight": 768
+      },
+      "startCmds": {
+        "open-inbox-with": {
+          "thisAppComponents": ["/background-instance.mjs"],
+          "otherApps": "*"
+        },
+        "open-inbox-msg": {
+          "thisAppComponents": ["/background-instance.mjs"]
+        }
+      }
+    },
+
+    "/background-instance.mjs": {
+      "runtime": "deno",
+      "services": {
+        "AppInboxInternal": {
+          "thisAppComponents": ["/index.html", "/index-mobile.html"]
+        }
+      },
+      "capsRequested": {
+        "logToPlatform": true,
+        "mailerid": true,
+        "mail": {
+          "preflightsTo": "all",
+          "sendingTo": "all",
+          "receivingFrom": "all",
+          "config": "all"
+        },
+        "otherAppsRPC": [
+          {
+            "app": "contacts.app.privacysafe.io",
+            "service": "AppContacts"
+          }
+        ],
+        "storage": {
+          "appFS": "default"
+        },
+        "shell": {
+          "userNotifications": true,
+          "startAppCmds": {
+            "thisApp": ["open-inbox-with", "open-inbox-msg"]
+          },
+          "fsResource": {
+            "otherApps": {
+              "launcher.app.privacysafe.io": "ui-settings"
+            }
+          }
+        }
+      }
+    }
+  },
+
+  "launchers": [
+    {
+      "name": "Inbox",
+      "icon": "logo.png",
+      "description": "Send and receive encrypted messages with an improved version of email.",
+      "component": "/index.html",
+      "formFactor": ["desktop", "tablet"]
+    },
+    {
+      "name": "Inbox",
+      "icon": "logo.png",
+      "description": "Send and receive encrypted messages with an improved version of email.",
+      "component": "/index-mobile.html",
+      "formFactor": "phone"
+    }
+  ],
+
+  "launchOnSystemStartup": [
+    {
+      "name": "Inbox background service",
+      "component": "/background-instance.mjs",
+      "icon": "logo.png",
+      "description": "Starts background process to receive mail and show notifications when new messages arrive"
+    }
+  ]
+}

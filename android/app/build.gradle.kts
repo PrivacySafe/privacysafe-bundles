@@ -1,0 +1,159 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+plugins {
+  alias(libs.plugins.android.application)
+  alias(libs.plugins.kotlin.compose)
+  kotlin("plugin.serialization") version "2.3.20"
+}
+
+android {
+  namespace = "app.privacysafe"
+  compileSdk = 36
+
+  fun readVersionCodeFromFileOr(testVersion: Int): Int {
+    val versionCodeFile = "app/version-code"
+    return try {
+      File(versionCodeFile).readText().trim().toInt()
+    } catch (_: Throwable) {
+      println("Version code wasn't read from file $versionCodeFile, using default value $testVersion")
+      testVersion
+    }
+  }
+
+  fun readVersionNameFromFileOr(testVersion: String): String {
+    val versionNameFile = "app/version-name"
+    return try {
+      File(versionNameFile).readText()
+    } catch (_: Throwable) {
+      println("Version name wasn't read from file $versionNameFile, using default value $testVersion")
+      testVersion
+    }
+  }
+
+  fun enableR8inBuild(): Boolean {
+    val enableR8NameFile = "app/enable-r8-minifications"
+    val flag = try {
+      File(enableR8NameFile).readText().trim()
+    } catch (_: Throwable) {
+      println("File $enableR8NameFile not found")
+      return false
+    }
+    return (flag == "true")
+  }
+
+  defaultConfig {
+    applicationId = "app.privacysafe"
+    minSdk = 29
+    targetSdk = 36
+    versionCode = readVersionCodeFromFileOr(1)
+    versionName = readVersionNameFromFileOr("1.0.0")
+
+//    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+  }
+
+  val keyFileName = "release.jks"
+  fun keyFilePresent(): Boolean {
+    return File("app/$keyFileName").isFile
+  }
+
+  signingConfigs {
+    create("release") {
+      keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+      keyPassword = System.getenv("RELEASE_KEY_PASS")
+      storeFile = file(keyFileName)
+      storePassword = System.getenv("RELEASE_JKS_PASS")
+      enableV1Signing = true
+      enableV2Signing = true
+      enableV3Signing = true
+    }
+  }
+
+  buildTypes {
+    release {
+      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+      if (keyFilePresent()) {
+        println("Key file found, and signing is enabled for this release build")
+        signingConfig = signingConfigs.getByName("release")
+      } else {
+        println("Key file is not found, and signing is not enabled for this release build")
+      }
+      isDebuggable = false
+      if (enableR8inBuild()) {
+        println("R8 optimizations and minifications are enabled for this release build")
+        isMinifyEnabled = true
+        isShrinkResources = true
+        optimization {
+          enable = true
+        }
+      } else {
+        println("R8 optimizations and minifications are not enabled for this release build")
+        isMinifyEnabled = false
+      }
+    }
+  }
+
+  compileOptions {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+  }
+
+  buildFeatures {
+    compose = true
+  }
+
+  // === Task(s) to copy bundle things before Android's build
+
+  val tsProjPath = "../platform-ts"
+  val assetsPath = "src/main/assets"
+
+  fun registerCopyTask(taskName: String, src: String, dst: String, vararg includes: String) {
+    val clearingTask = "clearBefore$taskName"
+    //noinspection WrongGradleMethod
+    tasks.register<Delete>(clearingTask) {
+      description = "Clear $dst before copying stuff from $src"
+			delete(dst)
+    }
+    //noinspection WrongGradleMethod
+    tasks.register<Copy>(taskName) {
+      description = "Copies contents of $src into $dst"
+      dependsOn(clearingTask)
+      from(src) {
+        include(*includes)
+      }
+      into(dst)
+    }
+  }
+
+  val bundleJSEnginePreloads = "bundleJSEnginePreloads"
+  registerCopyTask(bundleJSEnginePreloads, "$tsProjPath/dist/jsengine", "$assetsPath/scripts-jsengine", "*.js")
+
+  val bundleWebViewPreloads = "bundleWebViewPreloads"
+  registerCopyTask(bundleWebViewPreloads, "$tsProjPath/dist/webview", "$assetsPath/scripts-webview", "*.js")
+
+  val bundleSystemApps = "bundleSystemApps"
+  registerCopyTask(bundleSystemApps, "$tsProjPath/dist/bundled-apps", "$assetsPath/bundled-apps", "**/*")
+
+  val bundleAppPacks = "bundleAppPacks"
+  registerCopyTask(bundleAppPacks, "$tsProjPath/dist/bundled-app-packs", "$assetsPath/bundled-app-packs", "**/*")
+
+  tasks.preBuild.configure {
+    dependsOn(bundleJSEnginePreloads, bundleWebViewPreloads, bundleSystemApps, bundleAppPacks)
+  }
+
+  buildToolsVersion = "36.1.0"
+}
+
+dependencies {
+  implementation(libs.androidx.core.ktx)
+  implementation(libs.androidx.lifecycle.runtime.ktx)
+  implementation(libs.androidx.activity.compose)
+  implementation(libs.androidx.webkit)
+  implementation(libs.androidx.javascriptengine)
+  implementation(libs.kotlinx.coroutines.guava)
+  implementation(libs.kotlinx.serialization.json)
+  implementation(libs.kotlinx.serialization.protobuf)
+  implementation(libs.okhttp)
+
+  implementation(libs.journey.zxing.embedded)
+  implementation(libs.google.zxing.core)
+}

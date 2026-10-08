@@ -1,0 +1,282 @@
+@font-face {
+  font-family: Inter;
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../fonts/InterVariable.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: Inter;
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../fonts/InterVariable-Italic.woff2") format("woff2");
+}
+
+@font-feature-values Inter {
+  @character-variant {
+    cv01: 1;
+    cv02: 2;
+    cv03: 3;
+    cv04: 4;
+    cv05: 5;
+    cv06: 6;
+    cv07: 7;
+    cv08: 8;
+    cv09: 9;
+    cv10: 10;
+    cv11: 11;
+    cv12: 12;
+    cv13: 13;
+    alt-1: 1; /* Alternate one */
+    alt-3: 9; /* Flat-top three */
+    open-4: 2; /* Open four */
+    open-6: 3; /* Open six */
+    open-9: 4; /* Open nine */
+    lc-l-with-tail: 5; /* Lower-case L with tail */
+    simplified-u: 6; /* Simplified u */
+    alt-double-s: 7; /* Alternate German double s */
+    uc-i-with-serif: 8; /* Upper-case i with serif */
+    uc-g-with-spur: 10; /* Capital G with spur */
+    single-story-a: 11; /* Single-story a */
+    compact-lc-f: 12; /* Compact f */
+    compact-lc-t: 13; /* Compact t */
+  }
+  @styleset {
+    ss01: 1;
+    ss02: 2;
+    ss03: 3;
+    ss04: 4;
+    ss05: 5;
+    ss06: 6;
+    ss07: 7;
+    ss08: 8;
+    open-digits: 1;                /* Open digits */
+    disambiguation: 2;             /* Disambiguation (with zero) */
+    disambiguation-except-zero: 4; /* Disambiguation (no zero) */
+    round-quotes-and-commas: 3;    /* Round quotes &amp; commas */
+    square-punctuation: 7;         /* Square punctuation */
+    square-quotes: 8;              /* Square quotes */
+    circled-characters: 5;         /* Circled characters */
+    squared-characters: 6;         /* Squared characters */
+  }
+}
+
+html {
+  --column-size: 95px;
+
+  overflow: hidden;
+
+  /*
+    Inherited by what the library appends straight to the body - tooltips
+    (.ui3n-title) above all. Until 0.3.50 the library's variables.css set this
+    on html itself; now nothing does, and the app roots below are not the
+    tooltips' parent.
+  */
+  font-family: Inter, system-ui, sans-serif;
+}
+
+body {
+  position: relative;
+}
+
+section,
+div {
+  box-sizing: border-box;
+}
+
+#main,
+#mobile,
+#video-main,
+#video-mobile {
+  position: fixed;
+  inset: 0;
+  background-color: var(--color-bg-block-primary-default);
+  font-family: Inter, system-ui, sans-serif;
+}
+
+#ui3n-notifications-container {
+  font-family: Inter, system-ui, sans-serif;
+}
+
+.app-init {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.app-init-stage {
+  position: relative;
+  width: 360px;
+  height: 360px;
+}
+
+.app-init-stage--mobile {
+  position: relative;
+  width: 280px;
+  height: 280px;
+}
+
+.app-logo-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80px;
+  height: 80px;
+  z-index: 10;
+}
+
+/*
+ * What the splash says when the background service is slow or gone. Kept with
+ * the splash rather than in a component, because it has to work before Vue is
+ * mounted - which is exactly the case it exists for (see
+ * common/services/startup-failure-screen.ts).
+ */
+.app-init-message {
+  position: absolute;
+  top: calc(50% + 64px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  width: 320px;
+  text-align: center;
+  font-family: OpenSans, sans-serif;
+  font-size: var(--font-14, 14px);
+  line-height: 1.45;
+  color: var(--color-text-block-primary-default, #444);
+}
+
+.app-init-message__title {
+  font-size: var(--font-16, 16px);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.app-init-message__details {
+  opacity: 0.75;
+  word-break: break-word;
+}
+
+.app-init-message__actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.app-init-btn {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 4px;
+  font-family: OpenSans, sans-serif;
+  font-size: var(--font-13, 13px);
+  cursor: pointer;
+  background-color: var(--color-bg-control-primary-default, #0090ec);
+  color: var(--color-text-control-primary-default, #fff);
+}
+
+.app-init-btn:hover {
+  background-color: var(--color-bg-control-primary-hover, #007ad0);
+}
+
+.app-init-btn--secondary {
+  background-color: var(--color-bg-control-secondary-default, #d6d6d6);
+  color: var(--color-text-control-secondary-default, #444);
+}
+
+.app-init-btn--secondary:hover {
+  background-color: var(--color-bg-control-secondary-hover, #c4c4c4);
+}
+
+.rings-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.ring {
+  fill: none;
+  stroke-linecap: round;
+}
+
+.ring-1 {
+  stroke: #ff4010;
+  stroke-width: 3;
+  opacity: 0.95;
+}
+
+.ring-2 {
+  stroke: #ff5520;
+  stroke-width: 1.5;
+  opacity: 0.55;
+}
+
+.ring-3 {
+  stroke: #ff6830;
+  stroke-width: 1;
+  opacity: 0.3;
+}
+
+.ring-4 {
+  stroke: #ff3000;
+  stroke-width: 2;
+  opacity: 0.7;
+}
+
+.rings-group-1 {
+  transform-origin: 180px 180px;
+  animation: rotate-cw 12s linear infinite;
+}
+
+.rings-group-2 {
+  transform-origin: 180px 180px;
+  animation: rotate-ccw 18s linear infinite;
+}
+
+.rings-group-3 {
+  transform-origin: 180px 180px;
+  animation: rotate-cw 24s linear infinite;
+}
+
+@keyframes rotate-cw {
+  from {
+    transform: rotate(0deg)
+  }
+  
+  to {
+    transform: rotate(360deg)
+  }
+}
+
+@keyframes rotate-ccw {
+  from {
+    transform: rotate(0deg)
+  }
+  
+  to {
+    transform: rotate(-360deg)
+  }
+}
+
+
+.v-enter-active,
+.v-leave-active {
+  transition: opacity 0.2s ease-in-out;
+}
+
+.v-enter-from,
+.v-leave-to {
+  opacity: 0;
+}
+
+[data-icon='host-outline-rounded'] {
+  --svg: url('../images/host-outline-rounded.svg');
+}
+

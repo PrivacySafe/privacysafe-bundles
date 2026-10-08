@@ -1,0 +1,15 @@
+allowBuilds:
+  '@parcel/watcher': true
+  core-js: true
+  deasync: true
+  electron: true
+  unrs-resolver: true
+  vue-demi: true
+minimumReleaseAgeExclude:
+  - '@intlify/core-base@11.4.10'
+  - '@intlify/devtools-types@11.4.10'
+  - '@intlify/message-compiler@11.4.10'
+  - '@intlify/shared@11.4.10'
+  - vue-i18n@11.4.10
+  - '@v1nt1248/3nclient-lib@0.3.50'
+  - prettier@3.9.8

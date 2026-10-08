@@ -1,0 +1,14 @@
+@mixin text-overflow-ellipsis($width: 100%) {
+  max-width: $width;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+// --shadow-key-* are defined per theme: black tints in the light one, white
+// tints in the dark ones. A fixed black would disappear against a dark block.
+@mixin block-shadow {
+  box-shadow: 0 3px 3px -2px var(--shadow-key-1),
+  0 3px 4px 0 var(--shadow-key-2),
+  0 1px 8px 0 var(--shadow-key-3);
+}

@@ -1,0 +1,169 @@
+{
+  "name": "Storage",
+  "appDomain": "files.app.privacysafe.io",
+  "icon": "logo.png",
+  "description": "Feature-rich file manager for secure storage of your digital assets.",
+  "version": "0.8.10",
+  "publisher": "Ivy Cyber",
+  "website": "https://privacysafe.app",
+  "contact": "support@ivycyber.com",
+  "policy": "https://ivycyber.com/privacy",
+  "terms": "https://ivycyber.com/terms",
+  "license": "AGPL-3.0-or-later",
+  "source": "https://github.com/PrivacySafe/storage.app.privacysafe.io",
+
+  "components": {
+    "/index.html": {
+      "startedBy": "user",
+      "runtime": "web-gui",
+      "formFactor": ["desktop", "tablet"],
+      "capsRequested": {
+        "apps": "opener",
+        "logToPlatform": true,
+        "mailerid": true,
+        "shell": {
+          "fileDialog": "all",
+          "clipboard": "all",
+          "userNotifications": true,
+          "fsResource": {
+            "otherApps": {
+              "launcher.app.privacysafe.io": "ui-settings"
+            }
+          },
+          "openDashboard": true,
+          "openFile": "all",
+          "mounts": "any",
+          "openInMountedFolder": "all"
+        },
+        "storage": {
+          "appFS": "default",
+          "userFS": "all",
+          "sysFS": "all"
+        },
+        "appRPC": ["AppStorageInternal"],
+        "connectivity": "check"
+      },
+      "windowOpts": {
+        "width": 1200,
+        "height": 680,
+        "minWidth": 1024,
+        "minHeight": 600,
+        "maxWidth": 1680
+      }
+    },
+
+    "/index-file-picker.html": {
+      "startedBy": "user",
+      "runtime": "web-gui",
+      "formFactor": ["desktop", "tablet"],
+      "capImpls": ["w3n.shell.fileDialogs.openFileDialog", "w3n.shell.fileDialogs.saveFileDialog"],
+      "childOfGUICaller": true,
+      "forOneConnectionOnly": true,
+      "capsRequested": {
+        "logToPlatform": true,
+        "shell": {
+          "clipboard": "all",
+          "fsResource": {
+            "otherApps": {
+              "launcher.app.privacysafe.io": "ui-settings"
+            }
+          }
+        },
+        "storage": {
+          "appFS": "default",
+          "userFS": "all",
+          "sysFS": "all"
+        },
+        "appRPC": ["AppStorageInternal"]
+      },
+      "windowOpts": {
+        "width": 800,
+        "height": 550,
+        "minWidth": 600,
+        "minHeight": 550,
+        "maxWidth": 1200,
+        "modal": true
+      }
+    },
+
+    "/index-file-picker-mobile.html": {
+      "startedBy": "user",
+      "runtime": "web-gui",
+      "formFactor": "phone",
+      "capImpls": ["w3n.shell.fileDialogs.openFileDialog", "w3n.shell.fileDialogs.saveFileDialog"],
+      "childOfGUICaller": true,
+      "forOneConnectionOnly": true,
+      "capsRequested": {
+        "logToPlatform": true,
+        "shell": {
+          "clipboard": "all",
+          "fsResource": {
+            "otherApps": {
+              "launcher.app.privacysafe.io": "ui-settings"
+            }
+          },
+          "openDashboard": true
+        },
+        "storage": {
+          "appFS": "default",
+          "userFS": "all",
+          "sysFS": "all"
+        },
+        "appRPC": ["AppStorageInternal"]
+      },
+      "windowOpts": {
+        "width": 360,
+        "height": 768,
+        "minWidth": 360,
+        "minHeight": 768,
+        "maxWidth": 360,
+        "maxHeight": 768
+      }
+    },
+
+    "/storageDenoServices.js": {
+      "services": {
+        "AppStorageInternal": {
+          "thisAppComponents": "*"
+        }
+      },
+      "runtime": "deno",
+      "capsRequested": {
+        "appRPC": ["AppStorageInternal"],
+        "logToPlatform": true,
+        "mailerid": true,
+        "shell": {
+          "fileDialog": "all",
+          "userNotifications": true,
+          "openFile": "all",
+          "mountVolumes": "all"
+        },
+        "storage": {
+          "appFS": "default",
+          "userFS": "all",
+          "sysFS": "all"
+        },
+        "connectivity": "check"
+      }
+    }
+  },
+
+  "launchers": [
+    {
+      "name": "Storage",
+      "icon": "logo.png",
+      "description": "Feature-rich file manager for secure storage of your digital assets.",
+      "component": "/index.html",
+      "formFactor": ["desktop", "tablet"]
+    }
+  ],
+
+  "launchOnSystemStartup": [
+    {
+      "name": "Storage service",
+      "component": "/storageDenoServices.js.js",
+      "icon": "logo.png",
+      "description": "Feature-rich file manager for secure storage of your digital assets."
+    }
+  ]
+}
