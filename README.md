@@ -24,7 +24,7 @@ PrivacySafe is Free/Libre and Open Source Software (FLOSS). This repository is p
 
 Published informational artifacts are stored under [`bundles/`](bundles/). These files, for android and desktop, point to versions of respective platforms and 3NWeb app versions that comprise each bundle.
 
-Plaform and bundled apps' sources are published in [Codeberg](https://codeberg.org/PrivacySafe) and [Github](https://github.com/PrivacySafe). `tools/` contains easy scripts to collect these for bundling.
+Plaform and bundled apps' sources are published in [Codeberg](https://codeberg.org/PrivacySafe) and [Github](https://github.com/PrivacySafe). `tools/` contains easy scripts to collect these for bundling ([see notes](tools/README.md)).
 
 GitHub Releases have both collected sources for given bundle version and relevant build artifacts, like signed `apk` for Android.
 
