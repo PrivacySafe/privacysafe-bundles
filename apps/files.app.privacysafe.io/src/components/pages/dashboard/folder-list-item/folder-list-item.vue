@@ -19,8 +19,9 @@
   import { useI18n } from 'vue-i18n';
   import { storeToRefs } from 'pinia';
   import startsWith from 'lodash/startsWith';
-  import { Ui3nIcon } from '@v1nt1248/3nclient-lib';
-  import { useSyncQueueStore } from '@/store';
+  import { Ui3nButton, Ui3nIcon, Ui3nTooltip } from '@v1nt1248/3nclient-lib';
+  import { useFsStore, useSyncQueueStore } from '@/store';
+  import { USER_FS } from '@shared/constants';
   import type { RootFsFolderView } from '@shared/types';
 
   const props = defineProps<{
@@ -35,6 +36,35 @@
   const { t } = useI18n();
 
   const { rootFolderSyncStatus, trashFolderSyncStatus } = storeToRefs(useSyncQueueStore());
+
+  const fsStore = useFsStore();
+  const { fsMountStatus, fsMountBusy } = storeToRefs(fsStore);
+  const showMountStatus = computed(
+    () => props.folder.id === `${props.folder.fsId}-root` && fsStore.canMountFs(props.folder.fsId),
+  );
+  const isMounted = computed(() => fsMountStatus.value[props.folder.fsId] === 'mounted');
+  const showMountControl = computed(() => showMountStatus.value && props.folder.fsId === USER_FS);
+  const mountBusy = computed(() => !!fsMountBusy.value[props.folder.fsId]);
+  const mountDisabled = computed(() => !!(props.folder.disabled || props.disabled || mountBusy.value));
+  const mountActionLabel = computed(() =>
+    t(isMounted.value ? 'fs.mount.button.unmount' : 'fs.mount.button.mount'),
+  );
+
+  async function toggleMount(): Promise<void> {
+    if (!showMountControl.value || mountDisabled.value) {
+      return;
+    }
+
+    await fsStore.setFsMounted(props.folder.fsId, !isMounted.value);
+  }
+
+  const folderIcon = computed(() => {
+    if (showMountStatus.value && props.folder.fsId === USER_FS) {
+      return isMounted.value ? 'round-cloud' : 'outline-cloud';
+    }
+
+    return props.folder.icon;
+  });
 
   const isItemSystemFolder = computed(() => startsWith(props.folder?.id, 'system'));
   const showConflictingIcon = computed(
@@ -55,7 +85,7 @@
     @click="emits('select', folder)"
   >
     <ui3n-icon
-      :icon="folder.icon"
+      :icon="folderIcon"
       :size="16"
       :color="
         isSelected ? 'var(--color-icon-control-accent-default)' : 'var(--color-icon-control-secondary-default)'
@@ -73,6 +103,33 @@
       color="var(--color-icon-control-warning-default)"
       :class="$style.status"
     />
+
+    <span
+      v-if="showMountControl"
+      :class="[$style.mountTrigger, $style.mountTriggerRight]"
+      @click.stop
+      @dblclick.stop
+    >
+      <ui3n-tooltip
+        :content="mountActionLabel"
+        placement="left"
+        trigger="hover"
+      >
+        <ui3n-button
+          :class="$style.mountButton"
+          type="custom"
+          color="transparent"
+          :icon="isMounted ? 'round-eject' : 'round-play-arrow'"
+          icon-size="20"
+          :icon-color="
+            isSelected ? 'var(--color-icon-control-accent-default)' : 'var(--color-icon-control-secondary-default)'
+          "
+          :disabled="mountDisabled"
+          :aria-label="mountActionLabel"
+          @click="toggleMount"
+        />
+      </ui3n-tooltip>
+    </span>
   </div>
 </template>
 
@@ -125,16 +182,49 @@
     }
   }
 
+  .mountTrigger {
+    display: inline-flex;
+    flex: 0 0 24px;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mountButton {
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 !important;
+    margin: 0 !important;
+
+    &:focus-visible {
+      outline: 2px solid var(--color-icon-control-accent-default);
+      outline-offset: 1px;
+    }
+
+    &:hover {
+      opacity: 0.5;
+    }
+
+    span {
+      display: none !important;
+    }
+  }
+
+  .mountTriggerRight {
+    margin-left: auto;
+  }
+
   .name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-size: var(--font-13);
     font-weight: 600;
     color: var(--color-text-control-primary-default);
   }
 
   .status {
-    position: absolute;
-    top: 10px;
-    right: var(--spacing-s);
-    z-index: 1;
+    flex-shrink: 0;
   }
 </style>

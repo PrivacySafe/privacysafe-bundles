@@ -7,14 +7,14 @@
   },
   "app-packs": {
     "chat.app.privacysafe.io": "0.12.29",
-    "contacts.app.privacysafe.io": "0.8.47",
-    "files.app.privacysafe.io": "0.8.10",
+    "contacts.app.privacysafe.io": "0.8.48",
+    "files.app.privacysafe.io": "0.8.11",
     "inbox.app.privacysafe.io": "0.3.47",
-    "treasure.app.privacysafe.io": "0.2.7"
+    "treasure.app.privacysafe.io": "0.2.8"
   },
   "date": "26.10",
-  "buildNum": 18,
-  "bundleId": "26.10-0.21.24.18",
-  "versionCode": 12610018,
-  "versionName": "26.10-0.21.24.18"
+  "buildNum": 19,
+  "bundleId": "26.10-0.21.24.19",
+  "versionCode": 12610019,
+  "versionName": "26.10-0.21.24.19"
 }

@@ -220,6 +220,7 @@ export const en = {
             'Error while downloading the selected object. | Error while downloading the selected objects ({count}).',
           copy: 'Error while copying the selected object. | Error while copying the selected objects ({count}).',
           move: 'Error while moving the selected object. | Error while moving the selected objects ({count}).',
+          open: 'Could not open "{name}"',
         },
       },
     },
@@ -246,6 +247,24 @@ export const en = {
       warning2: 'This action cannot be undone.',
       button: {
         confirm: 'Delete Completely',
+      },
+    },
+    mount: {
+      button: {
+        busy: 'Please wait…',
+        mount: 'Mount',
+        unmount: 'Unmount',
+      },
+      message: {
+        success: {
+          mount: 'Folder is mounted',
+          unmount: 'Folder is unmounted',
+        },
+        error: {
+          mount: 'Unable to mount folder',
+          unmount: 'Unable to unmount folder',
+          unmount_unconfirmed: 'Could not confirm that the folder was unmounted. Please check your file manager.',
+        },
       },
     },
   },

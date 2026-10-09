@@ -24,6 +24,7 @@
   import { useDashboard } from '@/composables/useDashboard';
   import { useAbilities } from '@/composables/useAbilities';
   import { useRunModeInfoStore, useSyncQueueStore } from '@/store';
+  import FsMountControl from '@/components/pages/dashboard/fs-mount-control.vue';
   import FolderListItem from '@/components/pages/dashboard/folder-list-item/folder-list-item.vue';
   import FavoriteListItem from '@/components/pages/dashboard/favorite-list-item/favorite-list-item.vue';
   import DashboardToolbar from '@/components/common/dashboard-toolbar/dashboard-toolbar.vue';
@@ -156,6 +157,7 @@
               :is-selected="isFolderSelected(folder)"
               @select="selectFolder"
             />
+            <fs-mount-control :fs-id="folder.fsId" />
           </template>
         </div>
 
