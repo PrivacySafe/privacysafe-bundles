@@ -9,8 +9,11 @@
     {
       props: () => ({
         thumbMinHeight: 32,
-        thumbActiveColor: 'var(--color-bg-control-accent-hover)',
+        thumbColor: '#6ec1e4',
+        thumbHoverColor: '#89d4f0',
+        thumbActiveColor: '#fb521f',
         trackWidth: 8,
+        trackColor: 'transparent',
       }),
     },
   );
