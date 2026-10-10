@@ -66,7 +66,7 @@
     }
 
     // Save mode keeps its existing file-selection behavior so selecting an
-    // existing file can populate saveFileName before Save/collision handling.
+    // existing file can populate saveName before Save/collision handling.
     toggleRowSelection();
   }
 </script>

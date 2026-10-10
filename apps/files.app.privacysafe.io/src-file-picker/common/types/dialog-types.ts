@@ -1,6 +1,8 @@
 export interface DialogResultMap {
   openFile: web3n.files.ReadonlyFile[];
   saveFile: web3n.files.WritableFile;
+  openFolder: web3n.files.WritableFS[];
+  saveFolder: web3n.files.WritableFS;
 }
 
 export type DialogMode = keyof DialogResultMap;

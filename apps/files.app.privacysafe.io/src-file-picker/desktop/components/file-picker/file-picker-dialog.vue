@@ -23,24 +23,33 @@
   const tableComponent = ref<Nullable<PickerTableComponent>>(null);
   const selectedRows = computed(() => tableComponent.value?.selectedRowsArray || ([] as PickerTableRow[]));
 
-  const { handleConfirm, handleRowConfirm, handleCancel } = usePickerDialogActions(
+  const { handleConfirm, handleRowConfirm, handleCancel, handleNewFolder } = usePickerDialogActions(
     dialogRequest,
     picker,
     selectedRows,
   );
+
+  const displayTitle = computed(() => {
+    if (dialogRequest.title) {
+      return dialogRequest.title;
+    }
+    if (dialogRequest.mode === 'saveFolder') {
+      return t('file_picker.header.save_folder');
+    }
+    if (dialogRequest.mode === 'openFolder') {
+      return t('file_picker.header.select_folder');
+    }
+    return t(picker.isSaveMode.value ? 'file_picker.header.save_file' : 'file_picker.header.select_file');
+  });
 </script>
 
 <template>
-  <div :class="$style.filePickerDialog">
+  <div
+    :class="$style.filePickerDialog"
+    :inert="picker.isBusy.value"
+  >
     <header :class="$style.customTitle">
-      <h3>
-        {{
-          dialogRequest.title ||
-            (dialogRequest.mode === 'saveFile'
-              ? t('file_picker.header.save_file')
-              : t('file_picker.header.select_file'))
-        }}
-      </h3>
+      <h3>{{ displayTitle }}</h3>
     </header>
 
     <div :class="$style.mainContent">
@@ -49,7 +58,7 @@
       </aside>
 
       <section :class="$style.workspace">
-        <picker-breadcrumb />
+        <picker-breadcrumb @new-folder="handleNewFolder" />
 
         <div :class="$style.content">
           <picker-file-list

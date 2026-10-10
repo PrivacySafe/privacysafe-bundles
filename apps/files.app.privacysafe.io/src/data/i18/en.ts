@@ -272,6 +272,8 @@ export const en = {
     header: {
       select_file: 'Select Files',
       save_file: 'Save Files',
+      select_folder: 'Select folder',
+      save_folder: 'Save folder',
     },
     message_status: {
       loading: 'Loading...',
@@ -285,6 +287,10 @@ export const en = {
       proceed: 'Proceed',
       next: 'Next',
       enter: 'Enter',
+      new_folder: 'New Folder',
+      create: 'Create',
+      use_folder: 'Use folder',
+      select_this_folder: 'Select this folder',
     },
     selected_items: 'Items selected',
     sidebar_title: 'Browse',
@@ -296,6 +302,12 @@ export const en = {
         save_file: 'Failed to save file',
         open_file: 'Failed to open the selected file',
         folder_name_collision: 'A folder with that name already exists. Please choose a different name.',
+        open_folder: 'Failed to open folder.',
+        save_folder: 'Failed to prepare folder for saving.',
+        create_folder: 'Failed to create folder. Check the name and your access to this location.',
+        folder_create_conflict: 'An item with this name already exists. Choose another name.',
+        folder_target_conflict: 'A file or link with this name already exists. Choose another folder name.',
+        folder_unavailable: 'This folder is no longer available. Choose another folder.',
       },
       success: {
         save_file: 'File saved successfully',
@@ -310,6 +322,12 @@ export const en = {
       system_synced: 'System Synced',
       system_local: 'System Local',
       device_system: 'Device System',
+    },
+    folder_name: 'Folder name',
+    folder_name_empty_hint: 'Leave blank to use the current folder.',
+    folder_exists: {
+      title: 'Use existing folder',
+      message: 'A folder named "{name}" already exists. Use this folder? Existing contents will be kept.',
     },
   },
 };

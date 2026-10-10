@@ -3,7 +3,7 @@
   "appDomain": "files.app.privacysafe.io",
   "icon": "logo.png",
   "description": "Feature-rich file manager for secure storage of your digital assets.",
-  "version": "0.8.11",
+  "version": "0.8.12",
   "publisher": "Ivy Cyber",
   "website": "https://privacysafe.app",
   "contact": "support@ivycyber.com",
@@ -56,7 +56,12 @@
       "startedBy": "user",
       "runtime": "web-gui",
       "formFactor": ["desktop", "tablet"],
-      "capImpls": ["w3n.shell.fileDialogs.openFileDialog", "w3n.shell.fileDialogs.saveFileDialog"],
+      "capImpls": [
+        "w3n.shell.fileDialogs.openFileDialog",
+        "w3n.shell.fileDialogs.saveFileDialog",
+        "w3n.shell.fileDialogs.openFolderDialog",
+        "w3n.shell.fileDialogs.saveFolderDialog"
+      ],
       "childOfGUICaller": true,
       "forOneConnectionOnly": true,
       "capsRequested": {
@@ -90,7 +95,12 @@
       "startedBy": "user",
       "runtime": "web-gui",
       "formFactor": "phone",
-      "capImpls": ["w3n.shell.fileDialogs.openFileDialog", "w3n.shell.fileDialogs.saveFileDialog"],
+      "capImpls": [
+        "w3n.shell.fileDialogs.openFileDialog",
+        "w3n.shell.fileDialogs.saveFileDialog",
+        "w3n.shell.fileDialogs.openFolderDialog",
+        "w3n.shell.fileDialogs.saveFolderDialog"
+      ],
       "childOfGUICaller": true,
       "forOneConnectionOnly": true,
       "capsRequested": {

@@ -63,9 +63,38 @@ function createSaveFileHandler(dialogRequest: DialogRequestState): web3n.shell.f
     });
 }
 
+function createOpenFolderHandler(dialogRequest: DialogRequestState): web3n.shell.files.OpenFolderDialog {
+  return (title, btnLabel, multiSelections, opts) =>
+    new Promise<web3n.files.WritableFS[] | undefined>(resolve => {
+      beginDialogRequest(dialogRequest, 'openFolder', resolve, {
+        title,
+        btnLabel: btnLabel || '',
+        multiSelections,
+        filters: opts?.filters,
+      });
+    });
+}
+
+function createSaveFolderHandler(dialogRequest: DialogRequestState): web3n.shell.files.SaveFolderDialog {
+  return (title, btnLabel, defaultPath, opts) =>
+    new Promise<web3n.files.WritableFS | undefined>(resolve => {
+      beginDialogRequest(dialogRequest, 'saveFolder', resolve, {
+        title,
+        btnLabel: btnLabel || '',
+        defaultPath,
+        filters: opts?.filters,
+      });
+    });
+}
+
 export function registerDialogCapabilities(dialogRequest: DialogRequestState) {
   w3n.rpc!.provideCAPtoSystem!('w3n.shell.fileDialogs.openFileDialog', createOpenFileHandler(dialogRequest));
+
   w3n.rpc!.provideCAPtoSystem!('w3n.shell.fileDialogs.saveFileDialog', createSaveFileHandler(dialogRequest));
+
+  w3n.rpc!.provideCAPtoSystem!('w3n.shell.fileDialogs.openFolderDialog', createOpenFolderHandler(dialogRequest));
+
+  w3n.rpc!.provideCAPtoSystem!('w3n.shell.fileDialogs.saveFolderDialog', createSaveFolderHandler(dialogRequest));
 }
 
 export function settleDialog(dialogRequest: DialogRequestState, result: DialogResult) {

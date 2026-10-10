@@ -25,7 +25,9 @@
   const tableComponent = ref<Nullable<PickerTableComponent>>(null);
 
   const visibleEntries = computed(() =>
-    filterPickerFilesByType(picker.currentWindow.value.entries, dialogRequest?.filters),
+    picker.isFolderMode.value
+      ? picker.currentWindow.value.entries.filter(entry => entry.isFolder)
+      : filterPickerFilesByType(picker.currentWindow.value.entries, dialogRequest?.filters),
   );
 
   const tableData = computed(() =>
@@ -46,7 +48,7 @@
 
     const fileRow = rows.find(row => !row.isFolder);
     if (fileRow) {
-      picker.saveFileName.value = fileRow.name;
+      picker.saveName.value = fileRow.name;
     }
   }
 

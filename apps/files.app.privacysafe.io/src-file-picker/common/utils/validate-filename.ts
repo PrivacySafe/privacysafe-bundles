@@ -11,7 +11,7 @@ const WINDOWS_RESERVED_FILE_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)
 export function isValidFileName(name: string): boolean {
   const trimmed = name.trim();
 
-  if (!trimmed) {
+  if (!trimmed || trimmed === '.' || trimmed === '..') {
     return false;
   }
 

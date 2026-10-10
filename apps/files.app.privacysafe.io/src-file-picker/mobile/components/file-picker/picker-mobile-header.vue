@@ -16,37 +16,61 @@
   const dialogs = inject<DialogsPlugin>(DIALOGS_KEY)!;
   const picker = usePickerState();
   const dialogRequest = inject(DIALOG_REQUEST_KEY);
-  const isSaveMode = computed(() => dialogRequest?.mode === 'saveFile');
+  const isSaveMode = picker.isSaveMode;
 
   const displayTitle = computed(() => {
+    if (dialogRequest?.mode === 'saveFolder') {
+      return picker.saveName.value
+        ? `${t('file_picker.footer.save_as')} ${picker.saveName.value}`
+        : dialogRequest.title || t('file_picker.header.save_folder');
+    }
     if (isSaveMode.value) {
-      const name = picker.saveFileName.value;
+      const name = picker.saveName.value;
       return name ? `${t('file_picker.footer.save_as')} ${name}` : t('file_picker.header.save_file');
     }
 
     const count = props.selectedRows.length;
-    if (count === 0) return dialogRequest?.title || t('file_picker.header.select_file');
-    if (count === 1)
-      return props.selectedRows[0].name || dialogRequest?.title || t('file_picker.header.select_file');
+    const fallbackTitle =
+      dialogRequest?.title ||
+      t(
+        dialogRequest?.mode === 'openFolder'
+          ? 'file_picker.header.select_folder'
+          : 'file_picker.header.select_file',
+      );
+    if (count === 0) {
+      return fallbackTitle;
+    }
+    if (count === 1) {
+      return props.selectedRows[0].name || fallbackTitle;
+    }
     return `${count} ${t('file_picker.selected_items')}`;
   });
 
   async function openRenameDialog() {
-    const component = defineAsyncComponent(() => import('@picker/mobile/dialogs/picker-mobile-rename-dialog.vue'));
-
-    const result = await dialogs.$openDialog(component, {
-      data: picker.saveFileName.value,
-      dialogProps: {
-        title: t('dialog.file_exist.button.rename'),
-        cssStyle: { maxHeight: '95%' },
-        closeOnClickOverlay: false,
-        confirmButton: false,
-        cancelButton: false,
-      },
-    });
-
-    if (result?.event === 'confirm' && result.data) {
-      picker.saveFileName.value = result.data as string;
+    if (picker.isBusy.value) {
+      return;
+    }
+    picker.isBusy.value = true;
+    try {
+      const isFolder = dialogRequest?.mode === 'saveFolder';
+      const component = isFolder
+        ? defineAsyncComponent(() => import('@picker/common/dialogs/folder-name-dialog.vue'))
+        : defineAsyncComponent(() => import('@picker/mobile/dialogs/picker-mobile-rename-dialog.vue'));
+      const result = await dialogs.$openDialog(component, {
+        data: isFolder ? { name: picker.saveName.value, allowEmpty: true } : picker.saveName.value,
+        dialogProps: {
+          title: t(isFolder ? 'file_picker.folder_name' : 'dialog.file_exist.button.rename'),
+          cssStyle: { maxHeight: '95%' },
+          closeOnClickOverlay: false,
+          confirmButton: false,
+          cancelButton: false,
+        },
+      });
+      if (result?.event === 'confirm' && typeof result.data === 'string') {
+        picker.saveName.value = result.data;
+      }
+    } finally {
+      picker.isBusy.value = false;
     }
   }
 </script>

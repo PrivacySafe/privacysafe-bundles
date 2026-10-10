@@ -51,6 +51,16 @@ export function usePickerHistory(picker: PickerStateApi, onExit: () => void) {
   );
 
   async function onPopState(e: PopStateEvent) {
+    if (picker.isBusy.value) {
+      history.pushState(
+        {
+          rootId: picker.activeRootId.value,
+          path: picker.currentWindow.value.currentPath,
+        } satisfies HistoryEntry,
+        '',
+      );
+      return;
+    }
     const entry = e.state as PickerHistoryEntry | null;
     if (isExitHistoryEntry(entry)) {
       onExit();

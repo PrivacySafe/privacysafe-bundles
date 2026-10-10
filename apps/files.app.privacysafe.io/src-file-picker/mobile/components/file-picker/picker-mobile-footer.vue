@@ -2,35 +2,21 @@
   import { computed, inject } from 'vue';
   import { Ui3nButton } from '@v1nt1248/3nclient-lib';
   import { usePickerState } from '@picker/common/composables/usePickerState';
+  import { usePickerConfirmState } from '@picker/common/composables/usePickerConfirmState';
   import { DIALOG_REQUEST_KEY } from '@picker/common/dialog-capabilities';
   import type { PickerTableRow } from '@picker/common/types';
-  import { useI18n } from 'vue-i18n';
-
-  const { t } = useI18n();
 
   const props = defineProps<{ selectedRows: PickerTableRow[] }>();
-
   const emit = defineEmits<{ confirm: [] }>();
 
   const picker = usePickerState();
   const dialogRequest = inject(DIALOG_REQUEST_KEY);
-  const isSaveMode = computed(() => dialogRequest?.mode === 'saveFile');
 
-  const selectedEntry = computed(() => (props.selectedRows.length === 1 ? props.selectedRows[0] : undefined));
-  const isSelectedFolder = computed(() => selectedEntry.value?.isFolder === true);
-  const isSaveNameValid = computed(() => picker.isSaveFileNameValid(picker.saveFileName.value));
-
-  const hasSelection = computed(
-    () =>
-      isSelectedFolder.value ||
-      (isSaveMode.value ? isSaveNameValid.value : props.selectedRows.some(row => !row.isFolder)),
+  const { hasSelection, confirmLabel } = usePickerConfirmState(
+    dialogRequest,
+    picker,
+    computed(() => props.selectedRows),
   );
-
-  const confirmLabel = computed(() => {
-    if (isSelectedFolder.value) return t('file_picker.button.proceed');
-    if (isSaveMode.value) return t('file_picker.button.save');
-    return dialogRequest?.btnLabel || t('file_picker.button.select');
-  });
 </script>
 
 <template>
