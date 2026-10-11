@@ -10,11 +10,11 @@
     "contacts.app.privacysafe.io": "0.8.49",
     "files.app.privacysafe.io": "0.8.12",
     "inbox.app.privacysafe.io": "0.3.48",
-    "treasure.app.privacysafe.io": "0.2.8"
+    "treasure.app.privacysafe.io": "0.2.7"
   },
   "date": "26.10",
-  "buildNum": 24,
-  "bundleId": "26.10-0.21.25.24",
-  "versionCode": 12610024,
-  "versionName": "26.10-0.21.25.24"
+  "buildNum": 23,
+  "bundleId": "26.10-0.21.25.23",
+  "versionCode": 12610023,
+  "versionName": "26.10-0.21.25.23"
 }

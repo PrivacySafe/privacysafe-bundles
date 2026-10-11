@@ -1,6 +1,6 @@
 {
   "name": "treasure.app.privacysafe.io",
-  "version": "0.2.8",
+  "version": "0.2.7",
   "private": true,
   "type": "module",
   "scripts": {
