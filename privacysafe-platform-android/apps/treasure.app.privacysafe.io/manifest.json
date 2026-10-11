@@ -1,0 +1,127 @@
+{
+  "name": "Treasure",
+  "appDomain": "treasure.app.privacysafe.io",
+  "version": "0.2.8",
+  "description": "The app for storing passwords securely.",
+  "icon": "logo.png",
+  "publisher": "Ivy Cyber",
+  "website": "https://privacysafe.app",
+  "contact": "support@ivycyber.com",
+  "policy": "https://ivycyber.com/privacy",
+  "terms": "https://ivycyber.com/terms",
+  "license": "AGPL-3.0-or-later",
+  "source": "https://github.com/PrivacySafe/treasure.app.privacysafe.io",
+
+  "components": {
+    "/index.html": {
+      "startedBy": "user",
+      "runtime": "web-gui",
+      "formFactor": ["desktop", "tablet"],
+      "capsRequested": {
+        "apps": "opener",
+        "logToPlatform": true,
+        "mailerid": true,
+        "keyrings": "all",
+        "shell": {
+          "fileDialog": "all",
+          "clipboard": "all",
+          "fsResource": {
+            "otherApps": {
+              "launcher.app.privacysafe.io": "ui-settings"
+            }
+          },
+          "openDashboard": true
+        },
+        "storage": {
+          "appFS": "default"
+        },
+        "appRPC": ["AppTreasureInternal"],
+        "connectivity": "check"
+      },
+      "windowOpts": {
+        "width": 1200,
+        "height": 680,
+        "minWidth": 1024,
+        "minHeight": 600,
+        "maxWidth": 1680
+      }
+    },
+
+    "/index-mobile.html": {
+      "startedBy": "user",
+      "runtime": "web-gui",
+      "formFactor": "phone",
+      "capsRequested": {
+        "apps": "opener",
+        "logToPlatform": true,
+        "mailerid": true,
+        "keyrings": "all",
+        "shell": {
+          "fileDialog": "all",
+          "clipboard": "all",
+          "fsResource": {
+            "otherApps": {
+              "launcher.app.privacysafe.io": "ui-settings"
+            }
+          },
+          "openDashboard": true
+        },
+        "storage": {
+          "appFS": "default"
+        },
+        "appRPC": ["AppTreasureInternal"],
+        "connectivity": "check"
+      }
+    },
+
+    "/treasureDenoServices.js": {
+      "services": {
+        "AppTreasure": {
+          "thisAppComponents": "*",
+          "otherApps": "*"
+        },
+        "AppTreasureInternal": {
+          "thisAppComponents": "*"
+        }
+      },
+      "runtime": "deno",
+      "capsRequested": {
+        "logToPlatform": true,
+        "mailerid": true,
+        "mail": {
+          "preflightsTo": "all"
+        },
+        "storage": {
+          "appFS": "default"
+        },
+        "connectivity": "check"
+      }
+    }
+  },
+
+  "launchers": [
+    {
+      "name": "Treasure",
+      "icon": "logo.png",
+      "description": "The app for storing passwords securely.",
+      "component": "/index.html",
+      "formFactor": ["desktop", "tablet"]
+    },
+    {
+      "name": "Treasure",
+      "icon": "logo.png",
+      "description": "The app for storing passwords securely.",
+      "component": "/index-mobile.html",
+      "formFactor": "phone"
+    }
+  ],
+
+  "launchOnSystemStartup": [
+    {
+      "name": "Treasure service",
+      "component": "/treasureDenoServices.js",
+      "icon": "logo.png",
+      "description": "Warms up the treasure app service"
+    }
+  ]
+}

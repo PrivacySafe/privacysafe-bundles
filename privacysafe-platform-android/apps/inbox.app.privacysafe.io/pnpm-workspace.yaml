@@ -1,0 +1,9 @@
+strictDepBuilds: false
+
+allowBuilds:
+  '@parcel/watcher': true
+  electron: true
+  vue-demi: true
+
+minimumReleaseAgeExclude:
+  - '@v1nt1248/3nclient-lib@0.4.4'

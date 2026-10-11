@@ -2,8 +2,13 @@
 
 
 info() {
-	jq -r $@ android/bundle-info.json
+	jq -r $@ bundle-info.json
 }
+
+if [ "$(info .type)" != "android" ]
+then
+	echo "Current folder for calling this should be android's bundle source folder with respective bundle-info.json present"
+fi
 
 mkdir_clean() {
 	local dir="$1"
@@ -18,7 +23,7 @@ build_app() {
 	local app_dir="$1"
 	local dst_dir="$2"
 	echo
-	echo "  🛠️  building $app_dir and palcing it into $dst_dir"
+	echo "  🛠️  building $app_dir and placing it into $dst_dir"
 	(cd "$app_dir"
 		pnpm install --frozen-lockfile || exit $?
 		pnpm run build || exit $?
@@ -32,7 +37,7 @@ echo
 echo "  1️⃣  system 3NWeb apps"
 for app in $(info .apps | jq -r keys[])
 do
-	dst_dir="android/platform-ts/dist/bundled-apps/$app"
+	dst_dir="platform-ts/dist/bundled-apps/$app"
 	build_app apps/$app $dst_dir || exit $?
 	(cd $dst_dir || exit $?
 		node "../../../../../tools/hash-content.cjs" manifest.json app > content.json || exit $?
@@ -43,7 +48,7 @@ echo
 echo "  2️⃣  bundled 3NWeb apps"
 for app in $(info '."app-packs"' | jq -r keys[])
 do
-	dst_dir="android/platform-ts/dist/bundled-app-packs/$app"
+	dst_dir="platform-ts/dist/bundled-app-packs/$app"
 	build_app apps/$app $dst_dir || exit $?
 	(cd $dst_dir || exit $?
 		node "../../../../../tools/hash-content.cjs" manifest.json app > content.json || exit $?
@@ -52,7 +57,7 @@ done
 
 echo
 echo "  3️⃣ prep platform's TypeScript code parts"
-(cd android/platform-ts
+(cd platform-ts
 	npm ci || exit $?
 	npm run compile all || exit $?
 ) || exit $?

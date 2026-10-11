@@ -65,13 +65,14 @@ then
 	download_from "$platform_repo" "v$(info .platform)" "$platform_dir" || exit $?
 fi
 cat "$bundle_info_file" > "$platform_dir/bundle-info.json"
+cp tools/prep-before-android-build.sh $platform_dir/
 
 echo
 echo "  2️⃣  system 3NWeb apps"
 for app in $(info .apps | jq -r keys[])
 do
 	app_version="$(info .apps[\"$app\"])"
-	app_dir="apps/$app"
+	app_dir="$platform_repo/apps/$app"
 	mkdir_clean "$app_dir" || exit $?
 	download_from "$app" "v$app_version" "$app_dir" || exit $?
 done
@@ -81,16 +82,14 @@ echo "  3️⃣  bundled 3NWeb apps"
 for app in $(info '."app-packs"' | jq -r keys[])
 do
 	app_version="$(info ".\"app-packs\"[\"$app\"]")"
-	app_dir="apps/$app"
+	app_dir="$platform_repo/apps/$app"
 	mkdir_clean "$app_dir" || exit $?
 	download_from "$app" "v$app_version" "$app_dir" || exit $?
 done
-
-cat "$bundle_info_file" > "apps/bundle-info.json"
 
 echo
 echo " ℹ️  $platform_dir and apps folders now have source for bundle, referenced by bundle-info.json files in respective folders."
 if [ "$type" == "android" ]
 then
-	echo "Now you can run tools/build-android-bundle.sh to build apps and android platform bundling it with apps."
+	echo "Now you can run prep-before-android-build.sh to prepare for android of platform."
 fi
