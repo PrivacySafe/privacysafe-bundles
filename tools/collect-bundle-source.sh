@@ -72,7 +72,7 @@ echo "  2️⃣  system 3NWeb apps"
 for app in $(info .apps | jq -r keys[])
 do
 	app_version="$(info .apps[\"$app\"])"
-	app_dir="$platform_repo/apps/$app"
+	app_dir="$platform_dir/apps/$app"
 	mkdir_clean "$app_dir" || exit $?
 	download_from "$app" "v$app_version" "$app_dir" || exit $?
 done
@@ -82,7 +82,7 @@ echo "  3️⃣  bundled 3NWeb apps"
 for app in $(info '."app-packs"' | jq -r keys[])
 do
 	app_version="$(info ".\"app-packs\"[\"$app\"]")"
-	app_dir="$platform_repo/apps/$app"
+	app_dir="$platform_dir/apps/$app"
 	mkdir_clean "$app_dir" || exit $?
 	download_from "$app" "v$app_version" "$app_dir" || exit $?
 done
