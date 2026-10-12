@@ -17,6 +17,7 @@
 <script lang="ts" setup>
 import { Ui3nClickOutside, Ui3nEmoji } from '@v1nt1248/3nclient-lib';
 import { useEmoticons } from '@main/common/composables/useEmoticons';
+import CustomScrollbar from '@main/common/components/ui/custom-scrollbar.vue';
 
 const vOnClickOutside = Ui3nClickOutside;
 
@@ -44,27 +45,29 @@ function selectEmoticon({ id, value }: { id: string, value: string }) {
     :class="$style.emoticonsDialog"
   >
     <div :class="$style.emoticonsDialogBody">
-      <div
-        v-for="group in groups"
-        :key="group"
-        :class="$style.emoticonsDialogGroup"
-      >
-        <!--
-        <h4 :class="$style.emoticonsDialogGroupName">
-          {{ group }}
-        </h4>
-         -->
-        <div :class="$style.emoticonsDialogGroupBody">
-          <ui3n-emoji
-            v-for="emoticon in emoticonsByGroups[group]"
-            :key="emoticon.id"
-            :emoji="emoticon.id"
-            :size="28"
-            :class="$style.emoji"
-            @click="selectEmoticon({ id: emoticon.id, value: emoticon.value })"
-          />
+      <custom-scrollbar>
+        <div
+          v-for="group in groups"
+          :key="group"
+          :class="$style.emoticonsDialogGroup"
+        >
+          <!--
+          <h4 :class="$style.emoticonsDialogGroupName">
+            {{ group }}
+          </h4>
+           -->
+          <div :class="$style.emoticonsDialogGroupBody">
+            <ui3n-emoji
+              v-for="emoticon in emoticonsByGroups[group]"
+              :key="emoticon.id"
+              :emoji="emoticon.id"
+              :size="28"
+              :class="$style.emoji"
+              @click="selectEmoticon({ id: emoticon.id, value: emoticon.value })"
+            />
+          </div>
         </div>
-      </div>
+      </custom-scrollbar>
     </div>
   </div>
 </template>
@@ -119,8 +122,7 @@ function selectEmoticon({ id, value }: { id: string, value: string }) {
   position: relative;
   width: 100%;
   height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
 
   .emoticonsDialogGroup:last-child {
     padding-bottom: 0;

@@ -6,3 +6,4 @@ export * from './chat-video.types';
 export * from './chat-commands.types';
 export * from './contact.types';
 export * from './services.types';
+export * from './external-chats.types';

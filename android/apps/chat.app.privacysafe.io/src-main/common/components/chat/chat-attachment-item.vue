@@ -28,6 +28,8 @@
   import type { ChatMessageAttachmentsInfo, Task } from '~/index';
   import { getEntityStat } from '@shared/get-stats-safely';
   import ChatAttachmentType from './chat-attachment-type.vue';
+  import { useI18n } from 'vue-i18n';
+  import { SHARED_CONTACTS_FILE_EXT, sharedContactsCountOf } from '@main/common/composables/useImportSharedContacts';
   import { createThumbnail } from '@main/common/utils/create-thumbnail';
   import { makeLogger } from '@shared/logger';
 
@@ -52,14 +54,22 @@
   const isThumbnailCreationProcessGoingOn = ref(false);
   const thumbnail = ref<Nullable<string>>(null);
 
+  const { t } = useI18n();
+
   const ext = computed(() => getFileExtension(props.info.name).toLowerCase());
+
+  /** Shared contacts are named by what they are, and counted, see sharedContactsCountOf. */
+  const isSharedContacts = computed(() => !props.info.isFolder && ext.value === SHARED_CONTACTS_FILE_EXT);
+  const sharedContactsCount = computed(() => (isSharedContacts.value ? sharedContactsCountOf(props.info.name) : undefined));
 
   const attachment = computed(() => {
     const lastDotPosition = props.info.name.lastIndexOf('.');
     return {
       ...props.info,
       ext: ext.value,
-      attachmentName: props.info.isFolder ? props.info.name : props.info.name.slice(0, lastDotPosition),
+      attachmentName: isSharedContacts.value
+        ? t('chat.attachment.import_contacts.title')
+        : (props.info.isFolder ? props.info.name : props.info.name.slice(0, lastDotPosition)),
       isPossibleThumbnail:
         (isFileImage({ fullName: props.info.name.toLowerCase() }) ||
           isFileVideo({ fullName: props.info.name.toLowerCase() }) ||
@@ -211,6 +221,17 @@
           color="var(--color-icon-block-secondary-default)"
         />
 
+        <div
+          v-else-if="ext === SHARED_CONTACTS_FILE_EXT"
+          :class="$style.sharedContactsIcon"
+        >
+          <ui3n-icon
+            icon="document-share-outline"
+            size="32"
+            color="#fff"
+          />
+        </div>
+
         <ui3n-icon
           v-else
           icon="round-attach-file"
@@ -247,7 +268,11 @@
         v-else
         :class="$style.size"
       >
-        {{ formatFileSize(attachment.size) }}
+        {{
+          sharedContactsCount === undefined
+            ? formatFileSize(attachment.size)
+            : t('chat.attachment.import_contacts.count', sharedContactsCount)
+        }}
       </div>
     </div>
 
@@ -266,6 +291,16 @@
 
 <style lang="scss" module>
   @use '@main/common/assets/styles/mixins' as mixins;
+
+  .sharedContactsIcon {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background-color: var(--files-word-primary);
+  }
 
   .chatAttachment {
     --chat-attachment-body-size: 124px;

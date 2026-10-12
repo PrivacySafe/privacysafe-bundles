@@ -21,6 +21,7 @@
   import { Ui3nEmoji } from '@v1nt1248/3nclient-lib';
   import { useInfoChanges } from './useInfoChanges';
   import type { ChatMessageHistoryChange, ChatMessageReaction } from '~/index';
+  import CustomScrollbar from '@main/common/components/ui/custom-scrollbar.vue';
 
   const props = defineProps<{
     currentReactions: Record<string, ChatMessageReaction>;
@@ -39,96 +40,98 @@
 
 <template>
   <div :class="$style.chatMessageInfoReactions">
-    <h4 :class="$style.label">
-      {{ t('chat.message.info.label.now') }}
-    </h4>
+    <custom-scrollbar>
+      <h4 :class="$style.label">
+        {{ t('chat.message.info.label.now') }}
+      </h4>
 
-    <div :class="$style.now">
-      <div :class="$style.item">
-        <span :class="$style.time">
-          {{ prepareTimeForBlockNow() }}
-        </span>
+      <div :class="$style.now">
+        <div :class="$style.item">
+          <span :class="$style.time">
+            {{ prepareTimeForBlockNow() }}
+          </span>
 
-        <div
-          v-if="!isEmpty(currentReactions)"
-          :class="$style.reactions"
-        >
           <div
-            v-for="(reaction, addr) in currentReactions"
-            :key="addr"
-            :class="$style.reaction"
+            v-if="!isEmpty(currentReactions)"
+            :class="$style.reactions"
           >
-            <ui3n-emoji
-              :emoji="reaction.name"
-              :size="24"
-            />
+            <div
+              v-for="(reaction, addr) in currentReactions"
+              :key="addr"
+              :class="$style.reaction"
+            >
+              <ui3n-emoji
+                :emoji="reaction.name"
+                :size="24"
+              />
 
-            <span :class="$style.name">
-              {{ addr }}
-            </span>
+              <span :class="$style.name">
+                {{ addr }}
+              </span>
+            </div>
+          </div>
+
+          <div
+            v-else
+            :class="$style.noData"
+          >
+            {{ t('chat.message.info.text.no_reactions') }}
           </div>
         </div>
-
-        <div
-          v-else
-          :class="$style.noData"
-        >
-          {{ t('chat.message.info.text.no_reactions') }}
-        </div>
       </div>
-    </div>
 
-    <hr :class="$style.delimiter">
+      <hr :class="$style.delimiter">
 
-    <h4 :class="$style.label">
-      {{ t('chat.message.info.label.history') }} ({{ t('chat.message.info.label.state') }})
-    </h4>
+      <h4 :class="$style.label">
+        {{ t('chat.message.info.label.history') }} ({{ t('chat.message.info.label.state') }})
+      </h4>
 
-    <div
-      v-if="isEmpty(reactionsChanges)"
-      :class="$style.noData"
-    >
-      {{ t('chat.message.info.text.no_changes') }}
-    </div>
-
-    <div
-      v-else
-      :class="$style.changes"
-    >
       <div
-        v-for="(change, index) in reactionsChanges"
-        :key="change.timestamp"
-        :class="$style.item"
+        v-if="isEmpty(reactionsChanges)"
+        :class="$style.noData"
       >
-        <span :class="$style.time">
-          {{ prepareTimeForBlockHistory(index) }}
-        </span>
-
-        <div
-          v-if="isEmpty(change.value)"
-          :class="$style.noData"
-        >
-          {{ t('chat.message.info.text.no_reactions') }}
-        </div>
-
-        <template v-else>
-          <div
-            v-for="(reaction, addr) in change.value as Record<string, ChatMessageReaction>"
-            :key="addr"
-            :class="$style.reaction"
-          >
-            <ui3n-emoji
-              :emoji="reaction.name"
-              :size="24"
-            />
-
-            <span :class="$style.name">
-              {{ addr }}
-            </span>
-          </div>
-        </template>
+        {{ t('chat.message.info.text.no_changes') }}
       </div>
-    </div>
+
+      <div
+        v-else
+        :class="$style.changes"
+      >
+        <div
+          v-for="(change, index) in reactionsChanges"
+          :key="change.timestamp"
+          :class="$style.item"
+        >
+          <span :class="$style.time">
+            {{ prepareTimeForBlockHistory(index) }}
+          </span>
+
+          <div
+            v-if="isEmpty(change.value)"
+            :class="$style.noData"
+          >
+            {{ t('chat.message.info.text.no_reactions') }}
+          </div>
+
+          <template v-else>
+            <div
+              v-for="(reaction, addr) in change.value as Record<string, ChatMessageReaction>"
+              :key="addr"
+              :class="$style.reaction"
+            >
+              <ui3n-emoji
+                :emoji="reaction.name"
+                :size="24"
+              />
+
+              <span :class="$style.name">
+                {{ addr }}
+              </span>
+            </div>
+          </template>
+        </div>
+      </div>
+    </custom-scrollbar>
   </div>
 </template>
 
@@ -137,7 +140,7 @@
     position: relative;
     width: 100%;
     height: 100%;
-    overflow-y: auto;
+    overflow: hidden;
   }
 
   .label {

@@ -43,7 +43,7 @@ export function useCommandHandler() {
       : await findOneToOneChatWithPeer(peerAddress);
 
     if (chatId) {
-      await goToChatRoute(chatId);
+      await goToChatRoute(chatId, { draftId: cmdArg.draftId });
     } else {
       await goToChatsRoute({ createNew: true });
     }

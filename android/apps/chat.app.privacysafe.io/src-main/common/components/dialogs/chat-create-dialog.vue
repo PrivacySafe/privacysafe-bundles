@@ -39,6 +39,7 @@
   import { useContactsStore } from '@main/common/store/contacts.store';
   import ContactList from '@main/common/components/contacts/contact-list.vue';
   import ContactIcon from '@main/common/components/contacts/contact-icon.vue';
+  import CustomScrollbar from '@main/common/components/ui/custom-scrollbar.vue';
 
   defineProps<{
     dialogProps?: Ui3nDialogComponentProps<ChatIdObj>;
@@ -229,15 +230,19 @@
           </div>
 
           <div :class="$style.chatCreateDialogContentList">
-            <contact-list
-              :contact-list="Object.values(contacts)"
-              :search-text="searchText"
-              :selected-contacts="selectedContacts"
-              :non-selectable-contacts="nonSelectableContacts"
-              :adding="isAddingContact"
-              @select="selectContacts"
-              @add:new="addNewContact"
-            />
+            <custom-scrollbar>
+              <div :class="$style.chatCreateDialogContentListInner">
+                <contact-list
+                  :contact-list="Object.values(contacts)"
+                  :search-text="searchText"
+                  :selected-contacts="selectedContacts"
+                  :non-selectable-contacts="nonSelectableContacts"
+                  :adding="isAddingContact"
+                  @select="selectContacts"
+                  @add:new="addNewContact"
+                />
+              </div>
+            </custom-scrollbar>
           </div>
         </template>
 
@@ -249,11 +254,15 @@
           />
 
           <div :class="$style.chatCreateDialogContentList">
-            <contact-list
-              :contact-list="selectedContacts"
-              :without-anchor="true"
-              :readonly="true"
-            />
+            <custom-scrollbar>
+              <div :class="$style.chatCreateDialogContentListInner">
+                <contact-list
+                  :contact-list="selectedContacts"
+                  :without-anchor="true"
+                  :readonly="true"
+                />
+              </div>
+            </custom-scrollbar>
           </div>
         </template>
       </div>
@@ -373,13 +382,12 @@
   .chatCreateDialogContentList {
     position: relative;
     width: 100%;
-    overflow-x: hidden;
-    overflow-y: auto;
+    overflow: hidden;
     flex-grow: 2;
+  }
 
-    & > div > div > div {
-      padding-right: var(--spacing-m) !important;
-    }
+  .chatCreateDialogContentListInner {
+    padding-right: var(--spacing-m);
   }
 
   .processing {

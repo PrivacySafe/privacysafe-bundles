@@ -27,6 +27,7 @@
   import type { GroupChatView, PersonView } from '~/index';
   import type { ManageBlocksDialogProps } from './types';
   import ContactListItem from '@main/common/components/contacts/contact-list-item.vue';
+  import CustomScrollbar from '@main/common/components/ui/custom-scrollbar.vue';
 
   const props = defineProps<ManageBlocksDialogProps>();
   const emits = defineEmits<{
@@ -97,36 +98,38 @@
           what this dialog is for.
         -->
         <div :class="$style.memberList">
-          <contact-list-item
-            v-for="member in filteredMembers"
-            :key="member.id"
-            :contact="member"
-            :selected="false"
-            :without-anchor="true"
-            :readonly="true"
-          >
-            <template #extra="{ mail }">
-              <ui3n-button
-                type="custom"
-                size="small"
-                :color="
-                  isBlacklisted(mail) ? 'var(--success-content-default)' : 'var(--warning-content-default)'
-                "
-                :text-color="isBlacklisted(mail) ? 'var(--success-fill-default)' : 'var(--warning-fill-default)'"
-                :class="$style.btn"
-                @click.stop.prevent="runContactBlocking(mail, !isBlacklisted(mail))"
-              >
-                {{ isBlacklisted(mail) ? t('dialog.button.unblock') : t('dialog.button.block') }}
-              </ui3n-button>
-            </template>
-          </contact-list-item>
+          <custom-scrollbar>
+            <contact-list-item
+              v-for="member in filteredMembers"
+              :key="member.id"
+              :contact="member"
+              :selected="false"
+              :without-anchor="true"
+              :readonly="true"
+            >
+              <template #extra="{ mail }">
+                <ui3n-button
+                  type="custom"
+                  size="small"
+                  :color="
+                    isBlacklisted(mail) ? 'var(--success-content-default)' : 'var(--warning-content-default)'
+                  "
+                  :text-color="isBlacklisted(mail) ? 'var(--success-fill-default)' : 'var(--warning-fill-default)'"
+                  :class="$style.btn"
+                  @click.stop.prevent="runContactBlocking(mail, !isBlacklisted(mail))"
+                >
+                  {{ isBlacklisted(mail) ? t('dialog.button.unblock') : t('dialog.button.block') }}
+                </ui3n-button>
+              </template>
+            </contact-list-item>
 
-          <div
-            v-if="filteredMembers.length === 0"
-            :class="$style.empty"
-          >
-            {{ t('chat.dialog.manage_blocks.nobody') }}
-          </div>
+            <div
+              v-if="filteredMembers.length === 0"
+              :class="$style.empty"
+            >
+              {{ t('chat.dialog.manage_blocks.nobody') }}
+            </div>
+          </custom-scrollbar>
         </div>
       </div>
     </template>
@@ -180,7 +183,7 @@
     padding: 0 var(--spacing-m);
     flex: 1 1 auto;
     min-height: 0;
-    overflow-y: auto;
+    overflow: hidden;
 
     .btn {
       min-width: 64px;

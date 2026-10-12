@@ -32,6 +32,7 @@
   import ChatAvatar from '@main/common/components/chat/chat-avatar.vue';
   import ContactList from '@main/common/components/contacts/contact-list.vue';
   import ListItemMenu from './list-item-menu.vue';
+  import CustomScrollbar from '@main/common/components/ui/custom-scrollbar.vue';
 
   const props = defineProps<ChatInfoDialogProps>();
   const emits = defineEmits<{
@@ -93,21 +94,21 @@
             :placeholder="t('chat.dialog.info.search_placeholder')"
           >
             <template #prepend-icon>
-              <ui3n-icon
-                icon="round-search"
-              />
+              <ui3n-icon icon="round-search" />
             </template>
           </ui3n-input>
 
           <div :class="$style.chatInfoDialogUserList">
-            <contact-list
-              :contact-list="allContacts"
-              :non-selectable-contacts="nonDeletableUsers"
-              :search-text="userSearch"
-              :without-anchor="true"
-              :selected-contacts="selectedUsers"
-              @select="selectUsers"
-            />
+            <custom-scrollbar :class="$style.container">
+              <contact-list
+                :contact-list="allContacts"
+                :non-selectable-contacts="nonDeletableUsers"
+                :search-text="userSearch"
+                :without-anchor="true"
+                :selected-contacts="selectedUsers"
+                @select="selectUsers"
+              />
+            </custom-scrollbar>
           </div>
         </template>
 
@@ -171,40 +172,42 @@
               :placeholder="t('chat.dialog.info.search_placeholder')"
             >
               <template #prepend-icon>
-                <ui3n-icon
-                  icon="round-search"
-                />
+                <ui3n-icon icon="round-search" />
               </template>
             </ui3n-input>
 
             <div :class="[$style.chatInfoDialogUserList, isUserAdmin(ownAddr) && $style.pointer]">
-              <contact-list
-                :contact-list="filteredMembers"
-                :without-anchor="true"
-                :readonly="true"
-                @click:right="openListItemMenu"
-              >
-                <template #extra="{ mail }">
-                  <ui3n-chip
-                    v-if="chat.isGroupChat ? isUserPending(mail) || isUserAdmin(mail) : isUserPending(mail)"
-                    height="20"
-                    :round="false"
-                    :color="isUserPending(mail) ? 'var(--warning-fill-default)' : 'var(--info-fill-default)'"
-                    :text-color="
-                      isUserPending(mail) ? 'var(--warning-content-default)' : 'var(--info-content-default)'
-                    "
-                    text-size="12"
-                  >
-                    <template v-if="chat.isGroupChat">
-                      {{ t(isUserPending(mail) ? 'chat.dialog.info.user.pending' : 'chat.dialog.info.user.admin') }}
-                    </template>
+              <custom-scrollbar :class="$style.container">
+                <contact-list
+                  :contact-list="filteredMembers"
+                  :without-anchor="true"
+                  :readonly="true"
+                  @click:right="openListItemMenu"
+                >
+                  <template #extra="{ mail }">
+                    <ui3n-chip
+                      v-if="chat.isGroupChat ? isUserPending(mail) || isUserAdmin(mail) : isUserPending(mail)"
+                      height="20"
+                      :round="false"
+                      :color="isUserPending(mail) ? 'var(--warning-fill-default)' : 'var(--info-fill-default)'"
+                      :text-color="
+                        isUserPending(mail) ? 'var(--warning-content-default)' : 'var(--info-content-default)'
+                      "
+                      text-size="12"
+                    >
+                      <template v-if="chat.isGroupChat">
+                        {{
+                          t(isUserPending(mail) ? 'chat.dialog.info.user.pending' : 'chat.dialog.info.user.admin')
+                        }}
+                      </template>
 
-                    <template v-else>
-                      {{ t('chat.dialog.info.user.pending') }}
-                    </template>
-                  </ui3n-chip>
-                </template>
-              </contact-list>
+                      <template v-else>
+                        {{ t('chat.dialog.info.user.pending') }}
+                      </template>
+                    </ui3n-chip>
+                  </template>
+                </contact-list>
+              </custom-scrollbar>
 
               <teleport
                 v-if="listItemMenuProps.listItem"
@@ -396,7 +399,11 @@
     padding: 0 var(--spacing-m);
     flex: 1 1 auto;
     min-height: 0;
-    overflow-y: auto;
+    overflow: hidden;
+
+    .container > div:first-child {
+      padding-right: var(--spacing-s);
+    }
   }
 
   .pointer {

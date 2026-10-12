@@ -31,6 +31,7 @@
   import { areChatIdsEqual } from '@shared/chat-ids.ts';
   import type { ChatIdObj } from '~/asmail-msgs.types.ts';
   import ChatAvatar from '../chat/chat-avatar.vue';
+  import CustomScrollbar from '@main/common/components/ui/custom-scrollbar.vue';
 
   defineProps<{
     dialogProps?: Ui3nDialogComponentProps<{ chatId?: ChatIdObj; contact?: { mail: string; name: string } }>;
@@ -100,45 +101,47 @@
         </ui3n-input>
 
         <div :class="$style.messageForwardDialogBody">
-          <h4 :class="$style.messageForwardDialogSubtitle">
-            {{ t('chat.message.dialog.forward.section.chats.title') }}
-          </h4>
+          <custom-scrollbar>
+            <h4 :class="$style.messageForwardDialogSubtitle">
+              {{ t('chat.message.dialog.forward.section.chats.title') }}
+            </h4>
 
-          <template v-if="filteredChatList.length">
-            <div
-              v-for="chat in filteredChatList"
-              :key="chat.chatId"
-              :class="$style.messageForwardDialogItem"
-              @click="
-                selectItem({
-                  chatId: { isGroupChat: chat.isGroupChat, chatId: chat.chatId },
-                })
-              "
-            >
-              <chat-avatar
-                :name="chat.displayName"
-                :shape="chat.isGroupChat ? 'decagon' : 'circle'"
-                :size="28"
-                :settings="chat.settings"
-              />
-              <div :class="$style.messageForwardDialogItemName">
-                {{ chat.displayName }}
+            <template v-if="filteredChatList.length">
+              <div
+                v-for="chat in filteredChatList"
+                :key="chat.chatId"
+                :class="$style.messageForwardDialogItem"
+                @click="
+                  selectItem({
+                    chatId: { isGroupChat: chat.isGroupChat, chatId: chat.chatId },
+                  })
+                "
+              >
+                <chat-avatar
+                  :name="chat.displayName"
+                  :shape="chat.isGroupChat ? 'decagon' : 'circle'"
+                  :size="28"
+                  :settings="chat.settings"
+                />
+                <div :class="$style.messageForwardDialogItemName">
+                  {{ chat.displayName }}
 
-                <span
-                  v-if="chat.nameHint"
-                  :class="$style.messageForwardDialogItemNameHint"
-                >
-                  {{ chat.nameHint }}
-                </span>
+                  <span
+                    v-if="chat.nameHint"
+                    :class="$style.messageForwardDialogItemNameHint"
+                  >
+                    {{ chat.nameHint }}
+                  </span>
+                </div>
               </div>
-            </div>
-          </template>
+            </template>
 
-          <template v-else>
-            <div :class="$style.messageForwardDialogEmpty">
-              {{ t('chat.message.dialog.forward.section.chats.empty') }}
-            </div>
-          </template>
+            <template v-else>
+              <div :class="$style.messageForwardDialogEmpty">
+                {{ t('chat.message.dialog.forward.section.chats.empty') }}
+              </div>
+            </template>
+          </custom-scrollbar>
         </div>
       </div>
     </template>
@@ -170,8 +173,7 @@
   .messageForwardDialogBody {
     position: relative;
     height: calc(100% - var(--forward-dialog-body-offset));
-    overflow-y: auto;
-    overflow-x: hidden;
+    overflow: hidden;
   }
 
   .messageForwardDialogSubtitle {

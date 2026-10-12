@@ -24,6 +24,12 @@
   import { THUMBNAIL_AUTO_PREVIEW_LIMIT } from '@shared/constants/attachment-limits';
   import { THUMBNAIL_CACHE_KEY, type ThumbnailCache } from '@main/common/composables/useThumbnailCache';
   import { useOpenAttachment } from './useOpenAttachment';
+  import {
+    isSharedContactsFile,
+    sharedContactsCountOf,
+    useImportSharedContacts,
+  } from '@main/common/composables/useImportSharedContacts';
+  import { saveFileFromMsg } from '@main/common/utils/files.helper';
   import type { AttachmentViewInfo } from './types';
   import ChatMessageAttachmentView from './chat-message-attachment-view.vue';
   import { makeLogger } from '@shared/logger';
@@ -49,7 +55,36 @@
   const { addTask } = inject('task-runner') as { addTask: (task: Task) => void };
   const thumbnailCache = inject<ThumbnailCache>(THUMBNAIL_CACHE_KEY)!;
 
-  const { openEntity } = useOpenAttachment(props);
+  const { openEntity, $createNotice } = useOpenAttachment(props);
+  const { importSharedContacts } = useImportSharedContacts();
+
+  /** A file with contacts shared by the contacts app. */
+  const isSharedContacts = computed(() => !props.item.isFolder && isSharedContactsFile(props.item.ext));
+  /**
+   * Only received contacts are imported with a click: the sender's own copy
+   * holds contacts the sender already has.
+   */
+  const isImportAvailable = computed(() => isSharedContacts.value && !!props.incomingMsgId);
+  const sharedContactsCount = computed(() => (isSharedContacts.value ? sharedContactsCountOf(props.item.name) : undefined));
+
+  /**
+   * The sender's own copy of shared contacts: a click saves it, under its own
+   * name. Opening it in the system is no use - nothing there knows the format,
+   * and a file kept inside the app's storage has no path in the system at all.
+   */
+  async function saveOwnSharedContacts(): Promise<void> {
+    const res = await saveFileFromMsg({ fileId: props.item.id!, name: props.item.name, t });
+    if (res === undefined) {
+      return;
+    }
+    $createNotice({
+      type: res ? 'success' : 'error',
+      content: res
+        ? t('chat.message.action_message.success.file_download')
+        : t('chat.message.action_message.error.file_download'),
+      duration: 3000,
+    });
+  }
 
   const thumbnail = ref<Nullable<string>>(null);
   const isThumbnailCreationProcessGoingOn = ref(false);
@@ -101,6 +136,16 @@
 
   async function onAttachmentElementClick() {
     if (props.blocked) {
+      return;
+    }
+
+    if (isImportAvailable.value) {
+      await importSharedContacts(props.item.id, props.incomingMsgId);
+      return;
+    }
+
+    if (isSharedContacts.value) {
+      await saveOwnSharedContacts();
       return;
     }
 
@@ -195,11 +240,12 @@
     :class="[
       'chat-message-attachment',
       $style.chatMessageAttachment,
-      item.isActionAvailable && $style.chatMessageAttachmentClickable,
+      (item.isActionAvailable || isSharedContacts) && $style.chatMessageAttachmentClickable,
       blocked && $style.chatMessageAttachmentBlocked,
       item.recording && $style.chatMessageAttachmentRecording,
     ]"
-    :title="unavailableTooltip"
+    :title="unavailableTooltip || (isImportAvailable ? t('chat.attachment.import_contacts.tooltip') : '')
+      || (isSharedContacts ? t('chat.attachment.import_contacts.save_tooltip') : '')"
     @click.stop.prevent="onAttachmentElementClick"
   >
     <div
@@ -279,6 +325,17 @@
         :size="attachmentsItemPreviewSize"
       />
 
+      <div
+        v-else-if="isSharedContacts"
+        :class="$style.sharedContactsIcon"
+      >
+        <ui3n-icon
+          icon="document-share-outline"
+          :size="attachmentsItemPreviewSize / 2"
+          color="#fff"
+        />
+      </div>
+
       <ui3n-icon
         v-else
         :class="$style.icon"
@@ -288,14 +345,28 @@
     </div>
 
     <div :class="$style.chatMessageAttachmentName">
-      {{ item.recording ? recordingLabel : (item.isFolder ? item.name : item.filename) }}
+      <template v-if="isSharedContacts">
+        {{ t('chat.attachment.import_contacts.title') }}
+      </template>
+      <template v-else>
+        {{ item.recording ? recordingLabel : (item.isFolder ? item.name : item.filename) }}
+      </template>
+    </div>
+
+    <!-- Shared contacts are named by what they are, with their number where
+         the extension would be. -->
+    <div
+      v-if="isSharedContacts"
+      :class="$style.chatMessageAttachmentDuration"
+    >
+      {{ sharedContactsCount === undefined ? '' : t('chat.attachment.import_contacts.count', sharedContactsCount) }}
     </div>
 
     <!-- Duration where an ordinary attachment shows its extension: seconds are
          what one wants to know about a recording, and the container it happens
          to be in is not. -->
     <div
-      v-if="item.recording"
+      v-else-if="item.recording"
       :class="$style.chatMessageAttachmentDuration"
     >
       {{ recordingDuration }}
@@ -321,6 +392,16 @@
 
 <style lang="scss" module>
   @use '@main/common/assets/styles/mixins' as mixins;
+
+  .sharedContactsIcon {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: calc(v-bind(attachmentsItemPreviewSizeCss) * 0.8);
+    height: calc(v-bind(attachmentsItemPreviewSizeCss) * 0.8);
+    border-radius: 50%;
+    background-color: var(--files-word-primary);
+  }
 
   .chatMessageAttachment {
     --attachments-item-min-height: 20px;

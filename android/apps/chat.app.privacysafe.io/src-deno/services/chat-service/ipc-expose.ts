@@ -16,6 +16,7 @@
 */
 import type { ChatSrv, ChatSrvOverIPC } from '../../types/chat-srv.types.ts';
 import type { ComponentStatus } from '../../../types/services.types.ts';
+import type { AppChatsExternalSrv } from '../../../types/external-chats.types.ts';
 import { MultiConnectionIPCWrap } from '../../../shared-libs/ipc/ipc-service.js';
 import { componentStatus } from '../../utils/startup-progress.ts';
 
@@ -28,6 +29,7 @@ const REQ_REPLY_METHODS: (keyof ChatSrv)[] = [
   'getChatList',
   'getChat',
   'findChatEntry',
+  'takeExternalDraft',
   'renameChat',
   'chatSetUp',
   'deleteChat',
@@ -175,6 +177,19 @@ let pingSilenced = false;
 
 function neverAnswers<T>(): Promise<T> {
   return new Promise<T>(() => {});
+}
+
+/**
+ * Exposes, under the name 'AppChats', the few methods that other apps may
+ * call (see allowed callers in manifest.json). Like the internal one, it is
+ * exposed at the very start of the component, over a facade.
+ */
+export function exposeChatServiceToOtherApps(chats: Promise<ChatSrv>): () => void {
+  const methods: (keyof AppChatsExternalSrv)[] = ['getOneToOneChatStatus', 'prepareOutgoingDraft'];
+  const srvWrap = new MultiConnectionIPCWrap('AppChats');
+  const facade = facadeOver(chats, methods, []) as AppChatsExternalSrv;
+  srvWrap.exposeReqReplyMethods(facade, methods);
+  return srvWrap.startIPC();
 }
 
 export { facadeOver };

@@ -48,7 +48,7 @@ import {
 } from '~/index';
 import type { ChatRoute, ChatRouteType, ChatWithFwdMsgRef, ChatWithIncomingCall } from '@main/desktop/router';
 import type { RouteChat } from '@main/mobile/types';
-import { fileLinkStoreSrv } from '@main/common/services/external-services';
+import { chatService, fileLinkStoreSrv } from '@main/common/services/external-services';
 import { useTaskRunner } from '@main/common/composables/useTaskRunner';
 import { THUMBNAIL_CACHE_KEY, useThumbnailCache } from '@main/common/composables/useThumbnailCache';
 import { CHAT_STAGE_KEY, useChatStage } from '@main/common/composables/useChatStage';
@@ -1002,11 +1002,73 @@ export function useChatView(navigationUtils: () => NavigationUtils) {
     { immediate: true },
   );
 
+  /**
+   * Puts into the composer the attachments of a draft that another app (e.g.
+   * Contacts sharing contacts) prepared in the background, see AppChats in
+   * manifest.json. The stored files become this composer's own: leaving the
+   * chat without sending removes them, just as with pasted files.
+   */
+  async function takeExternalDraft(draftId: string): Promise<void> {
+    const draft = await chatService.takeExternalDraft(draftId);
+    if (!draft) {
+      log.error(`External draft ${draftId} is not found, or is already taken`);
+      return;
+    }
+
+    for (const { storedId } of draft.attachments) {
+      ownedStoredIds.add(storedId);
+    }
+
+    if (readonly.value || !currentChatId.value || !areChatIdsEqual(draft.chatId, currentChatId.value)) {
+      log.error(`External draft ${draftId} is not for the opened chat, or the chat is readonly`);
+      await discardOwnedStoredItems(draft.attachments.map(({ storedId }) => storedId));
+      return;
+    }
+
+    if (isEmpty(attachmentsInfo.value)) {
+      attachmentsInfo.value = [];
+    }
+
+    for (const { storedId, name } of draft.attachments) {
+      const entity = (await fileLinkStoreSrv.getFile(storedId)) as web3n.files.ReadonlyFile | null | undefined;
+      const attached = entity ? await attachEntity({ entity, storedId, name }) : false;
+      if (!attached) {
+        await discardOwnedStoredItems([storedId]);
+      }
+    }
+
+    inputEl.value && inputEl.value.focus();
+  }
+
+  const draftQueryWatching = watch(
+    () => [route.query.draft, currentChatId.value?.chatId] as const,
+    async ([draftId, chatId]) => {
+      // Waits for the chat of the route to be set: the draft is checked
+      // against it, and the composer of another chat must not get its files.
+      if (
+        !draftId
+        || (typeof draftId !== 'string')
+        || !chatId
+        || !areChatIdsEqual(getChatIdFromRoute(), currentChatId.value!)
+      ) {
+        return;
+      }
+
+      nextTick(() => {
+        router.replace({ query: {} });
+      });
+      await takeExternalDraft(draftId).catch(e => {
+        log.error(`Error taking the external draft ${draftId}.`, e);
+        notifications?.$createNotice({ type: 'error', content: t('chat.attachment.external_draft.error') });
+      });
+    },
+    { immediate: true },
+  );
+
   function scrollToFirstUnreadMessage() {
     const unread = currentChat.value?.unread || 0;
     if (unread === 0) {
-      const chatMessageListElement = document.getElementById('chat-messages');
-      chatMessageListElement && (chatMessageListElement.scrollTop = 1e12);
+      messageListElement.value && (messageListElement.value.scrollTop = 1e12);
       return;
     }
 
@@ -1059,6 +1121,7 @@ export function useChatView(navigationUtils: () => NavigationUtils) {
     // Before anything else: an unmounted media element is not a stopped one.
     recordingPlayback.stopCurrent();
     routeQueryWatching.stop();
+    draftQueryWatching.stop();
     // Optional: a chat left before its messages arrived never mounted the list,
     // and unmounting must not throw on the way out of a chat that showed none.
     messageListElement.value?.removeEventListener('scroll', onMessageListScroll);

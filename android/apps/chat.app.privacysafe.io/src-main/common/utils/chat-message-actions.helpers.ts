@@ -52,6 +52,28 @@ export async function downloadAttachments(
   const entities = await messagesStore.getMessageAttachments(attachments, incomingMsgId);
 
   try {
+    // One file is saved as a file, with the save-file dialog. Besides being
+    // what one expects, it keeps away from the save-folder dialog: no app
+    // provides it, and the platform's own one fails as of core-platform-electron
+    // 0.31.18 (`.bind(this)` in runner-in-electron/caps/shell/file-dialogs.ts).
+    const names = entities ? Object.keys(entities) : [];
+    if ((names.length === 1) && !(entities[names[0]] as ReadonlyFS).listFolder) {
+      const [name] = names;
+      const targetFile = await w3n.shell?.fileDialogs?.saveFileDialog!(
+        t('chat.message.dialog.file_download.title'),
+        t('app.text.save'),
+        name,
+      );
+
+      if (!targetFile) {
+        return undefined;
+      }
+
+      const bytes = await (entities[name] as ReadonlyFile).readBytes();
+      await targetFile.writeBytes(bytes ?? new Uint8Array(0));
+      return true;
+    }
+
     if (entities && size(entities) > 0) {
       const targetFolderName = `${chatStore.currentChat?.name}_${sender}_${dayjs(timestamp).format('YYYY-MM-DD')}`;
       const targetFs = await w3n.shell?.fileDialogs?.saveFolderDialog!(

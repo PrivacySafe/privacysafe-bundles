@@ -60,6 +60,7 @@ async function connectToContactsApp(): Promise<ContactsService> {
           'addContact',
           'upsertContact',
           'changeContactBlockingSettings',
+          'prepareSharedContactsImport',
         ],
         ['watchContactBlacklistChanging'],
       ) as ContactsService;
@@ -120,6 +121,7 @@ export async function initializeServices() {
               'acceptChatInvitation',
               'getChat',
               'getChatList',
+              'takeExternalDraft',
               'renameChat',
               'chatSetUp',
               'deleteChat',

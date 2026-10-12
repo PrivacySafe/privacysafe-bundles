@@ -20,6 +20,7 @@
   import isEmpty from 'lodash/isEmpty';
   import size from 'lodash/size';
   import type { ChatMessageHistoryChange, MessageStatus, SerializedDeliveryError } from '~/index';
+  import CustomScrollbar from '@main/common/components/ui/custom-scrollbar.vue';
 
   const props = defineProps<{
     msgStatus: MessageStatus;
@@ -153,78 +154,80 @@
 
 <template>
   <div :class="$style.chatMessageInfoErrors">
-    <h4 :class="$style.label">
-      {{ t('chat.message.info.label.now') }}
-    </h4>
+    <custom-scrollbar>
+      <h4 :class="$style.label">
+        {{ t('chat.message.info.label.now') }}
+      </h4>
 
-    <div :class="$style.now">
-      <div :class="$style.item">
-        <template v-if="currentErrors">
-          <div :class="$style.errors">
-            <div
-              v-for="(error, addr) in currentErrors.value"
-              :key="addr"
-              :class="$style.error"
-            >
-              {{
-                getErrorText(
-                  addr as string,
-                  error as SerializedDeliveryError,
-                )
-              }}
-            </div>
-          </div>
-        </template>
-
-        <div
-          v-else
-          :class="$style.noData"
-        >
-          {{ t('chat.message.info.text.no_errors') }}
-        </div>
-      </div>
-    </div>
-
-    <hr :class="$style.delimiter">
-
-    <h4 :class="$style.label">
-      {{ t('chat.message.info.label.history') }}
-    </h4>
-
-    <div
-      v-if="isEmpty(errorsHistory)"
-      :class="$style.noData"
-    >
-      {{ t('chat.message.info.text.no_changes') }}
-    </div>
-
-    <div
-      v-else
-      :class="$style.changes"
-    >
-      <div
-        v-for="change in errorsChanges"
-        :key="change.timestamp"
-        :class="$style.item"
-      >
-        <div :class="$style.errors">
-          <template v-if="!isEmpty(change.value)">
-            <div
-              v-for="(error, addr) in change.value"
-              :key="addr"
-              :class="$style.error"
-            >
-              {{
-                getErrorText(
-                  addr as string,
-                  error as SerializedDeliveryError,
-                )
-              }}
+      <div :class="$style.now">
+        <div :class="$style.item">
+          <template v-if="currentErrors">
+            <div :class="$style.errors">
+              <div
+                v-for="(error, addr) in currentErrors.value"
+                :key="addr"
+                :class="$style.error"
+              >
+                {{
+                  getErrorText(
+                    addr as string,
+                    error as SerializedDeliveryError,
+                  )
+                }}
+              </div>
             </div>
           </template>
+
+          <div
+            v-else
+            :class="$style.noData"
+          >
+            {{ t('chat.message.info.text.no_errors') }}
+          </div>
         </div>
       </div>
-    </div>
+
+      <hr :class="$style.delimiter">
+
+      <h4 :class="$style.label">
+        {{ t('chat.message.info.label.history') }}
+      </h4>
+
+      <div
+        v-if="isEmpty(errorsHistory)"
+        :class="$style.noData"
+      >
+        {{ t('chat.message.info.text.no_changes') }}
+      </div>
+
+      <div
+        v-else
+        :class="$style.changes"
+      >
+        <div
+          v-for="change in errorsChanges"
+          :key="change.timestamp"
+          :class="$style.item"
+        >
+          <div :class="$style.errors">
+            <template v-if="!isEmpty(change.value)">
+              <div
+                v-for="(error, addr) in change.value"
+                :key="addr"
+                :class="$style.error"
+              >
+                {{
+                  getErrorText(
+                    addr as string,
+                    error as SerializedDeliveryError,
+                  )
+                }}
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </custom-scrollbar>
   </div>
 </template>
 
@@ -233,7 +236,7 @@
     position: relative;
     width: 100%;
     height: 100%;
-    overflow-y: auto;
+    overflow: hidden;
   }
 
   .label {

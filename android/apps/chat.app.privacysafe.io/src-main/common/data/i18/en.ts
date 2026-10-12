@@ -264,6 +264,16 @@ export const en = {
       too_big: {
         error: 'The file {fileName} is bigger than the {limit} limit and cannot be attached',
       },
+      external_draft: {
+        error: 'Error attaching files sent from another app',
+      },
+      import_contacts: {
+        title: 'Contacts Export File',
+        count: '{n} contact | {n} contacts',
+        save_tooltip: 'Save the file',
+        tooltip: 'Import contacts',
+        error: 'Contacts could not be passed to the Contacts app',
+      },
       attaching: {
         error: 'Error attaching the file {fileName}',
       },

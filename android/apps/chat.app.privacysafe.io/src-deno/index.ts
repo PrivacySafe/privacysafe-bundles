@@ -32,7 +32,7 @@ import { localDataStore } from './services/local-data-store/local-data-store.ts'
 import { createBlacklistTracker } from './services/contacts-service/contacts-blacklist.ts';
 import { setBlockedRecipientsFilter } from '../shared-libs/blocked-recipients.ts';
 import { chatService } from './services/chat-service/chat-service.ts';
-import { exposeChatServiceOnIPC } from './services/chat-service/ipc-expose.ts';
+import { exposeChatServiceOnIPC, exposeChatServiceToOtherApps } from './services/chat-service/ipc-expose.ts';
 import {
   exposeVideoGUIOpenerOnIPC,
   videoChatService,
@@ -68,6 +68,7 @@ const videoSrvDeferred = defer<VideoChatSrv>();
 chatSrvDeferred.promise.catch(() => {});
 videoSrvDeferred.promise.catch(() => {});
 exposeChatServiceOnIPC(chatSrvDeferred.promise);
+exposeChatServiceToOtherApps(chatSrvDeferred.promise);
 exposeVideoGUIOpenerOnIPC(videoSrvDeferred.promise);
 
 try {

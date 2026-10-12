@@ -22,6 +22,7 @@ import { type Nullable, Ui3nButton, Ui3nClickOutside, Ui3nEmoji, Ui3nTooltip } f
 import { useAppStore } from '@main/common/store/app.store';
 import { useEmoticons } from '@main/common/composables/useEmoticons';
 import type { ChatMessageReaction, ChatMessageView, RegularMsgView } from '~/index';
+import CustomScrollbar from '@main/common/components/ui/custom-scrollbar.vue';
 
 const vOnClickOutside = Ui3nClickOutside;
 
@@ -199,28 +200,30 @@ watch(
       </div>
 
       <div :class="$style.icons">
-        <div
-          v-for="group in groups"
-          :key="group"
-          :class="$style.iconsGroup"
-        >
-          <!--
-          <h4 :class="$style.iconsGroupName">
-            {{ group }}
-          </h4>
-           -->
+        <custom-scrollbar>
+          <div
+            v-for="group in groups"
+            :key="group"
+            :class="$style.iconsGroup"
+          >
+            <!--
+            <h4 :class="$style.iconsGroupName">
+              {{ group }}
+            </h4>
+             -->
 
-          <div :class="$style.iconsGroupBody">
-            <ui3n-emoji
-              v-for="emoticon in emoticonsByGroups[group]"
-              :key="emoticon.id"
-              :emoji="emoticon.id"
-              :size="28"
-              :class="$style.emoji"
-              @click="selectIcon({ id: emoticon.id, value: emoticon.value })"
-            />
+            <div :class="$style.iconsGroupBody">
+              <ui3n-emoji
+                v-for="emoticon in emoticonsByGroups[group]"
+                :key="emoticon.id"
+                :emoji="emoticon.id"
+                :size="28"
+                :class="$style.emoji"
+                @click="selectIcon({ id: emoticon.id, value: emoticon.value })"
+              />
+            </div>
           </div>
-        </div>
+        </custom-scrollbar>
       </div>
     </div>
   </div>
@@ -325,8 +328,7 @@ watch(
   position: relative;
   width: 100%;
   height: calc(100% - 24px);
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
 
   .iconsGroup:last-child {
     padding-bottom: 0;

@@ -50,6 +50,7 @@ import { areAddressesEqual, includesAddress } from '../../../shared-libs/address
 import { areChatIdsEqual } from '../../../shared-libs/chat-ids.ts';
 import { INBOX_SCAN_FLOOR_MS } from '../../../shared-libs/constants/index.ts';
 import { fileStoreService } from '../file-store-service/file-store-service.ts';
+import { externalDrafts } from './external-drafts.ts';
 import { AppSettings } from '../../utils/app-settings.ts';
 import type { BlacklistTracker } from '../contacts-service/contacts-blacklist.ts';
 import { contactBlockingRecords } from './utils/contact-blocking-records.ts';
@@ -983,6 +984,8 @@ export async function chatService(
     return msgView;
   }
 
+  const drafts = externalDrafts(filesStore, getChat);
+
   const methods: ChatSrv = {
     emitEventsOutward: emitEventAfterAction,
     getAppDeviceId,
@@ -1000,6 +1003,9 @@ export async function chatService(
     updateGroupAdmins: chatMembersUpdating.updateGroupAdmins,
     getChat,
     findChatEntry,
+    getOneToOneChatStatus: drafts.getOneToOneChatStatus,
+    prepareOutgoingDraft: drafts.prepareOutgoingDraft,
+    takeExternalDraft: drafts.takeExternalDraft,
     deleteMessagesInChat: msgDeletion.deleteMessagesInChat,
     deleteMessage: msgDeletion.deleteMessage,
     deleteMessages: msgDeletion.deleteMessages,

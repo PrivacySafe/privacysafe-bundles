@@ -15,7 +15,7 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 -->
 <script lang="ts" setup>
-  import { computed, onBeforeUnmount, onMounted } from 'vue';
+  import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
   import { onBeforeRouteUpdate } from 'vue-router';
   import { storeToRefs } from 'pinia';
   import isEmpty from 'lodash/isEmpty';
@@ -34,12 +34,30 @@
   import ChatMessageInfo from '@main/common/components/messages/chat-message/chat-message-info/chat-message-info.vue';
   import ChatAvatar from '@main/common/components/chat/chat-avatar.vue';
   import RecordingQuote from '@main/common/components/messages/chat-message/chat-message-recording/recording-quote.vue';
+  import CustomScrollbarHorizontal from '@main/common/components/ui/custom-scrollbar-horizontal.vue';
 
   const vUi3nHtml = Ui3nHtml;
   const vUi3nClickOutside = Ui3nClickOutside;
 
   const { getContactName } = useContactsStore();
   const { canRecord } = storeToRefs(useAppStore());
+
+  const chatEl = ref<HTMLDivElement | null>(null);
+
+  const actionHeightMap = {
+    1: '64px',
+    2: '79px',
+    3: '93px',
+  };
+
+  function onActionBlockResize({ rows }: { rows: number }) {
+    if (!chatEl.value) {
+      return;
+    }
+
+    const height = actionHeightMap[`${rows as 1 | 2 | 3}`];
+    chatEl.value.style.setProperty('--chat-actions-height', height);
+  }
 
   const {
     t,
@@ -93,7 +111,10 @@
     doBeforeUnMount,
   } = useChatView(useNavigation);
 
-  useChatPullToRefresh(messageListElement, computed(() => blockingState.value.allOthersBlocked));
+  useChatPullToRefresh(
+    messageListElement,
+    computed(() => blockingState.value.allOthersBlocked),
+  );
 
   onMounted(doAfterMount);
   onBeforeRouteUpdate(doBeforeRouteUpdate);
@@ -101,10 +122,13 @@
 </script>
 
 <template>
-  <div :class="$style.chat">
+  <div
+    ref="chatEl"
+    :class="$style.chat"
+  >
     <chat-header
       v-if="currentChat"
-      :chat="currentChat!"
+      :chat="currentChat"
       :messages="currentChatMessages"
       :blocking-state="blockingState"
       :readonly="readonly"
@@ -181,6 +205,7 @@
               :max-rows="3"
               :disabled="readonly"
               @init="inputEl = $event"
+              @resize="onActionBlockResize"
               @input="onInput"
               @enter="sendMessage($event)"
             />
@@ -323,14 +348,18 @@
               </div>
 
               <div :class="$style.attachmentsBody">
-                <chat-attachment-item
-                  v-for="(attachmentInfo, index) in attachmentsInfo!"
-                  :key="`${attachmentInfo.name}-${attachmentInfo.id || ''}`"
-                  :info="attachmentInfo"
-                  :entity="files[index].entity"
-                  @change:size="attachmentInfo.size = $event"
-                  @delete="deleteAttachment(index)"
-                />
+                <custom-scrollbar-horizontal>
+                  <div :class="$style.attachmentsList">
+                    <chat-attachment-item
+                      v-for="(attachmentInfo, index) in attachmentsInfo!"
+                      :key="`${attachmentInfo.name}-${attachmentInfo.id || ''}`"
+                      :info="attachmentInfo"
+                      :entity="files[index].entity"
+                      @change:size="attachmentInfo.size = $event"
+                      @delete="deleteAttachment(index)"
+                    />
+                  </div>
+                </custom-scrollbar-horizontal>
               </div>
 
               <ui3n-button
@@ -359,7 +388,7 @@
               type="icon"
               color="var(--color-bg-block-primary-default)"
               icon="outline-delete"
-              icon-size="24"
+              icon-size="30"
               icon-color="var(--error-content-default)"
               :disabled="selectedMessages.length === 0"
               @click.stop.prevent="deleteMessages"
@@ -379,7 +408,7 @@
               type="icon"
               color="var(--color-bg-block-primary-default)"
               icon="round-close"
-              icon-size="24"
+              icon-size="30"
               icon-color="var(--color-icon-block-secondary-default)"
               @click.stop.prevent="clearSelectedMessages"
             />
@@ -387,9 +416,11 @@
         </div>
       </div>
 
-      <!-- Where a video message is played, so that it is bounded by the chat
-           rather than by the window. Transparent to clicks until something is
-           shown on it. -->
+      <!--
+        Where a video message is played, so that it is bounded by the chat
+        rather than by the window. Transparent to clicks until something is
+        shown on it.
+      -->
       <div
         :ref="setChatStageEl"
         :class="$style.recordingStage"
@@ -408,7 +439,7 @@
 
   .chat {
     --chat-toolbar-height: 64px;
-    --chat-input-max-height: 88px;
+    --chat-actions-height: 64px;
 
     position: fixed;
     inset: 0;
@@ -421,7 +452,7 @@
     background-color: var(--color-bg-chat-bubble-general-bg);
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: stretch;
     row-gap: var(--spacing-xs);
   }
@@ -436,8 +467,11 @@
   .messagesWrapper {
     position: relative;
     width: 100%;
-    flex-basis: calc(100% - var(--chat-toolbar-height) - var(--spacing-xs));
-    overflow-y: auto;
+    height: calc(100% - var(--chat-actions-height) - var(--spacing-xs));
+    min-height: 0;
+    overflow: hidden;
+    //flex-basis: calc(100% - var(--chat-toolbar-height) - var(--spacing-xs));
+    //overflow-y: auto;
   }
 
   .messages {
@@ -449,19 +483,19 @@
   .actions {
     position: relative;
     width: 100%;
-    flex-grow: 1;
+    min-height: 64px;
+    padding: var(--spacing-s);
+    background-color: var(--color-bg-block-primary-default);
   }
 
   .input {
     position: relative;
     width: 100%;
     display: flex;
-    padding: var(--spacing-s);
     justify-content: center;
     align-items: center;
-    max-height: var(--chat-input-max-height);
-    flex-grow: 1;
     background-color: var(--color-bg-block-primary-default);
+    margin: 7px 0;
   }
 
   .emoticonsBtnWrapper {
@@ -503,14 +537,16 @@
   }
 
   .attachmentsBody {
+    position: relative;
+    width: 100%;
+  }
+
+  .attachmentsList {
     display: flex;
     justify-content: flex-start;
     align-items: center;
     column-gap: var(--spacing-xs);
     padding-bottom: var(--spacing-xs);
-    overflow-x: auto;
-
-    @include mixins.scrollbar-horizontal(96px);
   }
 
   .attachmentsClear {
@@ -592,13 +628,15 @@
   }
 
   .bulkActions {
+    --ui3n-button-icon-size-regular: 40px;
+    --ui3n-button-height-regular: 40px;
+
     position: relative;
     width: 100%;
-    height: 66px;
+    height: 48px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--spacing-m);
     background-color: var(--color-bg-block-primary-default);
   }
 
@@ -612,5 +650,6 @@
     bottom: 8px;
     right: 8px;
     border: 1px solid var(--color-icon-block-accent-default);
+    z-index: 1;
   }
 </style>

@@ -15,7 +15,13 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
 import { useRoute, useRouter } from 'vue-router';
-import type { ChatWithIncomingCall, ChatRoute, ChatsRoute, ChatWithFwdMsgRef } from '@main/desktop/router.ts';
+import type {
+  ChatWithIncomingCall,
+  ChatRoute,
+  ChatsRoute,
+  ChatWithFwdMsgRef,
+  ChatWithExternalDraft,
+} from '@main/desktop/router.ts';
 import { ChatIdObj, ChatMessageId } from '~/asmail-msgs.types.ts';
 
 export function useRouting() {
@@ -24,7 +30,7 @@ export function useRouting() {
 
   function goToChatRoute(
     chatIdObj: ChatIdObj,
-    opts?: { callingPeer?: string; callSessionId?: string; callSentAt?: number },
+    opts?: { callingPeer?: string; callSessionId?: string; callSentAt?: number; draftId?: string },
   ) {
     const r: ChatRoute = {
       name: 'chat',
@@ -41,6 +47,8 @@ export function useRouting() {
         ...(opts.callSessionId && { callSessionId: opts.callSessionId }),
         ...(opts.callSentAt && { callSentAt: `${opts.callSentAt}` }),
       };
+    } else if (opts?.draftId) {
+      (r as ChatWithExternalDraft).query = { draft: opts.draftId };
     }
 
     return router.push(r);

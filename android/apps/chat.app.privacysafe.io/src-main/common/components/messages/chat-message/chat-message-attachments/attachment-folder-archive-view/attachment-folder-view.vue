@@ -24,6 +24,7 @@ import type { EntityListItem } from './types';
 import FolderViewFolder from './folder-view-folder.vue';
 import FolderViewFile from './folder-view-file.vue';
 import ListingEntry = web3n.files.ListingEntry;
+import CustomScrollbarBoth from '@main/common/components/ui/custom-scrollbar-both.vue';
 
 const props = defineProps<{
   item: AttachmentViewInfo;
@@ -93,23 +94,25 @@ onMounted(async () => {
       v-if="!isEmpty(entityList) && !isProcessing"
       :class="$style.body"
     >
-      <div :class="$style.list">
-        <template
-          v-for="entity in entityList"
-          :key="entity.name"
-        >
-          <folder-view-folder
-            v-if="entity.isFolder"
-            :name="entity.name"
-            :children="entity.children!"
-          />
+      <custom-scrollbar-both>
+        <div :class="$style.list">
+          <template
+            v-for="entity in entityList"
+            :key="entity.name"
+          >
+            <folder-view-folder
+              v-if="entity.isFolder"
+              :name="entity.name"
+              :children="entity.children!"
+            />
 
-          <folder-view-file
-            v-else
-            :name="entity.name"
-          />
-        </template>
-      </div>
+            <folder-view-file
+              v-else
+              :name="entity.name"
+            />
+          </template>
+        </div>
+      </custom-scrollbar-both>
     </div>
 
     <ui3n-progress-circular
@@ -122,8 +125,6 @@ onMounted(async () => {
 </template>
 
 <style lang="scss" module>
-@use '@main/common/assets/styles/mixins' as mixins;
-
 .folderView {
   position: relative;
   width: 100%;
@@ -140,8 +141,7 @@ onMounted(async () => {
   position: relative;
   width: 100%;
   height: 100%;
-  overflow: auto;
-  @include mixins.scrollbar(96px);
+  overflow: hidden;
 }
 
 .list {

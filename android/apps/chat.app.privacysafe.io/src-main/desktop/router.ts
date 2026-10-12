@@ -53,7 +53,17 @@ export interface ChatWithIncomingCall extends ChatRoute {
   };
 }
 
-export type ChatRouteType = ChatRoute | ChatWithFwdMsgRef | ChatWithIncomingCall;
+/**
+ * Chat opened with a draft prepared by another app (see AppChats in
+ * manifest.json): its attachments go into the message composer.
+ */
+export interface ChatWithExternalDraft extends ChatRoute {
+  query: {
+    draft: string;
+  };
+}
+
+export type ChatRouteType = ChatRoute | ChatWithFwdMsgRef | ChatWithIncomingCall | ChatWithExternalDraft;
 
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/chats' },

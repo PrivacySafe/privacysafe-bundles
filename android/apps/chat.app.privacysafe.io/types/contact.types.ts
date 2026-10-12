@@ -16,6 +16,12 @@
 */
 
 export interface ContactsService {
+  /**
+   * Reads a file with contacts shared by another user (.w3nec), for the
+   * contacts app to import them when it is opened with the returned id in its
+   * 'import-contacts' command.
+   */
+  prepareSharedContactsImport: (file: web3n.files.ReadonlyFile) => Promise<{ importId: string; contactsCount: number }>;
   getContact: (id: string) => Promise<Person | undefined>;
   getContactByMail: (mail: string) => Promise<Person | undefined>;
   getContactList: (withImage?: boolean) => Promise<Person[]>;

@@ -102,7 +102,10 @@ export default function useChatMessages(
 
   const showMessages = ref(false);
 
-  const listElement = useTemplateRef<HTMLDivElement>('list-element');
+  const scrollbarRef = useTemplateRef<{
+    getContainer: () => HTMLDivElement | undefined;
+    updateMetrics: () => void;
+  }>('scrollbarRef');
 
   const msgActionsMenuProps = ref<{
     open: boolean;
@@ -124,11 +127,11 @@ export default function useChatMessages(
   });
 
   async function scrollList({ chatId }: AppGlobalEvents['message:sent'], motSmoothly?: boolean) {
-    if (listElement.value && currentChatId.value?.chatId === chatId.chatId) {
+    if (currentChatId.value?.chatId === chatId.chatId) {
       await nextTick(() => {
         // Re-read rather than reuse the check above: a tick is long enough for
         // the component to unmount, which empties the template ref.
-        listElement.value?.scrollTo({
+        scrollbarRef.value?.getContainer()?.scrollTo({
           top: 1e12,
           left: 0,
           behavior: motSmoothly ? 'auto' : 'smooth',
@@ -593,8 +596,21 @@ export default function useChatMessages(
     },
   );
 
+  // The message list is rendered after mount (behind `showMessages`) and its
+  // element keeps a fixed height, so the scrollbar's own observers do not see
+  // the content grow: metrics are refreshed here whenever the list appears or
+  // its number of messages changes.
+  watch(
+    [showMessages, () => currentChatMessages.value.length],
+    async () => {
+      await nextTick();
+      scrollbarRef.value?.updateMetrics();
+    },
+    { immediate: true },
+  );
+
   onMounted(() => {
-    emits('init', listElement.value);
+    emits('init', scrollbarRef.value?.getContainer() ?? null);
 
     bus.$emitter.on('message:sent', scrollList);
     bus.$emitter.on('message:added', scrollList);
@@ -609,7 +625,6 @@ export default function useChatMessages(
   return {
     t,
     showMessages,
-    listElement,
     selectedMessages,
     messagesAreProcessing,
     msgActionsMenuProps,

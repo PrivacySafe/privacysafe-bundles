@@ -39,17 +39,6 @@
   <chat-list
     :is-mobile-mode="true"
     :open-create-chat-dialog="openCreateChatDialog"
-    :class="$style.chats"
     @click="goChat"
   />
 </template>
-
-<style lang="scss" module>
-  .chats {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    background-color: var(--color-bg-block-primary-default);
-    overflow-y: auto;
-  }
-</style>

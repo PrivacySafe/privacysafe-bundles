@@ -22,6 +22,11 @@ export type MainWindowCommand = 'open-chat-with' | 'incoming-call';
 export interface OpenChatCmdArg {
   peerAddress: string;
   chatId?: ChatIdObj;
+  /**
+   * Id of a draft prepared by another app via AppChats.prepareOutgoingDraft.
+   * Its attachments are put into the message composer of the opened chat.
+   */
+  draftId?: string;
 }
 
 export interface IncomingCallCmdArg {

@@ -76,7 +76,6 @@
             isMenuOpen ? 'var(--color-icon-block-secondary-default)' : 'var(--color-icon-block-primary-default)'
           "
           icon-size="32"
-          :class="$style.menuBtn"
           @click="toggleMenu"
         />
 
@@ -218,11 +217,6 @@
     align-items: center;
     background-color: var(--color-bg-block-primary-default);
     border-bottom: 1px solid var(--color-border-block-primary-default);
-
-    .menuBtn {
-      --ui3n-button-height: 40px !important;
-      --ui3n-button-icon-large: 40px !important;
-    }
   }
 
   /*
@@ -304,7 +298,7 @@
   .content {
     position: relative;
     width: 100%;
-    height: calc(100% - var(--main-toolbar-height) - 1px);
+    height: calc(100% - var(--main-toolbar-height) - 8px);
   }
 
   #notification {

@@ -23,6 +23,7 @@
   import ChatMessage from '../chat-message/chat-message.vue';
   import ChatMessageActions from '../chat-message/chat-message-actions.vue';
   import ReactionsDialog from '@main/common/components/dialogs/reactions-dialog.vue';
+  import CustomScrollbar from '@main/common/components/ui/custom-scrollbar.vue';
 
   export interface ChatMessagesProps {
     chat: ChatListItemView;
@@ -99,76 +100,77 @@
 <template>
   <div
     id="chat-messages"
-    ref="list-element"
     v-ui3n-long-press="{ handler: handleClickOnMessagesBlock, delay: 1000 }"
     :class="$style.chatMessages"
     @click.right="handleClickOnMessagesBlock"
     @click="onMsgClick"
   >
-    <ui3n-list
-      v-if="showMessages"
-      :sticky="false"
-      :items="processedMessages"
-    >
-      <template #item="{ item }">
-        <ui3n-list :items="item.items">
-          <template #title>
-            <div :class="$style.date">
-              <span :class="$style.dateValue">{{ item.date }}</span>
-            </div>
-          </template>
+    <custom-scrollbar ref="scrollbarRef">
+      <ui3n-list
+        v-if="showMessages"
+        :sticky="false"
+        :items="processedMessages"
+      >
+        <template #item="{ item }">
+          <ui3n-list :items="item.items">
+            <template #title>
+              <div :class="$style.date">
+                <span :class="$style.dateValue">{{ item.date }}</span>
+              </div>
+            </template>
 
-          <template #item="{ item: msg, index }">
-            <chat-message
-              :msg="msg"
-              :selected-messages="selectedMessages"
-              :messages-are-processing="messagesAreProcessing"
-              :prev-msg-sender="index === 0 ? '' : getPrevMsgSender(item.items[index - 1])"
-              :prev-msg-info="
-                index === 0
-                  ? null
-                  : {
-                    isIncomingMsg: item.items[index - 1].isIncomingMsg,
-                    status: item.items[index - 1].status,
-                  }
-              "
-              :related-message="(msg as RegularMsgView).relatedMessage"
-              :is-origin-device="checkIsOriginDevice(msg)"
-              :blocked-members="blockedMembers"
-              @select="selectMessage"
-            />
-          </template>
-        </ui3n-list>
-      </template>
-    </ui3n-list>
+            <template #item="{ item: msg, index }">
+              <chat-message
+                :msg="msg"
+                :selected-messages="selectedMessages"
+                :messages-are-processing="messagesAreProcessing"
+                :prev-msg-sender="index === 0 ? '' : getPrevMsgSender(item.items[index - 1])"
+                :prev-msg-info="
+                  index === 0
+                    ? null
+                    : {
+                      isIncomingMsg: item.items[index - 1].isIncomingMsg,
+                      status: item.items[index - 1].status,
+                    }
+                "
+                :related-message="(msg as RegularMsgView).relatedMessage"
+                :is-origin-device="checkIsOriginDevice(msg)"
+                :blocked-members="blockedMembers"
+                @select="selectMessage"
+              />
+            </template>
+          </ui3n-list>
+        </template>
+      </ui3n-list>
 
-    <teleport
-      v-if="msgActionsMenuProps.msg"
-      :disabled="!msgActionsMenuProps.open"
-      :to="`#msg-${msgActionsMenuProps.msg.chatMessageId}`"
-    >
-      <chat-message-actions
-        :open="msgActionsMenuProps.open"
-        :actions="msgActionsMenuProps.actions"
-        :msg="msgActionsMenuProps.msg"
-        @close="clearMessageMenu"
-        @select:action="handleAction"
-      />
-    </teleport>
+      <teleport
+        v-if="msgActionsMenuProps.msg"
+        :disabled="!msgActionsMenuProps.open"
+        :to="`#msg-${msgActionsMenuProps.msg.chatMessageId}`"
+      >
+        <chat-message-actions
+          :open="msgActionsMenuProps.open"
+          :actions="msgActionsMenuProps.actions"
+          :msg="msgActionsMenuProps.msg"
+          @close="clearMessageMenu"
+          @select:action="handleAction"
+        />
+      </teleport>
 
-    <teleport
-      v-if="msgReactionsMenuProps.msg"
-      :disabled="!msgReactionsMenuProps.open"
-      :to="`#msg-${msgReactionsMenuProps.msg.chatMessageId}`"
-    >
-      <reactions-dialog
-        :open="msgReactionsMenuProps.open"
-        :recent-reactions="recentReactions"
-        :msg="msgReactionsMenuProps.msg"
-        @close="clearMessageMenu"
-        @select:reaction="handleSelectionReaction"
-      />
-    </teleport>
+      <teleport
+        v-if="msgReactionsMenuProps.msg"
+        :disabled="!msgReactionsMenuProps.open"
+        :to="`#msg-${msgReactionsMenuProps.msg.chatMessageId}`"
+      >
+        <reactions-dialog
+          :open="msgReactionsMenuProps.open"
+          :recent-reactions="recentReactions"
+          :msg="msgReactionsMenuProps.msg"
+          @close="clearMessageMenu"
+          @select:reaction="handleSelectionReaction"
+        />
+      </teleport>
+    </custom-scrollbar>
   </div>
 </template>
 
@@ -177,9 +179,8 @@
     position: relative;
     width: 100%;
     height: 100%;
+    overflow: hidden;
     background-color: var(--color-bg-chat-bubble-general-bg);
-    overflow-y: auto;
-    scrollbar-gutter: stable;
 
     .scroller {
       height: 100%;

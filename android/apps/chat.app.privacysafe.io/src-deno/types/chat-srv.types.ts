@@ -34,8 +34,10 @@ import type {
   MsgPageCursor,
   MsgsDeletionResult,
   OutgoingAttachment,
+  SingleChatStatus,
   SingleChatView,
 } from '../../types/chat.types.ts';
+import type { ExternalDraft, ExternalDraftFile } from '../../types/external-chats.types.ts';
 import type {
   AddressCheckResult,
   ComponentStatus,
@@ -146,6 +148,24 @@ export interface ChatSrv {
   getChat(chatId: ChatIdObj): Promise<ChatListItemView | undefined>;
 
   findChatEntry(chatId: ChatIdObj, throwIfMissing?: boolean): ChatDbEntry | undefined;
+
+  /**
+   * Status of the one-to-one chat with the given address, or null when there
+   * is no such chat. Exposed to other apps in service 'AppChats'.
+   */
+  getOneToOneChatStatus(peerAddr: string): Promise<SingleChatStatus | null>;
+
+  /**
+   * Copies files given by another app into the store, and keeps them as a
+   * draft for the chat window. Exposed to other apps in service 'AppChats'.
+   */
+  prepareOutgoingDraft(params: { peerAddress: string; files: ExternalDraftFile[] }): Promise<{ draftId: string }>;
+
+  /**
+   * Hands a draft prepared by prepareOutgoingDraft over to the chat window,
+   * and forgets it. The stored files then belong to the window's composer.
+   */
+  takeExternalDraft(draftId: string): Promise<ExternalDraft | undefined>;
 
   deleteMessagesInChat(chatId: ChatIdObj, deleteForEveryone: boolean): Promise<void>;
 

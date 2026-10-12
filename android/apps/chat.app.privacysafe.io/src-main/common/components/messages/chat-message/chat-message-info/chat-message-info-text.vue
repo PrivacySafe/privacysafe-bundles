@@ -20,6 +20,7 @@
   import { Ui3nHtml } from '@v1nt1248/3nclient-lib';
   import { useInfoChanges } from './useInfoChanges';
   import type { ChatMessageHistoryChange } from '~/index';
+  import CustomScrollbar from '@main/common/components/ui/custom-scrollbar.vue';
 
   const vUi3nHtml = Ui3nHtml;
 
@@ -41,75 +42,77 @@
 
 <template>
   <div :class="$style.chatMessageInfoText">
-    <h4 :class="$style.label">
-      {{ t('chat.message.info.label.now') }}
-    </h4>
+    <custom-scrollbar>
+      <h4 :class="$style.label">
+        {{ t('chat.message.info.label.now') }}
+      </h4>
 
-    <div :class="$style.now">
-      <div :class="$style.item">
-        <span :class="$style.time">
-          {{ prepareTimeForBlockNow() }}
-        </span>
+      <div :class="$style.now">
+        <div :class="$style.item">
+          <span :class="$style.time">
+            {{ prepareTimeForBlockNow() }}
+          </span>
 
-        <div
-          v-if="currentText"
-          :class="$style.msg"
-        >
           <div
-            v-ui3n-html:sanitize="{
-              dirty: currentText,
-              allowedAttributes: { '*': ['class', 'data-mention', 'data-href'] },
-            }"
-            :class="$style.text"
-          />
-        </div>
+            v-if="currentText"
+            :class="$style.msg"
+          >
+            <div
+              v-ui3n-html:sanitize="{
+                dirty: currentText,
+                allowedAttributes: { '*': ['class', 'data-mention', 'data-href'] },
+              }"
+              :class="$style.text"
+            />
+          </div>
 
-        <div
-          v-else
-          :class="$style.noData"
-        >
-          {{ t('chat.message.info.text.no_body') }}
+          <div
+            v-else
+            :class="$style.noData"
+          >
+            {{ t('chat.message.info.text.no_body') }}
+          </div>
         </div>
       </div>
-    </div>
 
-    <hr :class="$style.delimiter">
+      <hr :class="$style.delimiter">
 
-    <h4 :class="$style.label">
-      {{ t('chat.message.info.label.history') }} ({{ t('chat.message.info.label.state') }})
-    </h4>
+      <h4 :class="$style.label">
+        {{ t('chat.message.info.label.history') }} ({{ t('chat.message.info.label.state') }})
+      </h4>
 
-    <div
-      v-if="isEmpty(msgTextChanges)"
-      :class="$style.noData"
-    >
-      {{ t('chat.message.info.text.no_changes') }}
-    </div>
-
-    <div
-      v-else
-      :class="$style.changes"
-    >
       <div
-        v-for="(change, index) in msgTextChanges"
-        :key="change.timestamp"
-        :class="$style.item"
+        v-if="isEmpty(msgTextChanges)"
+        :class="$style.noData"
       >
-        <span :class="$style.time">
-          {{ prepareTimeForBlockHistory(index) }}
-        </span>
+        {{ t('chat.message.info.text.no_changes') }}
+      </div>
 
-        <div :class="$style.msg">
-          <div
-            v-ui3n-html:sanitize="{
-              dirty: change.value,
-              allowedAttributes: { '*': ['class', 'data-mention', 'data-href'] },
-            }"
-            :class="$style.text"
-          />
+      <div
+        v-else
+        :class="$style.changes"
+      >
+        <div
+          v-for="(change, index) in msgTextChanges"
+          :key="change.timestamp"
+          :class="$style.item"
+        >
+          <span :class="$style.time">
+            {{ prepareTimeForBlockHistory(index) }}
+          </span>
+
+          <div :class="$style.msg">
+            <div
+              v-ui3n-html:sanitize="{
+                dirty: change.value,
+                allowedAttributes: { '*': ['class', 'data-mention', 'data-href'] },
+              }"
+              :class="$style.text"
+            />
+          </div>
         </div>
       </div>
-    </div>
+    </custom-scrollbar>
   </div>
 </template>
 
@@ -121,7 +124,7 @@
     position: relative;
     width: 100%;
     height: 100%;
-    overflow-y: auto;
+    overflow: hidden;
   }
 
   .label {

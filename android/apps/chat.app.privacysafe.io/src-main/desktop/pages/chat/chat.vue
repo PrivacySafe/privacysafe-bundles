@@ -41,6 +41,7 @@
   import ChatMessageInfo from '@main/common/components/messages/chat-message/chat-message-info/chat-message-info.vue';
   import ChatAvatar from '@main/common/components/chat/chat-avatar.vue';
   import RecordingQuote from '@main/common/components/messages/chat-message/chat-message-recording/recording-quote.vue';
+  import CustomScrollbarHorizontal from '@main/common/components/ui/custom-scrollbar-horizontal.vue';
 
   const vUi3nHtml = Ui3nHtml;
   const vUi3nClickOutside = Ui3nClickOutside;
@@ -344,14 +345,18 @@
                   </div>
 
                   <div :class="$style.attachmentsBody">
-                    <chat-attachment-item
-                      v-for="(attachmentInfo, index) in attachmentsInfo!"
-                      :key="`${attachmentInfo.name}-${attachmentInfo.id || ''}`"
-                      :info="attachmentInfo"
-                      :entity="files[index].entity"
-                      @change:size="attachmentInfo.size = $event"
-                      @delete="deleteAttachment(index)"
-                    />
+                    <custom-scrollbar-horizontal>
+                      <div :class="$style.attachmentsList">
+                        <chat-attachment-item
+                          v-for="(attachmentInfo, index) in attachmentsInfo!"
+                          :key="`${attachmentInfo.name}-${attachmentInfo.id || ''}`"
+                          :info="attachmentInfo"
+                          :entity="files[index].entity"
+                          @change:size="attachmentInfo.size = $event"
+                          @delete="deleteAttachment(index)"
+                        />
+                      </div>
+                    </custom-scrollbar-horizontal>
                   </div>
 
                   <ui3n-tooltip
@@ -476,7 +481,8 @@
     position: relative;
     width: 100%;
     flex-basis: calc(100% - 66px);
-    overflow-y: auto;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .messages {
@@ -553,14 +559,16 @@
   }
 
   .attachmentsBody {
+    position: relative;
+    width: 100%;
+  }
+
+  .attachmentsList {
     display: flex;
     justify-content: flex-start;
     align-items: center;
     column-gap: var(--spacing-xs);
     padding-bottom: var(--spacing-xs);
-    overflow-x: auto;
-
-    @include mixins.scrollbar-horizontal(96px);
   }
 
   .attachmentsClear {

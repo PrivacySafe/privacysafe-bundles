@@ -23,6 +23,7 @@
   import { useAppStore } from '@main/common/store/app.store';
   import type { ChatListItemView } from '~/chat.types';
   import ChatListItem from './chat-list-item.vue';
+  import CustomScrollbar from '@main/common/components/ui/custom-scrollbar.vue';
 
   defineProps<{
     isMobileMode?: boolean;
@@ -42,60 +43,62 @@
 
 <template>
   <div :class="$style.chatList">
-    <div
-      v-if="chatListError"
-      :class="$style.stateInfo"
-    >
-      <div>{{ t('app.startup.listNotLoaded') }}</div>
-      <ui3n-button
-        type="secondary"
-        @click="chatsStore.refreshChatList()"
+    <custom-scrollbar>
+      <div
+        v-if="chatListError"
+        :class="$style.stateInfo"
       >
-        {{ t('app.startup.retry') }}
-      </ui3n-button>
-    </div>
-
-    <div
-      v-else-if="!chatListLoaded"
-      :class="$style.stateInfo"
-    >
-      <ui3n-progress-circular
-        indeterminate
-        size="32"
-      />
-
-      <div v-if="backendStage">
-        {{ t('app.startup.stillStarting', { stage: backendStage }) }}
+        <div>{{ t('app.startup.listNotLoaded') }}</div>
+        <ui3n-button
+          type="secondary"
+          @click="chatsStore.refreshChatList()"
+        >
+          {{ t('app.startup.retry') }}
+        </ui3n-button>
       </div>
-    </div>
 
-    <div
-      v-else-if="chatListSortedByTime.length === 0"
-      :class="$style.stateInfo"
-    >
-      {{ t('chat.list.empty') }}
-    </div>
+      <div
+        v-else-if="!chatListLoaded"
+        :class="$style.stateInfo"
+      >
+        <ui3n-progress-circular
+          indeterminate
+          size="32"
+        />
 
-    <template v-else>
-      <chat-list-item
-        v-for="chat in chatListSortedByTime"
-        :key="chat.chatId"
-        :data="chat"
-        @click.stop.prevent="emits('click', chat)"
+        <div v-if="backendStage">
+          {{ t('app.startup.stillStarting', { stage: backendStage }) }}
+        </div>
+      </div>
+
+      <div
+        v-else-if="chatListSortedByTime.length === 0"
+        :class="$style.stateInfo"
+      >
+        {{ t('chat.list.empty') }}
+      </div>
+
+      <template v-else>
+        <chat-list-item
+          v-for="chat in chatListSortedByTime"
+          :key="chat.chatId"
+          :data="chat"
+          @click.stop.prevent="emits('click', chat)"
+        />
+      </template>
+
+      <ui3n-button
+        v-if="isMobileMode"
+        type="icon"
+        size="large"
+        color="var(--color-bg-button-primary-default)"
+        icon="round-plus"
+        icon-color="var(--color-icon-button-primary-default)"
+        icon-size="32"
+        :class="$style.createBtn"
+        @click.stop.prevent="() => openCreateChatDialog && openCreateChatDialog(isMobileMode)"
       />
-    </template>
-
-    <ui3n-button
-      v-if="isMobileMode"
-      type="icon"
-      size="large"
-      color="var(--color-bg-button-primary-default)"
-      icon="round-plus"
-      icon-color="var(--color-icon-button-primary-default)"
-      icon-size="32"
-      :class="$style.createBtn"
-      @click.stop.prevent="() => openCreateChatDialog && openCreateChatDialog(isMobileMode)"
-    />
+    </custom-scrollbar>
   </div>
 </template>
 
@@ -103,8 +106,7 @@
   .chatList {
     position: relative;
     width: 100%;
-    overflow-x: hidden;
-    overflow-y: auto;
+    height: 100%;
     padding: 0 var(--spacing-xs);
     background-color: var(--color-bg-block-primary-default);
     user-select: none;

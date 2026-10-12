@@ -1,7 +1,7 @@
 {
   "name": "Chat",
   "appDomain": "chat.app.privacysafe.io",
-  "version": "0.12.29",
+  "version": "0.12.30",
   "icon": "logo.png",
   "description": "Send secure text messages, share files or start a video meeting.",
 
@@ -32,7 +32,7 @@
           "userNotifications": true,
           "startAppCmds": {
             "otherApps": {
-              "contacts.app.privacysafe.io": ["add-contact"]
+              "contacts.app.privacysafe.io": ["add-contact", "import-contacts"]
             }
           },
           "fsResource": {
@@ -105,7 +105,7 @@
           "userNotifications": true,
           "startAppCmds": {
             "otherApps": {
-              "contacts.app.privacysafe.io": ["add-contact"]
+              "contacts.app.privacysafe.io": ["add-contact", "import-contacts"]
             }
           },
           "fsResource": {
@@ -253,6 +253,9 @@
         },
         "VideoChatComponent": {
           "thisAppComponents": ["/index.html", "/index-mobile.html"]
+        },
+        "AppChats": {
+          "otherApps": ["contacts.app.privacysafe.io"]
         }
       },
       "runtime": "deno",
