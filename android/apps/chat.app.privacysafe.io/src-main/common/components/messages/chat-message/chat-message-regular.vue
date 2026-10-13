@@ -15,19 +15,23 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 -->
 <script lang="ts" setup>
-  import { computed, ComputedRef } from 'vue';
+  import { computed, ComputedRef, inject } from 'vue';
   import { useI18n } from 'vue-i18n';
   import { storeToRefs } from 'pinia';
   import get from 'lodash/get';
   import size from 'lodash/size';
   import { Ui3nHtml as vUi3nHtml, type Nullable, Ui3nProgressCircular } from '@v1nt1248/3nclient-lib';
-  import { prepareDateAsSting } from '@v1nt1248/3nclient-lib/utils';
+  import { markSearch, prepareDateAsSting } from '@v1nt1248/3nclient-lib/utils';
   import type { OutgoingMessageStatus, RegularMsgView } from '~/index';
   import { useAppStore } from '@main/common/store/app.store';
   import { useContactsStore } from '@main/common/store/contacts.store';
   import { useMessagesStore } from '@main/common/store/messages.store';
   import { useUiOutgoingStore } from '@main/common/store/ui.outgoing.store';
   import { recordingOfAttachments } from '@main/common/utils/chat-ui.helper';
+  import {
+    MESSAGE_SEARCH_HIGHLIGHT_KEY,
+    type MessageSearchHighlight,
+  } from '@main/common/composables/useMessageSearchHighlight';
   import ChatMessageStatus from './chat-message-status.vue';
   import ChatMessageAttachments from './chat-message-attachments/chat-message-attachments.vue';
   import ChatMessageReactions from './chat-message-reactions/chat-message-reactions.vue';
@@ -51,6 +55,29 @@
   const { getContactName } = useContactsStore();
   const { objOfCurrentChatMessages } = storeToRefs(useMessagesStore());
   const { msgsSendingProgress } = storeToRefs(useUiOutgoingStore());
+
+  // Absent in views that have no message search (the mobile one, for now).
+  const searchHighlight = inject<MessageSearchHighlight>(MESSAGE_SEARCH_HIGHLIGHT_KEY);
+
+  const isSearchHighlighted = computed(
+    () => !!searchHighlight && searchHighlight.highlightedMessageId.value === props.msg.chatMessageId,
+  );
+
+  /**
+   * The body with the query marked. markSearch escapes its input and would
+   * flatten the anchors of mentions and links, so it is applied to the text
+   * between tags only, the tags themselves kept as they are.
+   */
+  const bodyWithHighlights = computed(() => {
+    const query = searchHighlight?.query.value.trim();
+    if (!isSearchHighlighted.value || !query || !props.msg.body) {
+      return props.msg.body;
+    }
+    return props.msg.body.replace(
+      /(<[^>]*>)|([^<]+)/g,
+      (_chunk, tag: string | undefined, text: string | undefined) => tag ?? markSearch(text!, query),
+    );
+  });
 
   const chatMsgInfo = computed(() => JSON.stringify([props.msg.chatId.chatId, props.msg.chatMessageId]));
 
@@ -86,11 +113,13 @@
    */
   const replyRecording = computed(() => {
     const quoted = replyMessage.value;
-    return (quoted && !quoted.body) ? recordingOfAttachments(quoted.attachments) : undefined;
+    return quoted && !quoted.body ? recordingOfAttachments(quoted.attachments) : undefined;
   });
 
   const replyMessageText = computed(() => {
-    if (!replyMessage.value) { return ''; }
+    if (!replyMessage.value) {
+      return '';
+    }
 
     const body = replyMessage.value.body;
     const attachments = replyMessage.value.attachments;
@@ -138,7 +167,7 @@
     <div
       :id="msg.chatMessageId"
       class="chat-message__content"
-      :class="$style.content"
+      :class="[$style.content, isSearchHighlighted && $style.searchHighlighted]"
     >
       <div :style="{ pointerEvents: 'none' }">
         <h4
@@ -186,7 +215,7 @@
         <pre
           v-if="msg.body"
           v-ui3n-html:sanitize="{
-            dirty: msg.body,
+            dirty: bodyWithHighlights,
             allowedAttributes: { '*': ['class', 'data-mention', 'data-href'] },
           }"
           :class="$style.text"
@@ -272,6 +301,13 @@
     color: var(--color-text-chat-bubble-user-quote-header);
   }
 
+  .match-search {
+    color: var(--color-text-block-darkery-default);
+    padding-inline: 2px;
+    background-color: var(--color-bg-control-accent-default);
+    border-radius: 2px;
+  }
+
   // .w3nUrl {
   //   display: inline-block;
   //   color: var(--color-text-chat-bubble-user-quote-header);
@@ -337,6 +373,11 @@
     cursor: pointer;
   }
 
+  .searchHighlighted {
+    outline: 2px solid var(--color-icon-block-accent-default);
+    outline-offset: -2px;
+  }
+
   .sender,
   .forwardMessage {
     font-size: var(--font-13);
@@ -366,6 +407,7 @@
 
   .replyMessageText {
     display: -webkit-box;
+    line-clamp: 2;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;

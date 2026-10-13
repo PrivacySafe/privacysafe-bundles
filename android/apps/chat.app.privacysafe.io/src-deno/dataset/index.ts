@@ -55,6 +55,7 @@ export async function dataset(): Promise<DB> {
     getExpiredMessages: msgsBdSrv.getExpiredMessages,
     getMessagesByChat: msgsBdSrv.getMessagesByChat,
     getMessagesPageInChat: msgsBdSrv.getMessagesPageInChat,
+    searchMessagesInChat: msgsBdSrv.searchMessagesInChat,
     getNotRegularMessagesByChat: msgsBdSrv.getNotRegularMessagesByChat,
     getMessagesWithSyncingSelfStatus: msgsBdSrv.getMessagesWithSyncingSelfStatus,
     getLatestIncomingMsgTimestamp: msgsBdSrv.getLatestIncomingMsgTimestamp,

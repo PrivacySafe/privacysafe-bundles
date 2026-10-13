@@ -52,6 +52,7 @@ const REQ_REPLY_METHODS: (keyof ChatSrv)[] = [
   'getMessage',
   'getMessagesByChat',
   'getMessagesPageByChat',
+  'searchMessagesInChat',
   'getRecentReactions',
   'getThumbnails',
   'saveThumbnail',

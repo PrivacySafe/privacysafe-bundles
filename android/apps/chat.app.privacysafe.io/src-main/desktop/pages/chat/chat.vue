@@ -97,6 +97,8 @@
     deleteAttachment,
     openMediaRecorder,
     sendMessage,
+    setFoundMessages,
+    scrollToMessage,
     doAfterMount,
     doBeforeRouteUpdate,
     doBeforeUnMount,
@@ -116,6 +118,8 @@
       :messages="currentChatMessages"
       :blocking-state="blockingState"
       :readonly="readonly"
+      @search="setFoundMessages"
+      @change:found-message-index="scrollToMessage"
     />
 
     <div :class="$style.bodyWrapper">

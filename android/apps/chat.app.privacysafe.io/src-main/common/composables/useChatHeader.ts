@@ -37,10 +37,20 @@ import { useChatStore } from '@main/common/store/chat.store';
 import { useMessagesStore } from '@main/common/store/messages.store';
 import { chatService } from '@main/common/services/external-services';
 import { ChatListItemView, ChatMessageView, SingleChatView } from '~/chat.types';
+import type { ChatMessageId } from '~/asmail-msgs.types.ts';
 import ConfirmationDialog from '@main/common/components/dialogs/confirmation-dialog.vue';
 import ChatRenameDialog from '@main/common/components/dialogs/chat-rename-dialog.vue';
 import ChatInfoDialog from '@main/common/components/dialogs/chat-info-dialog/chat-info-dialog.vue';
 import ManageBlocksDialog from '@main/common/components/dialogs/manage-blocks-dialog/manage-blocks-dialog.vue';
+
+/**
+ * Events a chat header raises for its page. Shared by both the desktop and the
+ * mobile header, and by the useChatHeader() they feed.
+ */
+export interface ChatHeaderEmits {
+  (ev: 'search', value: ChatMessageId[] | undefined, query: string): void;
+  (ev: 'change:found-message-index', value: number): void;
+}
 
 interface ChatActionHandlers {
   history: {
@@ -63,16 +73,29 @@ interface ChatActionHandlers {
   };
 }
 
+/**
+ * How long typing must pause before the search runs. The results must describe
+ * the text that is in the box now: with a button, the text could be cleared
+ * before the button was pressed and the stale hits would stay on screen.
+ */
+const SEARCH_DEBOUNCE_MILLIS = 500;
+
 export function useChatHeader({
   chat,
   messages,
   goToChats,
   isMobileMode,
+  emits,
 }: {
   chat: ComputedRef<ChatListItemView>;
   messages: ComputedRef<ChatMessageView[]>;
   goToChats: () => Promise<void>;
   isMobileMode?: boolean;
+  /**
+   * Optional: only the desktop header runs message search. The mobile header
+   * uses this composable for chat actions alone and passes nothing.
+   */
+  emits?: ChatHeaderEmits;
 }) {
   const { t } = useI18n();
   const dialog = inject<DialogsPlugin>(DIALOGS_KEY)!;
@@ -115,6 +138,12 @@ export function useChatHeader({
   const chatWithCall = computed(() => !!chat.value.callStart);
   const isCallActive = computed(() => !!chat.value.isCallActive);
 
+  const searchMode = ref(false);
+  const searchText = ref('');
+  const foundMessages = ref<ChatMessageId[] | undefined>(undefined);
+  const currentFoundMessageIndex = ref(1);
+  let searchTimerId: ReturnType<typeof setTimeout> | undefined = undefined;
+
   const callDuration = ref<Nullable<string>>(null);
   const timer = ref<NodeJS.Timeout | undefined>(undefined);
 
@@ -124,6 +153,84 @@ export function useChatHeader({
     const m = String(diffInMinutes % 60).padStart(2, '0');
     return `${h}:${m}`;
   }
+
+  function setSearchMode(value: boolean) {
+    searchMode.value = value;
+    if (!value) {
+      if (searchTimerId !== undefined) {
+        clearTimeout(searchTimerId);
+        searchTimerId = undefined;
+      }
+      searchText.value = '';
+      foundMessages.value = [];
+      currentFoundMessageIndex.value = 1;
+      emits?.('search', undefined, '');
+    }
+  }
+
+  async function searchInChat() {
+    if (!currentChatId.value) {
+      return;
+    }
+    const query = searchText.value;
+    const ids = await chatStore.searchMessagesInChat(currentChatId.value, query);
+    // A slower earlier search must not overwrite the results of a later one.
+    if (query !== searchText.value) {
+      return;
+    }
+    foundMessages.value = ids;
+    emits?.('search', ids, query);
+    currentFoundMessageIndex.value = 1;
+    if (ids && ids.length) {
+      emits?.('change:found-message-index', currentFoundMessageIndex.value);
+    }
+  }
+
+  /**
+   * Moves to the next (or previous) found message, wrapping around: past the
+   * last one comes the first, and before the first comes the last, so the
+   * arrows keep working at either end instead of going dead there.
+   */
+  function changeFoundMessageIndex(dir: '+' | '-') {
+    const total = foundMessages.value?.length ?? 0;
+    if (total === 0) {
+      return;
+    }
+
+    currentFoundMessageIndex.value = dir === '+'
+      ? (currentFoundMessageIndex.value >= total ? 1 : currentFoundMessageIndex.value + 1)
+      : (currentFoundMessageIndex.value <= 1 ? total : currentFoundMessageIndex.value - 1);
+    emits?.('change:found-message-index', currentFoundMessageIndex.value);
+  }
+
+  /**
+   * The search runs by itself, a moment after typing stops, so that what is on
+   * screen always describes the text that is in the box - no button to remember
+   * to press, and no stale hits left behind by text that was already erased.
+   */
+  watch(
+    searchText,
+    () => {
+      if (searchTimerId !== undefined) {
+        clearTimeout(searchTimerId);
+        searchTimerId = undefined;
+      }
+      if (!searchMode.value) {
+        return;
+      }
+      // An emptied box has nothing to search for, and the previous hits must go.
+      if (!searchText.value.trim()) {
+        foundMessages.value = [];
+        currentFoundMessageIndex.value = 1;
+        emits?.('search', undefined, '');
+        return;
+      }
+      searchTimerId = setTimeout(() => {
+        searchTimerId = undefined;
+        searchInChat();
+      }, SEARCH_DEBOUNCE_MILLIS);
+    },
+  );
 
   async function runChatHistoryExporting() {
     const result = await exportChatMessages({
@@ -236,7 +343,9 @@ export function useChatHeader({
       return;
     }
 
-    const currentChatParticipant = toCanonicalAddress((currentChat.value as SingleChatView).peerAddr.toLowerCase());
+    const currentChatParticipant = toCanonicalAddress(
+      (currentChat.value as SingleChatView).peerAddr.toLowerCase(),
+    );
     await runContactBlocking(currentChatParticipant, value);
   }
 
@@ -298,9 +407,33 @@ export function useChatHeader({
     }
   }
 
+  /**
+   * A chat switch closes the search block and drops its results: the block, the
+   * query, the counter and the found ids all belong to the chat they were made
+   * in, and none of them is about the chat now open.
+   */
+  watch(
+    () => chat.value.chatId,
+    () => {
+      if (searchTimerId !== undefined) {
+        clearTimeout(searchTimerId);
+        searchTimerId = undefined;
+      }
+      searchMode.value = false;
+      searchText.value = '';
+      foundMessages.value = [];
+      currentFoundMessageIndex.value = 1;
+      emits?.('search', undefined, '');
+    },
+  );
+
   onBeforeUnmount(() => {
     timer.value && clearInterval(timer.value);
     timer.value = undefined;
+    if (searchTimerId !== undefined) {
+      clearTimeout(searchTimerId);
+      searchTimerId = undefined;
+    }
   });
 
   watch(
@@ -329,6 +462,10 @@ export function useChatHeader({
 
   return {
     t,
+    searchMode,
+    searchText,
+    foundMessages,
+    currentFoundMessageIndex,
     text,
     isGroupChat,
     currentChatObjId,
@@ -336,6 +473,9 @@ export function useChatHeader({
     chatWithCall,
     isCallActive,
     callDuration,
+    setSearchMode,
+    changeFoundMessageIndex,
+    searchInChat,
     selectAction,
     joinIncomingCall,
     dismissIncomingCall,

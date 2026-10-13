@@ -263,6 +263,13 @@ export interface ChatSrv {
     opts: { limit: number; before?: MsgPageCursor },
   ): Promise<{ msgs: ChatMessageView[]; hasMoreOlder: boolean }>;
 
+  /**
+   * Ids of the chat's regular messages whose body or attachment names contain
+   * the search text, case-insensitively. An empty array means nothing matched;
+   * a failure is thrown, so a caller can tell it apart from an empty result.
+   */
+  searchMessagesInChat(chatId: ChatIdObj, searchText: string): Promise<ChatMessageId[]>;
+
   getRecentReactions(quantity: number): Promise<string[]>;
 
   /**

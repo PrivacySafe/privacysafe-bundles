@@ -198,6 +198,11 @@ export interface MsgsDb {
    * cursor, in ascending order.
    */
   getMessagesPageInChat(chatIdObj: ChatIdObj, limit: number, before?: MsgPageCursor): MsgDbEntry[];
+  /**
+   * Ids of the chat's regular messages whose body or attachment names contain
+   * the search text, case-insensitively. Empty when nothing matches.
+   */
+  searchMessagesInChat(chatIdObj: ChatIdObj, searchText: string): string[];
   getNotRegularMessagesByChat(chatId: ChatIdObj): MsgDbEntry[];
   getMessagesWithSyncingSelfStatus(): MsgDbEntry[];
   getLatestIncomingMsgTimestamp(): number | undefined;

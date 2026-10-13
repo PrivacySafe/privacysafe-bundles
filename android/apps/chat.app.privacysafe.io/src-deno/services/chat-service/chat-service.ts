@@ -727,6 +727,17 @@ export async function chatService(
     return { msgs, hasMoreOlder };
   }
 
+  /**
+   * Ids of the chat's regular messages matching the search text in their body
+   * or attachment names, case-insensitively. The database owns the matching
+   * (see searchMessagesInChat in the data layer); this wraps the ids it returns
+   * with the chat they belong to.
+   */
+  async function searchMessagesInChat(chatId: ChatIdObj, searchText: string): Promise<ChatMessageId[]> {
+    return data.searchMessagesInChat(chatId, searchText)
+      .map(chatMessageId => ({ chatId, chatMessageId }));
+  }
+
   async function sendRegularMessage({
     chatId,
     chatMessageId,
@@ -1031,6 +1042,7 @@ export async function chatService(
     getMessage,
     getMessagesByChat,
     getMessagesPageByChat,
+    searchMessagesInChat,
     getIncomingMessage,
     getRecentReactions: data.getRecentReactions,
     getThumbnails: async id => data.getThumbnails(id),

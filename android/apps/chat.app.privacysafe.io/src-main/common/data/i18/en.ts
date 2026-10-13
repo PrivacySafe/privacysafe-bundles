@@ -82,6 +82,7 @@ export const en = {
       next: 'Next',
       create: 'Create',
       delete: 'Delete',
+      search: 'Search',
       cancel: 'Cancel',
       save: 'Save',
       msg_sender: {
@@ -478,6 +479,7 @@ export const en = {
       error: {
         export: 'Error on saving file {file}.',
         members_update: 'Error while editing chat member list',
+        search: 'Error searching messages in the chat.',
         create_oto_chat: 'Error creating a one to one chat.',
         create_group_chat: 'Error creating a group chat.',
         // The chat is the one open in front of the user, so these name the
@@ -502,7 +504,8 @@ export const en = {
       },
       callCollision: {
         joining: '{name} called at the same moment as you. Joining their call instead.',
-        unresolved: '{name} was calling you at the same moment, and the two calls did not connect. Please try calling again.',
+        unresolved:
+          '{name} was calling you at the same moment, and the two calls did not connect. Please try calling again.',
       },
     },
     message: {
@@ -717,6 +720,9 @@ export const en = {
         mode1: 'Mode 1',
         mode2: 'Mode 2',
       },
+    },
+    search: {
+      results: 'results',
     },
   },
 

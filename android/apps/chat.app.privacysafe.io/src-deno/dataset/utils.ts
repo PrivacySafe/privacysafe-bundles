@@ -15,6 +15,7 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
 import type { ChatMessageId } from '../../types/asmail-msgs.types.ts';
+import type { ChatMessageAttachmentsInfo } from '../../types/chat.types.ts';
 import type { ParamsObject, SqlValue } from '../../shared-libs/sqlite-on-3nstorage/sqljs.d.ts';
 import type {
   OTOChatDbEntry,
@@ -239,3 +240,45 @@ export function msgWhereParamsFor(id: ChatMessageId): {
   const whereMsg = andEqualExprFor(whereMsgParams);
   return { whereMsgParams, whereMsg };
 }
+
+/**
+ * The lowercase text a regular message is searched by: its body and the names
+ * of its attachments, joined by a space.
+ *
+ * Folding to lowercase happens here, in JS, and not in SQL: this build of
+ * SQLite has no ICU, so `lower()` and `LIKE` fold only ASCII, and a Cyrillic
+ * search (ПРИВЕТ vs привет) would be case-sensitive. The stored folded text is
+ * therefore matched against a folded query (see searchPatternFor).
+ */
+export function buildSearchText(
+  body: string | null,
+  attachments: ChatMessageAttachmentsInfo[] | null,
+): string {
+  const parts: string[] = [];
+  if (body) {
+    parts.push(body);
+  }
+  for (const att of attachments ?? []) {
+    if (att?.name) {
+      parts.push(att.name);
+    }
+  }
+  return parts.join(' ').toLowerCase();
+}
+
+/**
+ * A folded LIKE pattern ('%…%') for a user's search text.
+ *
+ * `%`, `_` and the backslash itself are escaped so that they match literally -
+ * the pattern is used with `ESCAPE '\'`. The text is trimmed and folded here,
+ * in JS, to match buildSearchText's folding; the raw searchText only travels as
+ * a pattern, never as a haystack, so wildcards in a message do not need it.
+ */
+export function searchPatternFor(searchText: string): string {
+  const escaped = searchText
+    .trim()
+    .toLowerCase()
+    .replace(/[\\%_]/g, c => `\\${c}`);
+  return `%${escaped}%`;
+}
+

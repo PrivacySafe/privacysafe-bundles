@@ -16,13 +16,14 @@
 -->
 <script lang="ts" setup>
   import { computed, inject, ref } from 'vue';
-  import { isFileAudio, isFileImage, isFileVideo } from '@v1nt1248/3nclient-lib/utils';
-  import { Ui3nButton, Ui3nIcon, Ui3nProgressCircular, Ui3nTooltip, type Nullable } from '@v1nt1248/3nclient-lib';
+  import { isFileAudio, isFileImage, isFileVideo, markSearch } from '@v1nt1248/3nclient-lib/utils';
+  import { Ui3nButton, Ui3nHtml as vUi3nHtml, Ui3nIcon, Ui3nProgressCircular, Ui3nTooltip, type Nullable } from '@v1nt1248/3nclient-lib';
   import type { ChatIdObj, Task } from '~/index';
   import { createThumbnail } from '@main/common/utils/create-thumbnail';
   import { recordingLabelKey, timeInSecondsToString } from '@main/common/utils/chat-ui.helper';
   import { THUMBNAIL_AUTO_PREVIEW_LIMIT } from '@shared/constants/attachment-limits';
   import { THUMBNAIL_CACHE_KEY, type ThumbnailCache } from '@main/common/composables/useThumbnailCache';
+  import { MESSAGE_SEARCH_HIGHLIGHT_KEY, type MessageSearchHighlight } from '@main/common/composables/useMessageSearchHighlight';
   import { useOpenAttachment } from './useOpenAttachment';
   import {
     isSharedContactsFile,
@@ -116,6 +117,33 @@
       ? timeInSecondsToString(Math.round(props.item.recording.durationMs / 1000))
       : '',
   );
+
+  // Absent in views that have no message search (the mobile one, for now).
+  const searchHighlight = inject<MessageSearchHighlight>(MESSAGE_SEARCH_HIGHLIGHT_KEY);
+
+  const isSearchHighlighted = computed(
+    () => !!searchHighlight && searchHighlight.highlightedMessageId.value === props.chatMessageId,
+  );
+
+  const displayedName = computed(() =>
+    props.item.recording ? recordingLabel.value : (props.item.isFolder ? props.item.name : props.item.filename),
+  );
+
+  /**
+   * The name and the extension with the query marked, or null when this message
+   * is not the one being navigated to. Search covers attachment names, not only
+   * bodies, so a hit can be here rather than in the message text.
+   */
+  const nameHtml = computed(() => {
+    const query = searchHighlight?.query.value.trim();
+    return isSearchHighlighted.value && query ? markSearch(displayedName.value, query) : null;
+  });
+  const extHtml = computed(() => {
+    const query = searchHighlight?.query.value.trim();
+    return isSearchHighlighted.value && query && props.item.ext
+      ? markSearch(`.${props.item.ext}`, query)
+      : null;
+  });
 
   const isThumbnailAvailable = computed(
     () =>
@@ -348,6 +376,10 @@
       <template v-if="isSharedContacts">
         {{ t('chat.attachment.import_contacts.title') }}
       </template>
+      <span
+        v-else-if="nameHtml"
+        v-ui3n-html="nameHtml"
+      />
       <template v-else>
         {{ item.recording ? recordingLabel : (item.isFolder ? item.name : item.filename) }}
       </template>
@@ -376,7 +408,13 @@
       v-else-if="!item.isFolder"
       :class="$style.chatMessageAttachmentExt"
     >
-      .{{ item.ext }}
+      <span
+        v-if="extHtml"
+        v-ui3n-html="extHtml"
+      />
+      <template v-else>
+        .{{ item.ext }}
+      </template>
     </div>
 
     <teleport to="body">

@@ -25,11 +25,11 @@ import {
   MAIN_DB_META_ATTR,
   LIFETIME_DAYS_IN_AUXILIARY_DB,
 } from '../../shared-libs/constants/index.ts';
-import { msgsOrphanedTabFiels, msgsTabFields, msgWhereParamsFor } from './utils.ts';
+import { buildSearchText, msgsOrphanedTabFiels, msgsTabFields, msgWhereParamsFor, searchPatternFor } from './utils.ts';
 import { makeDbWriter } from './db-writer.ts';
 import { startupStage } from '../utils/startup-progress.ts';
 import type { ChatIdObj, ChatMessageId } from '../../types/asmail-msgs.types.ts';
-import type { ChatMessageReaction, MessageStatus, MsgPageCursor } from '../../types/chat.types.ts';
+import type { ChatMessageAttachmentsInfo, ChatMessageReaction, MessageStatus, MsgPageCursor } from '../../types/chat.types.ts';
 import type { ParamsObject } from '../../shared-libs/sqlite-on-3nstorage/sqljs.d.ts';
 import type {
   MsgDbEntry,
@@ -48,6 +48,7 @@ import {
   andEqualExprFor,
   forTableInsert,
   fromQueryResult,
+  optJsonTransform,
   queryParamsFrom,
   setExprFor,
   tableColumnNames,
@@ -182,6 +183,32 @@ const queryToCreateThumbnailsV1 = `--sql
 `;
 
 /**
+ * Denormalized search index over regular messages - text folded to lowercase,
+ * so that a case-insensitive search works for every script.
+ *
+ * A table of its own, not a column of `messages`: a column would ride along in
+ * every `SELECT *` (reads, phantoms) and in backups - msgRecordForArchive()
+ * spreads the row's remaining fields straight into the archive.
+ *
+ * Holds rows for regular messages only; that is why the search query needs no
+ * `chatMessageType` filter. searchText is body plus attachment names, lowercased
+ * in JS at write time (this build of SQLite has no ICU - see buildSearchText).
+ *
+ * The primary key is the whole index this table needs: the query scopes by the
+ * (groupChatId, otoPeerCAddr) prefix and then walks searchText, and a leading
+ * `LIKE '%…%'` can use no index at all in the absence of FTS5.
+ */
+const queryToCreateMsgsSearchV1 = `--sql
+  CREATE TABLE messages_search (
+    groupChatId TEXT NOT NULL,
+    otoPeerCAddr TEXT NOT NULL,
+    chatMessageId TEXT NOT NULL,
+    searchText TEXT NOT NULL,
+    PRIMARY KEY (groupChatId, otoPeerCAddr, chatMessageId)
+  ) STRICT
+`;
+
+/**
  * Per-aspect ordering tokens for last-write-wins synchronization between the
  * user's own devices.
  *
@@ -291,6 +318,53 @@ function migrateLegacyMsgsTable(sqlite: SQLiteOn3NStorage): boolean {
   return migrated;
 }
 
+/**
+ * Fills messages_search from the messages already in the database.
+ *
+ * Runs once, when the table is created on a profile that predates it. Does no
+ * per-row file write: the whole batch lands in the single saveToFile the caller
+ * makes right after. Chunked, because one multi-row INSERT with a parameter per
+ * column would hit SQLite's variable limit on a long history.
+ */
+function backfillMessagesSearch(sqlite: SQLiteOn3NStorage): void {
+  const [rows] = sqlite.db.exec(
+    `--sql
+    SELECT groupChatId, otoPeerCAddr, chatMessageId, body, attachments
+    FROM messages
+    WHERE chatMessageType='regular'`,
+  );
+  if (!rows) {
+    return;
+  }
+
+  const atGroup = rows.columns.indexOf('groupChatId');
+  const atOto = rows.columns.indexOf('otoPeerCAddr');
+  const atMsg = rows.columns.indexOf('chatMessageId');
+  const atBody = rows.columns.indexOf('body');
+  const atAtt = rows.columns.indexOf('attachments');
+
+  const CHUNK = 200;
+  for (let start = 0; start < rows.values.length; start += CHUNK) {
+    const valuesSql: string[] = [];
+    const params: ParamsObject = {};
+    rows.values.slice(start, start + CHUNK).forEach((row, i) => {
+      const attachments = optJsonTransform.fromSQLValue(row[atAtt]) as ChatMessageAttachmentsInfo[] | null;
+      params[`$g${i}`] = row[atGroup] as string;
+      params[`$o${i}`] = row[atOto] as string;
+      params[`$m${i}`] = row[atMsg] as string;
+      params[`$s${i}`] = buildSearchText(row[atBody] as string | null, attachments);
+      valuesSql.push(`($g${i}, $o${i}, $m${i}, $s${i})`);
+    });
+
+    sqlite.db.exec(
+      `--sql
+      INSERT INTO messages_search (groupChatId, otoPeerCAddr, chatMessageId, searchText)
+      VALUES ${valuesSql.join(', ')}`,
+      params,
+    );
+  }
+}
+
 async function getSqliteDb({
   fs,
   fsLocal,
@@ -387,6 +461,19 @@ async function getSqliteDb({
     await saveLocally(auxiliarySqlite);
   }
 
+  // Search index over regular messages. On a profile that predates it the table
+  // is created and filled from the messages already there in one pass; its
+  // presence is the flag that this one-time migration is done (the same way
+  // thumbnails and sync_versions above are decided by table existence).
+  if (sqlite.db.exec(`PRAGMA table_info(messages_search)`).length === 0) {
+    sqlite.db.exec(queryToCreateMsgsSearchV1);
+    await startupStage('msgs-db/search-backfill', () => {
+      backfillMessagesSearch(sqlite);
+      return Promise.resolve();
+    });
+    await saveLocally(sqlite);
+  }
+
   return {
     sqlite,
     auxiliarySqlite,
@@ -434,6 +521,11 @@ export async function msgsDb({
       VALUES (${orderedValues})`,
       insertParams,
     );
+    // The search row rides in the same file write as the message itself: a
+    // message findable on disk must be findable in the index too.
+    if (msg.chatMessageType === 'regular') {
+      upsertSearchRow(msg);
+    }
     await saveLocally(sqlite);
   }
 
@@ -591,6 +683,72 @@ export async function msgsDb({
     return sqlValue ? fromQueryResult<MsgDbEntry>(sqlValue, msgsTabFields).reverse() : [];
   }
 
+  /**
+   * Ids of regular messages whose body or attachment names contain the search
+   * text, case-insensitively - see buildSearchText/searchPatternFor for why the
+   * folding happens outside SQL. Scoped to one chat, so the messages_search
+   * primary key narrows the scan to the chat's rows; a leading `LIKE '%…%'` can
+   * use no index in the absence of FTS5. Ordered by chatMessageId, which is
+   * approximately chronological.
+   */
+  function searchMessagesInChat({ isGroupChat, chatId }: ChatIdObj, searchText: string): string[] {
+    const query = searchText.trim();
+    if (!query) {
+      return [];
+    }
+
+    const chatParams = queryParamsFrom<Pick<MsgDbEntry, 'groupChatId' | 'otoPeerCAddr'>>(
+      {
+        groupChatId: isGroupChat ? chatId : null,
+        otoPeerCAddr: isGroupChat ? null : chatId,
+      },
+      msgsTabFields,
+    );
+    const [sqlValue] = sqlite.db.exec(
+      `--sql
+      SELECT chatMessageId
+      FROM messages_search
+      WHERE groupChatId=$groupChatId AND otoPeerCAddr=$otoPeerCAddr
+        AND searchText LIKE $pattern ESCAPE '\\'
+      ORDER BY chatMessageId`,
+      { ...chatParams, $pattern: searchPatternFor(query) },
+    );
+
+    return sqlValue ? sqlValue.values.map(row => row[0] as string) : [];
+  }
+
+  /**
+   * Writes the search row of a regular message, replacing any previous one.
+   * Callers save the database themselves, so that the row rides in the same
+   * write as the message change it belongs to.
+   */
+  function upsertSearchRow(
+    msg: Pick<MsgDbEntry, 'groupChatId' | 'otoPeerCAddr' | 'chatMessageId' | 'body' | 'attachments'>,
+  ): void {
+    const params = queryParamsFrom<Pick<MsgDbEntry, 'groupChatId' | 'otoPeerCAddr'>>(
+      { groupChatId: msg.groupChatId, otoPeerCAddr: msg.otoPeerCAddr },
+      msgsTabFields,
+    );
+    params.$chatMessageId = msg.chatMessageId;
+    params.$searchText = buildSearchText(msg.body, msg.attachments);
+    sqlite.db.exec(
+      `--sql
+      INSERT OR REPLACE INTO messages_search (groupChatId, otoPeerCAddr, chatMessageId, searchText)
+      VALUES ($groupChatId, $otoPeerCAddr, $chatMessageId, $searchText)`,
+      params,
+    );
+  }
+
+  /** Drops search rows by a WHERE over the messages table's own column names. */
+  function deleteSearchRowsWhere(where: string, whereParams: ParamsObject): void {
+    sqlite.db.exec(
+      `--sql
+      DELETE FROM messages_search
+      WHERE ${where}`,
+      whereParams,
+    );
+  }
+
   function getNotRegularMessagesByChat(chatId: ChatIdObj): MsgDbEntry[] {
     const query = `--sql
     SELECT *, groupChatId || otoPeerCAddr AS chatId
@@ -643,7 +801,12 @@ export async function msgsDb({
       WHERE ${whereMsg}`,
       whereMsgParams,
     );
-    if (sqlite.db.getRowsModified() > 0) {
+    // The messages flag is read before the search row goes, because
+    // getRowsModified() reflects only the last statement: without this, a
+    // deleted message that had no search row (a system one) would not be saved.
+    const msgDeleted = sqlite.db.getRowsModified() > 0;
+    deleteSearchRowsWhere(whereMsg, whereMsgParams);
+    if (msgDeleted || sqlite.db.getRowsModified() > 0) {
       await saveLocally(sqlite);
     }
     // Every single-message deletion there is - one message, a batch, the
@@ -879,12 +1042,14 @@ export async function msgsDb({
       whereGroupParams,
     );
     const msgsDeleted = sqlite.db.getRowsModified() > 0;
+    deleteSearchRowsWhere(whereGroup, whereGroupParams);
+    const searchRowsDeleted = sqlite.db.getRowsModified() > 0;
 
     // The mass delete goes around removeMsgBytes, hence around deleteMessage:
     // this is the second, and last, point where cached previews are dropped.
     await deleteThumbnailsWhere(whereGroup, whereGroupParams);
 
-    return msgsDeleted;
+    return msgsDeleted || searchRowsDeleted;
   }
 
   async function deleteMessagesInGroupChat(groupChatId: string): Promise<boolean> {
@@ -898,10 +1063,12 @@ export async function msgsDb({
       whereGroupParams,
     );
     const msgsDeleted = sqlite.db.getRowsModified() > 0;
+    deleteSearchRowsWhere(whereGroup, whereGroupParams);
+    const searchRowsDeleted = sqlite.db.getRowsModified() > 0;
 
     await deleteThumbnailsWhere(whereGroup, whereGroupParams);
 
-    return msgsDeleted;
+    return msgsDeleted || searchRowsDeleted;
   }
 
   async function deleteMessagesInChat({
@@ -941,6 +1108,14 @@ export async function msgsDb({
     );
 
     if (sqlite.db.getRowsModified() > 0) {
+      // Keep the search index in step with the message's own text. Attachments
+      // never change after insertion, so in practice this is a body edit.
+      if (toUpdate.body !== undefined || toUpdate.attachments !== undefined) {
+        const updated = await getMessage(chatMessageId);
+        if (updated && updated.chatMessageType === 'regular') {
+          upsertSearchRow(updated);
+        }
+      }
       await saveLocally(sqlite);
       return await getMessage(chatMessageId);
     }
@@ -1480,6 +1655,7 @@ export async function msgsDb({
     getExpiredMessages,
     getMessagesByChat,
     getMessagesPageInChat,
+    searchMessagesInChat,
     getNotRegularMessagesByChat,
     getMessagesWithSyncingSelfStatus,
     getLatestIncomingMsgTimestamp,

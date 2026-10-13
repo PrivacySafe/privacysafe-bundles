@@ -16,9 +16,10 @@
 -->
 <script lang="ts" setup>
   import { computed } from 'vue';
-  import { Ui3nButton, Ui3nIcon, Ui3nHtml as vUi3nHtml } from '@v1nt1248/3nclient-lib';
+  import size from 'lodash/size';
+  import { Ui3nButton, Ui3nIcon, Ui3nInput, Ui3nHtml as vUi3nHtml } from '@v1nt1248/3nclient-lib';
   import { type ChatBlockingState, blockingIconFor, getChatName } from '@main/common/utils/chat-ui.helper';
-  import { useChatHeader } from '@main/common/composables/useChatHeader';
+  import { useChatHeader, type ChatHeaderEmits } from '@main/common/composables/useChatHeader';
   import { useNavigation } from '@main/mobile/composables/useNavigation';
   import type { ChatListItemView, ChatMessageView } from '~/chat.types';
   import ChatAvatar from '@main/common/components/chat/chat-avatar.vue';
@@ -41,6 +42,8 @@
 
   const { navigateToChats } = useNavigation();
 
+  const emits = defineEmits<ChatHeaderEmits>();
+
   const {
     t,
     text,
@@ -50,6 +53,12 @@
     chatWithCall,
     isCallActive,
     callDuration,
+    searchMode,
+    searchText,
+    foundMessages,
+    currentFoundMessageIndex,
+    setSearchMode,
+    changeFoundMessageIndex,
     selectAction,
     joinIncomingCall,
     dismissIncomingCall,
@@ -62,6 +71,7 @@
     messages: chatMessagesVal,
     goToChats,
     isMobileMode: true,
+    emits,
   });
 
   async function goToChats() {
@@ -71,105 +81,173 @@
 
 <template>
   <div :class="$style.chatHeader">
-    <ui3n-button
-      type="icon"
-      color="var(--color-bg-block-primary-default)"
-      icon="round-arrow-back"
-      icon-size="20"
-      icon-color="var(--color-icon-block-primary-default)"
-      @click.stop.prevent="goToChats"
-    />
-
-    <div :class="$style.chatHeaderAvatar">
-      <chat-avatar
-        :name="getChatName(props.chat)"
-        :shape="isGroupChat ? 'decagon' : 'circle'"
-        :call-in-progress="chatWithCall"
-        :settings="chat.settings"
-      />
-
-      <ui3n-icon
-        v-if="blockingIcon"
-        :icon="blockingIcon"
-        color="var(--warning-content-default)"
-        :class="$style.banned"
-      />
-    </div>
-
-    <div :class="$style.content">
-      <div :class="$style.headerName">
-        {{ getChatName(props.chat) }}
-      </div>
-
-      <div
-        v-if="chatWithCall"
-        :class="$style.headerInfo"
+    <div
+      v-if="searchMode"
+      :class="$style.searchBlock"
+    >
+      <ui3n-input
+        v-model="searchText"
+        autofocus
+        :placeholder="t('app.text.search')"
+        clearable
+        hide-bottom-space
+        :class="$style.searchTxt"
       >
-        {{ t('chat.header.call.duration') }}: {{ callDuration }}
-      </div>
+        <template #prepend-icon>
+          <ui3n-icon
+            icon="round-search"
+            color="var(--color-icon-control-secondary-default)"
+          />
+        </template>
+      </ui3n-input>
 
       <div
-        v-else
-        v-ui3n-html:sanitize="chat.lastMsg?.timestamp ? t('chat.header.info', { date: text }) : ''"
-        :class="$style.headerInfo"
+        v-if="size(foundMessages) > 0"
+        :class="$style.searchResult"
+      >
+        <ui3n-button
+          type="icon"
+          square
+          icon="round-arrow-upward"
+          @click.stop.prevent="changeFoundMessageIndex('-')"
+        />
+
+        <span>{{ currentFoundMessageIndex }}/{{ size(foundMessages) }}</span>
+
+        <ui3n-button
+          type="icon"
+          square
+          icon="round-arrow-downward"
+          @click.stop.prevent="changeFoundMessageIndex('+')"
+        />
+      </div>
+
+      <ui3n-button
+        type="icon"
+        color="var(--color-bg-block-primary-default)"
+        icon="round-close"
+        icon-size="24"
+        icon-color="var(--color-icon-block-primary-default)"
+        @click.stop.prevent="setSearchMode(false)"
       />
     </div>
 
-    <ui3n-button
-      v-if="chatWithCall"
-      type="icon"
-      color="var(--error-content-default)"
-      text-color="var(--white-100)"
-      icon="round-phone-disabled"
-      icon-color="var(--error-fill-default)"
-      @click.stop.prevent="() => endCall(currentChatObjId)"
-    />
-
-    <template v-else-if="isIncomingCall">
+    <template v-else>
       <ui3n-button
+        type="icon"
+        color="var(--color-bg-block-primary-default)"
+        icon="round-arrow-back"
+        icon-size="24"
+        icon-color="var(--color-icon-block-primary-default)"
+        @click.stop.prevent="goToChats"
+      />
+
+      <div :class="$style.chatHeaderAvatar">
+        <chat-avatar
+          :name="getChatName(props.chat)"
+          :shape="isGroupChat ? 'decagon' : 'circle'"
+          :call-in-progress="chatWithCall"
+          :settings="chat.settings"
+        />
+
+        <ui3n-icon
+          v-if="blockingIcon"
+          :icon="blockingIcon"
+          color="var(--warning-content-default)"
+          :class="$style.banned"
+        />
+      </div>
+
+      <div :class="$style.content">
+        <div :class="$style.headerName">
+          {{ getChatName(props.chat) }}
+        </div>
+
+        <div
+          v-if="chatWithCall"
+          :class="$style.headerInfo"
+        >
+          {{ t('chat.header.call.duration') }}: {{ callDuration }}
+        </div>
+
+        <div
+          v-else
+          v-ui3n-html:sanitize="chat.lastMsg?.timestamp ? t('chat.header.info', { date: text }) : ''"
+          :class="$style.headerInfo"
+        />
+      </div>
+
+      <ui3n-button
+        v-if="chatWithCall"
+        type="icon"
+        color="var(--error-content-default)"
+        text-color="var(--white-100)"
+        icon="round-phone-disabled"
+        icon-size="24"
+        icon-color="var(--error-fill-default)"
+        @click.stop.prevent="() => endCall(currentChatObjId)"
+      />
+
+      <template v-else-if="isIncomingCall">
+        <ui3n-button
+          type="icon"
+          color="var(--success-content-default)"
+          icon="round-phone"
+          icon-size="24"
+          icon-color="var(--success-fill-default)"
+          @click.stop.prevent="() => joinIncomingCall(currentChatObjId, chat.incomingCall!.peerAddress)"
+        />
+
+        <ui3n-button
+          type="icon"
+          color="var(--warning-content-default)"
+          icon="round-call-end"
+          icon-size="24"
+          icon-color="var(--warning-fill-default)"
+          @click.stop.prevent="() => dismissIncomingCall(currentChatObjId, false)"
+        />
+      </template>
+
+      <ui3n-button
+        v-else-if="isCallActive"
         type="icon"
         color="var(--success-content-default)"
         icon="round-phone"
+        icon-size="24"
         icon-color="var(--success-fill-default)"
-        @click.stop.prevent="() => joinIncomingCall(currentChatObjId, chat.incomingCall!.peerAddress)"
+        :class="$style.rejoinBtn"
+        @click.stop.prevent="() => rejoinCall(currentChatObjId)"
+      />
+
+      <ui3n-button
+        v-else
+        type="icon"
+        color="var(--color-bg-block-primary-default)"
+        icon="round-phone"
+        icon-size="24"
+        icon-color="var(--color-icon-block-primary-default)"
+        :disabled="readonly || isStartingCall"
+        @click.stop.prevent="startCall(currentChatObjId)"
       />
 
       <ui3n-button
         type="icon"
-        color="var(--warning-content-default)"
-        icon="round-call-end"
-        icon-color="var(--warning-fill-default)"
-        @click.stop.prevent="() => dismissIncomingCall(currentChatObjId, false)"
+        color="var(--color-bg-block-primary-default)"
+        icon="round-search"
+        icon-size="24"
+        icon-color="var(--color-icon-block-primary-default)"
+        :disabled="readonly"
+        @click.stop.prevent="() => setSearchMode(true)"
+      />
+
+      <chat-header-actions
+        :chat="chat"
+        :chat-with-call="chatWithCall"
+        :all-others-blocked="blockingState.allOthersBlocked"
+        :disabled="isIncomingCall"
+        @select:action="selectAction"
       />
     </template>
-
-    <ui3n-button
-      v-else-if="isCallActive"
-      type="icon"
-      color="var(--success-content-default)"
-      icon="round-phone"
-      icon-color="var(--success-fill-default)"
-      :class="$style.rejoinBtn"
-      @click.stop.prevent="() => rejoinCall(currentChatObjId)"
-    />
-
-    <ui3n-button
-      v-else
-      type="icon"
-      color="var(--color-bg-block-primary-default)"
-      icon="round-phone"
-      icon-color="var(--color-icon-block-primary-default)"
-      :disabled="readonly || isStartingCall"
-      @click.stop.prevent="startCall(currentChatObjId)"
-    />
-
-    <chat-header-actions
-      :chat="chat"
-      :chat-with-call="chatWithCall"
-      :all-others-blocked="blockingState.allOthersBlocked"
-      :disabled="isIncomingCall"
-      @select:action="selectAction"
-    />
   </div>
 </template>
 
@@ -178,15 +256,56 @@
 
   .chatHeader {
     --chat-header-height: 64px;
+    --ui3n-button-icon-size-regular: 40px;
+    --ui3n-button-height-regular: 40px;
 
     display: flex;
     width: 100%;
     height: var(--chat-header-height);
     justify-content: space-between;
     align-items: center;
-    column-gap: var(--spacing-xs);
-    padding: 0 12px;
+    column-gap: 2px;
+    padding: 0 8px;
     background-color: var(--color-bg-block-primary-default);
+  }
+
+  .searchBlock {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    column-gap: var(--spacing-xs);
+    width: 100%;
+    height: var(--chat-header-height);
+    background-color: var(--color-bg-block-primary-default);
+
+    .searchTxt {
+      --ui3n-input-height: 40px;
+      --ui3n-input-border-radius: 18px;
+      --ui3n-input-padding-x: 12px;
+
+      flex-grow: 1;
+    }
+
+    .searchResult {
+      --ui3n-button-bg-color: var(--color-bg-button-tritery-default);
+
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      column-gap: 2px;
+      min-width: fit-content;
+      font-size: var(--font-12);
+      line-height: 1;
+      color: var(--color-text-chat-bubble-other-default);
+
+      span {
+        display: inline-block;
+        position: relative;
+        width: fit-content;
+        min-width: 40px;
+        text-align: center;
+      }
+    }
   }
 
   .chatHeaderAvatar {

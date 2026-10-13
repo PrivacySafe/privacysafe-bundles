@@ -93,6 +93,8 @@
     setChatStageEl,
     deleteMessages,
     scrollMessageListToEnd,
+    setFoundMessages,
+    scrollToMessage,
     setMsgForWhichInfoIsDisplayed,
     getTextOfEditableOrInitialMsg,
     addFiles,
@@ -132,6 +134,8 @@
       :messages="currentChatMessages"
       :blocking-state="blockingState"
       :readonly="readonly"
+      @search="setFoundMessages"
+      @change:found-message-index="scrollToMessage"
     />
 
     <div :class="$style.bodyWrapper">

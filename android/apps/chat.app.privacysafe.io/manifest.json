@@ -1,7 +1,7 @@
 {
   "name": "Chat",
   "appDomain": "chat.app.privacysafe.io",
-  "version": "0.12.30",
+  "version": "0.12.31",
   "icon": "logo.png",
   "description": "Send secure text messages, share files or start a video meeting.",
 

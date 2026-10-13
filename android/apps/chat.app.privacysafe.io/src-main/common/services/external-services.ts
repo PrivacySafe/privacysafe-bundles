@@ -141,6 +141,7 @@ export async function initializeServices() {
               'getMessage',
               'getMessagesByChat',
               'getMessagesPageByChat',
+              'searchMessagesInChat',
               'getRecentReactions',
               'getThumbnails',
               'saveThumbnail',

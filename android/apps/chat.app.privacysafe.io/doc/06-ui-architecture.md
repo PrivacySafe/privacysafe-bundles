@@ -28,11 +28,14 @@ src-video/
 | Заголовок чата | [desktop/components/chat/chat-header.vue](../src-main/desktop/components/chat/chat-header.vue) | [mobile/components/chat/chat-header.vue](../src-main/mobile/components/chat/chat-header.vue) |
 | Окно | 1200×600, ресайз ([manifest.json:54-60](../manifest.json#L54-L60)) | 360×768, фиксировано ([manifest.json:117-124](../manifest.json#L117-L124)) |
 
-Общая логика экрана чата целиком лежит в `useChatView()`
-([common/composables/useChatView.ts](../src-main/common/composables/useChatView.ts)): страницы
-десктопа и телефона — это разная разметка над одним composable. Приём — передача «навигационных
-утилит» аргументом ([useChatView.ts:86-93](../src-main/common/composables/useChatView.ts#L86-L93)),
-чтобы composable не зависел от конкретного роутера.
+Общая логика экрана чата лежит в `useChatView()`
+([common/composables/useChatView.ts](../src-main/common/composables/useChatView.ts)) — корне
+композиции, который собирает экран из узких композаблов по зонам ответственности (§5) и оставляет у
+себя лишь то, что читается несколькими зонами сразу (`readonly`, состав заблокированных) и должно
+жить ровно столько же, сколько и вид. Страницы десктопа и телефона — это разная разметка над одним
+и тем же возвращаемым объектом. Приём — передача «навигационных утилит» аргументом
+([useChatViewRouting.ts:47](../src-main/common/composables/useChatViewRouting.ts#L47)), чтобы
+composable не зависел от конкретного роутера.
 
 ## 2. Инициализация основного GUI
 
@@ -201,22 +204,25 @@ flowchart TB
 
 ## 5. Экран чата
 
-`useChatView()` — 735 строк, объединяет ввод, вложения, упоминания, режимы «ответить»/«править»,
-прокрутку и жизненный цикл экрана. Основные блоки:
+`useChatView()` — корень композиции: собирает экран из семи композаблов по зонам ответственности
+и возвращает один объект, который деструктурируют обе страницы. Основные зоны:
 
 | Блок | Что делает | Код |
 |---|---|---|
-| Ввод и отправка | сборка текста, разметка упоминаний и ссылок, вызов `sendMessageInChat` | [useChatView.ts:497-575](../src-main/common/composables/useChatView.ts#L497-L575) |
-| Вложения | выбор через диалог, drag-and-drop, вставка из буфера, конвертация `File` → 3N-файл | [useChatView.ts:355-452](../src-main/common/composables/useChatView.ts#L355-L452) |
-| Упоминания | распознавание `@`, список участников, выбор клавишами | [useChatView.ts:126-281](../src-main/common/composables/useChatView.ts#L126-L281) |
-| Режим только чтение | статус чата, не принятое приглашение, а также **некому писать**: собеседник one-to-one чата заблокирован либо в группе заблокированы все остальные. Закрывает и вложения — диалог, перетаскивание, вставку из буфера | [useChatView.ts:232](../src-main/common/composables/useChatView.ts#L232) |
-| Заблокированные участники | кто из участников этого чата в чёрном списке и все ли это — считается один раз на весь экран и передаётся вниз | [useChatView.ts:203](../src-main/common/composables/useChatView.ts#L203) |
-| Прокрутка | к первому непрочитанному, кнопка «вниз» | [useChatView.ts:600-636](../src-main/common/composables/useChatView.ts#L600-L636) |
-| Смена чата | `doBeforeRouteUpdate` — отмена задач, сброс выделения, загрузка сообщений | [useChatView.ts:662-683](../src-main/common/composables/useChatView.ts#L662-L683) |
+| Ввод и отправка | сборка текста, разметка упоминаний и ссылок, режимы «ответить»/«переслать»/«править», вызов `sendMessageInChat` | [useChatViewComposer.ts:213](../src-main/common/composables/useChatViewComposer.ts#L213) |
+| Вложения | выбор через диалог, drag-and-drop, вставка из буфера, конвертация `File` → 3N-файл, владение временными stored-элементами | [useChatViewAttachments.ts:86](../src-main/common/composables/useChatViewAttachments.ts#L86) |
+| Упоминания | распознавание `@`, список участников, выбор клавишами | [useChatViewMentions.ts:40](../src-main/common/composables/useChatViewMentions.ts#L40) |
+| Режим только чтение | статус чата, не принятое приглашение, а также **некому писать**: собеседник one-to-one чата заблокирован либо в группе заблокированы все остальные. Закрывает и вложения — диалог, перетаскивание, вставку из буфера | [useChatView.ts:104](../src-main/common/composables/useChatView.ts#L104) |
+| Заблокированные участники | кто из участников этого чата в чёрном списке и все ли это — считается один раз на весь экран и передаётся вниз | [useChatView.ts:97](../src-main/common/composables/useChatView.ts#L97) |
+| Список и прокрутка | к первому непрочитанному, кнопка «вниз», догрузка старых страниц с сохранением позиции | [useChatViewMessagesList.ts:36](../src-main/common/composables/useChatViewMessagesList.ts#L36) |
+| Поиск сообщений | результаты поиска, подсветка найденного, переход к нему | [useChatViewSearch.ts:30](../src-main/common/composables/useChatViewSearch.ts#L30) |
+| Запись голосовых и видео | диктофон (диалог) и отправка одобренной записи отдельным сообщением | [useChatViewRecording.ts:75](../src-main/common/composables/useChatViewRecording.ts#L75) |
+| Смена чата | `doBeforeRouteUpdate` — отмена задач, сброс выделения, загрузка сообщений; входящий звонок и внешний черновик из query | [useChatViewRouting.ts:92](../src-main/common/composables/useChatViewRouting.ts#L92) |
 
 Текст сообщения при отправке дополняется разметкой: упоминания оборачиваются в
 `<a class="mention" data-mention="...">`, URL — в `<a class="url" data-href="...">`
-([useChatView.ts:542-557](../src-main/common/composables/useChatView.ts#L542-L557)). Обработка
+([chats.helper.ts:326](../src-main/common/utils/chats.helper.ts#L326), вызывается из
+[useChatViewComposer.ts:213](../src-main/common/composables/useChatViewComposer.ts#L213)). Обработка
 клика по такой ссылке — [useChatMessages.ts:207-270](../src-main/common/components/messages/chat-messages/useChatMessages.ts#L207-L270):
 упоминание открывает (или создаёт) чат 1-1, URL уходит в `w3n.shell.openURL`.
 
@@ -272,7 +278,9 @@ flowchart TB
 рядом (та же пара «разметка + композабл», что у `attachment-audio-view`).
 
 **Записанное уходит отдельным сообщением без текста, сразу после подтверждения.**
-`sendRecordingAsMessage` в `useChatView` делает `fileTo3nFile()` → `sendMessageInChat()`: байты идут
+`sendRecordingAsMessage` в
+[useChatViewRecording.ts:112](../src-main/common/composables/useChatViewRecording.ts#L112) делает
+`fileTo3nFile()` → `sendMessageInChat()`: байты идут
 тем же путём, которым идёт файл, вставленный из буфера (записи, как и вставке, не существует вне
 приложения, поэтому они сперва пишутся в стор), а сообщение несёт одно вложение и пустое тело.
 Композер при этом **не трогается вообще** — ни набранный текст, ни приложенные файлы, ни режим
@@ -378,8 +386,9 @@ flowchart TB
 | `toggleRinging(flag)` | воспроизведение `ring_tone.mp3` в цикле ([shared-libs/sounds.ts](../shared-libs/sounds.ts)) |
 
 Флаг входящего звонка приходит в UI не событием, а через query-параметр маршрута: команда
-`incoming-call` открывает чат с `?call=yes`, watcher в `useChatView` записывает `incomingCall` в
-элемент списка и очищает query ([useChatView.ts:584-598](../src-main/common/composables/useChatView.ts#L584-L598)).
+`incoming-call` открывает чат с `?call=yes`, watcher в
+[useChatViewRouting.ts:127](../src-main/common/composables/useChatViewRouting.ts#L127) записывает
+`incomingCall` в элемент списка и очищает query.
 
 ## 7. UI окна звонка
 

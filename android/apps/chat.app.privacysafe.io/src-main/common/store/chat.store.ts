@@ -26,7 +26,7 @@ import { useAppStore } from '@main/common/store/app.store';
 import { useChatsStore } from '@main/common/store/chats.store';
 import { useMessagesStore } from '@main/common/store/messages.store';
 import type { ChatListItemView, GroupChatView, OutgoingAttachment, RegularMsgView } from '~/chat.types';
-import type { ChatIdObj, RelatedMessage } from '~/index';
+import type { ChatIdObj, ChatMessageId, RelatedMessage } from '~/index';
 import { makeLogger } from '@shared/logger';
 
 const log = makeLogger('ChatStore');
@@ -166,6 +166,27 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /**
+   * Ids of the messages matching the search text in this chat. `undefined`
+   * means the search failed (a notice has already been shown); an array - empty
+   * included - means it ran and is what the chat has.
+   */
+  async function searchMessagesInChat(
+    chatId: ChatIdObj,
+    searchText: string,
+  ): Promise<ChatMessageId[] | undefined> {
+    try {
+      return await chatService.searchMessagesInChat(chatId, searchText);
+    } catch (err) {
+      log.error('Fail to search messages in chat', err);
+      appStore.$createNotice({
+        type: 'error',
+        content: t('chat.app_message.error.search'),
+      });
+      return undefined;
+    }
+  }
+
   async function renameChat(chat: ChatListItemView, newChatName: string): Promise<void> {
     const chatId = { isGroupChat: chat.isGroupChat, chatId: chat.chatId };
     ensureCurrentChatIsSet(chatId);
@@ -286,6 +307,7 @@ export const useChatStore = defineStore('chat', () => {
     resetCurrentChat,
     sendMessageInChat,
     updateEarlySentMessage,
+    searchMessagesInChat,
     renameChat,
     deleteChat,
     updateGroupMembers,
