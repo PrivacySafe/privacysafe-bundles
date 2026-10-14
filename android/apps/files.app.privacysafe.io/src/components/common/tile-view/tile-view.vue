@@ -34,6 +34,7 @@
   import OsFilesDropArea from '@/components/common/os-files-drop-area/os-files-drop-area.vue';
   import FsEntitiesDropArea from '@/components/common/fs-entities-drop-area/fs-entities-drop-area.vue';
   import isEmpty from 'lodash/isEmpty';
+  import CustomScrollBar from '@/components/common/custom-scroll-bar.vue';
 
   const props = defineProps<{
     windowIndex: 1 | 2;
@@ -49,7 +50,7 @@
   const { isDragging, isMoveMode, isMoveModeQuick } = storeToRefs(runModeInfoStore);
   const { toggleCopyMoveMode, onDragEnd } = runModeInfoStore;
 
-  const currentFsFolderWindow = computed(() => props.windowIndex ? `${props.windowIndex}` as '1' | '2' : '1');
+  const currentFsFolderWindow = computed(() => (props.windowIndex ? (`${props.windowIndex}` as '1' | '2') : '1'));
 
   const { isSplittedMode, activeWindow, selectActiveWindow } = useNavigation();
 
@@ -174,75 +175,87 @@
     </div>
 
     <div :class="[$style.body, isSplittedMode && $style.bodyWithHeader, showToolbar && $style.bodyWithToolbar]">
-      <div :class="[$style.content, size(sortedFsFolderData) === 0 && $style.emptyContent]">
-        <template
-          v-for="(item, index) in sortedFsFolderData"
-          :key="item.id"
+      <custom-scroll-bar>
+        <div :class="[$style.content, size(sortedFsFolderData) === 0 && $style.emptyContent]">
+          <template
+            v-for="(item, index) in sortedFsFolderData"
+            :key="item.id"
+          >
+            <tile-view-item
+              :window-index="windowIndex"
+              :fs-id="currentWindowFsId as string"
+              :root-folder-id="currentWindowRootFolderId"
+              :task-runner="taskRunner"
+              :item="item"
+              :is-selected="isEntitySelected(item)"
+              :is-droppable="
+                !isSystemFolderInCurrentWindow &&
+                  !!droppableEntity &&
+                  item.fullPath === droppableEntity &&
+                  !draggedEntities.includes(item.fullPath) &&
+                  canDrop(currentWindowFsId, currentWindowRootFolderId)
+              "
+              :disabled="commonLoading"
+              @action="handleActions"
+              @select="selectEntity"
+              @select:multiple="onSelectMultiple(index)"
+              @dragstart="onDragstart($event, item)"
+              @dragend="onDragEnd"
+              @dragenter="isDroppable($event, item)"
+              @dragover="isDroppable($event, item)"
+              @dragleave="onDragleave($event, item)"
+              @drop="onDrop($event, item)"
+            />
+          </template>
+        </div>
+
+        <div
+          v-if="!isTrashFolderInCurrentWindow && !isSystemFolderInCurrentWindow"
+          :class="$style.dropzone"
         >
-          <tile-view-item
-            :window-index="windowIndex"
+          <os-files-drop-area
+            v-if="!isDragging && currentWindowFsId"
             :fs-id="currentWindowFsId as string"
-            :root-folder-id="currentWindowRootFolderId"
-            :task-runner="taskRunner"
-            :item="item"
-            :is-selected="isEntitySelected(item)"
-            :is-droppable="
-              !isSystemFolderInCurrentWindow &&
-                !!droppableEntity &&
-                item.fullPath === droppableEntity &&
-                !draggedEntities.includes(item.fullPath) &&
-                canDrop(currentWindowFsId, currentWindowRootFolderId)
-            "
+            :path="currentWindowFolderPath"
+            :is-empty-folder-mode="size(sortedFsFolderData) === 0"
             :disabled="commonLoading"
-            @action="handleActions"
-            @select="selectEntity"
-            @select:multiple="onSelectMultiple(index)"
-            @dragstart="onDragstart($event, item)"
-            @dragend="onDragEnd"
-            @dragenter="isDroppable($event, item)"
-            @dragover="isDroppable($event, item)"
-            @dragleave="onDragleave($event, item)"
-            @drop="onDrop($event, item)"
+            @loading="(ev: boolean) => setCommonLoading(ev)"
           />
-        </template>
-      </div>
 
-      <div
-        v-if="!isTrashFolderInCurrentWindow && !isSystemFolderInCurrentWindow"
-        :class="$style.dropzone"
-      >
-        <os-files-drop-area
-          v-if="!isDragging && currentWindowFsId"
-          :fs-id="currentWindowFsId as string"
-          :path="currentWindowFolderPath"
-          :is-empty-folder-mode="size(sortedFsFolderData) === 0"
-          :disabled="commonLoading"
-          @loading="(ev: boolean) => setCommonLoading(ev)"
-        />
-
-        <fs-entities-drop-area
-          v-if="isSplittedMode && activeWindow !== currentFsFolderWindow && isDragging"
-          :path="currentWindowFolderPath"
-          :droppable-entity="droppableEntity"
-          :disabled="commonLoading"
-          @dragend="onDragend"
-          @dragenter="
-            ev =>
-              isDroppable(ev, { type: 'folder', fullPath: currentWindowFolderPath || '/' } as ListingEntryExtended)
-          "
-          @dragover="
-            ev =>
-              isDroppable(ev, { type: 'folder', fullPath: currentWindowFolderPath || '/' } as ListingEntryExtended)
-          "
-          @dragleave="
-            ev =>
-              onDragleave(ev, { type: 'folder', fullPath: currentWindowFolderPath || '/' } as ListingEntryExtended)
-          "
-          @drop="
-            ev => onDrop(ev, { type: 'folder', fullPath: currentWindowFolderPath || '/' } as ListingEntryExtended)
-          "
-        />
-      </div>
+          <fs-entities-drop-area
+            v-if="isSplittedMode && activeWindow !== currentFsFolderWindow && isDragging"
+            :path="currentWindowFolderPath"
+            :droppable-entity="droppableEntity"
+            :disabled="commonLoading"
+            @dragend="onDragend"
+            @dragenter="
+              ev =>
+                isDroppable(ev, {
+                  type: 'folder',
+                  fullPath: currentWindowFolderPath || '/',
+                } as ListingEntryExtended)
+            "
+            @dragover="
+              ev =>
+                isDroppable(ev, {
+                  type: 'folder',
+                  fullPath: currentWindowFolderPath || '/',
+                } as ListingEntryExtended)
+            "
+            @dragleave="
+              ev =>
+                onDragleave(ev, {
+                  type: 'folder',
+                  fullPath: currentWindowFolderPath || '/',
+                } as ListingEntryExtended)
+            "
+            @drop="
+              ev =>
+                onDrop(ev, { type: 'folder', fullPath: currentWindowFolderPath || '/' } as ListingEntryExtended)
+            "
+          />
+        </div>
+      </custom-scroll-bar>
     </div>
 
     <div
