@@ -203,20 +203,6 @@
     }
   }
 
-  function setCustomScrollBar() {
-    if (folderData.value?.config) {
-      folderData.value.config.scrollbar = {
-        axes: 'vertical',
-        vertical: {
-          thumbColor: 'var(--color-bg-control-accent)',
-          thumbHoverColor: 'var(--color-bg-control-accent-hover)',
-          thumbActiveColor: 'var(--color-bg-control-accent-hover)',
-          trackWidth: 8,
-        },
-      };
-    }
-  }
-
   async function loadFolderData() {
     try {
       console.log('<- START FOLDER DATA LOADING ->');
@@ -235,7 +221,6 @@
         folderData.value = prepareFolderDataTable(data || [], props.fsId, t, isSyncFolderInCurrentWindow.value);
       }
 
-      setCustomScrollBar();
       tableComponent.value && tableComponent.value!.closeGroupActionsRow();
     } catch (error) {
       console.error(`The loading folder ${props.basePath.fullPath} error . `, error);
@@ -392,6 +377,7 @@
         </div>
       </template>
     </ui3n-table>
+
     <div
       v-if="isInSplitMode"
       :class="$style.path"
@@ -430,15 +416,6 @@
         height: calc(100% - 84px);
       }
     }
-
-    div[class*='unusedPlace'] {
-      display: flex;
-      flex-direction: column;
-    }
-
-    div[class*='ui3nTableInsideScrollbar'] {
-      width: 100%;
-    }
   }
 
   .fsTableInSplitMode {
@@ -467,7 +444,6 @@
     position: relative;
     width: 100%;
     height: 100%;
-    flex-grow: 1;
   }
 
   .trashNoData {
