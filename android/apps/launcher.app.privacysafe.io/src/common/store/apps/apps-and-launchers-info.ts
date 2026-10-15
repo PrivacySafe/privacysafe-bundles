@@ -62,6 +62,7 @@ export function makeAppsAndLaunchersInfoPlace() {
         applicationsInSystem.value.splice(rmInd, 1);
       }
     }
+
     if (launchersEvent?.upsert) {
       const updatedInfo = await appLaunchersFromInfo(launchersEvent.upsert);
       const ind = appLaunchers.value.findIndex(({ appId }) => appId === updatedInfo.appId);
@@ -75,7 +76,7 @@ export function makeAppsAndLaunchersInfoPlace() {
     } else if (launchersEvent?.remove) {
       const rmInd = appLaunchers.value.findIndex(({ appId }) => appId === launchersEvent.remove);
       if (rmInd >= 0) {
-        appLaunchers.value.slice(rmInd, 1);
+        appLaunchers.value.splice(rmInd, 1);
       }
     }
   }
@@ -103,6 +104,7 @@ export function makeAppsAndLaunchersInfoPlace() {
       appLaunchers.value.unshift(contactsLauncher);
     }
   }
+
   async function appInfoWithIconsFrom(info: AppInfo): Promise<AppInfo> {
     const { appId, icon, versions } = info;
     const iconBytes = icon ? await getFileBytes(appId, versions.latest, icon) : undefined;

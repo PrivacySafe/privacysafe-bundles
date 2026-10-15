@@ -189,7 +189,7 @@ async function getAppInfo(
     return;
   }
 
-  const m = await w3n.system!.apps!.installer!.getAppManifest(id, latest);
+  const m = (await w3n.system!.apps!.installer!.getAppManifest(id, latest)) as GeneralAppManifest;
   if (!m) {
     return;
   }
@@ -254,7 +254,7 @@ async function getAppLaunchers(id: string, m: AppManifest | undefined): Promise<
   }
 
   const appId = m.appDomain;
-  const { version, name, description, icon, tags } = m;
+  const { version, name, description, icon, tags } = m as GeneralAppManifest;
 
   const formFactor = await w3n.ui.uiFormFactor();
   const staticLaunchers = getLaunchersForUser(m, formFactor);

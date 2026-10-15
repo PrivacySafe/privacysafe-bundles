@@ -20,6 +20,7 @@
   import { storeToRefs } from 'pinia';
   import isEmpty from 'lodash/isEmpty';
   import size from 'lodash/size';
+  import { Ui3nProgressCircular } from '@v1nt1248/3nclient-lib';
   import { useSwipe, type UseSwipeDirection } from '@vueuse/core';
   import { useAppsStore } from '@/common/store/apps.store';
   import AppLauncher from '@/mobile/components/app-launcher.vue';
@@ -27,7 +28,7 @@
   const { t } = useI18n();
 
   const appsStore = useAppsStore();
-  const { appLaunchers } = storeToRefs(appsStore);
+  const { appLaunchers, initialSetup } = storeToRefs(appsStore);
 
   const ITEMS_PER_SCREEN = 8;
   const target = useTemplateRef('container');
@@ -64,10 +65,24 @@
 <template>
   <section :class="$style.myApps">
     <div
-      v-if="isEmpty(appLaunchers)"
+      v-if="isEmpty(appLaunchers) || initialSetup"
       :class="$style.installing"
     >
-      {{ t('install.process') }} ...
+      <span v-if="isEmpty(appLaunchers)">
+        {{ t('install.process') }}
+      </span>
+
+      <template v-if="initialSetup">
+        <span>
+          {{ t('install.progress', { installed: initialSetup.installed, total: initialSetup.total }) }}
+        </span>
+
+        <ui3n-progress-circular
+          :value="Math.floor((initialSetup.installed / initialSetup.total) * 100)"
+          :size="120"
+          :width="4"
+        />
+      </template>
     </div>
 
     <template v-else>
@@ -125,8 +140,10 @@
     left: var(--spacing-m);
     width: calc(100% - var(--spacing-m) * 2);
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
+    row-gap: var(--spacing-s);
     font-size: var(--font-16);
     font-weight: 500;
     line-height: var(--spacing-ml);

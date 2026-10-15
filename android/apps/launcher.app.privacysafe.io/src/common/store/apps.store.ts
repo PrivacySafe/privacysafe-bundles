@@ -14,7 +14,6 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
-
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
 import { makeProcessesPlace } from './apps/processes';
@@ -58,6 +57,12 @@ function bundleNumFromVersion(v: string): number {
 }
 
 export const useAppsStore = defineStore('apps', () => {
+  const initialSetup = ref<{
+    total: number;
+    installed: number;
+    inProgressAppId?: string;
+  } | undefined>(undefined);
+
   const confs = makeConfs();
   const { processes, delProcess, upsertProcess, emitEvent } = makeProcessesPlace();
 
@@ -326,15 +331,22 @@ export const useAppsStore = defineStore('apps', () => {
       },
     });
 
+    initialSetup.value = {
+      total: bundledAppsForInstall.length,
+      installed: 0,
+    };
+
     for (const { id, version } of bundledAppsForInstall) {
       try {
         await installBundledApp(id, version);
         await updateAppsAndLaunchersInfo();
+        initialSetup.value.installed += 1;
       } catch (err) {
         console.error(`Error occured during installation of bundled app ${id}, version ${version}`, err);
       }
     }
 
+    initialSetup.value = undefined;
     emitEvent({ 'init-setup:done': null });
 
     w3n.system!.apps!.opener!.triggerAllStartupLaunchers();
@@ -385,6 +397,7 @@ export const useAppsStore = defineStore('apps', () => {
     platform,
     restart,
     processes,
+    initialSetup,
 
     getApp,
     toggleAutoUpdate,
