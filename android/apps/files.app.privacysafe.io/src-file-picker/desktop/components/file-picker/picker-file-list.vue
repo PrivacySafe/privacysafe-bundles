@@ -88,6 +88,7 @@
 
   function clearTableSelection() {
     tableComponent.value?.clear();
+    setCustomScrollBar();
   }
 
   function handleNavigate(id: string) {
@@ -126,6 +127,25 @@
       openFsEntityInfoBlock(null);
     },
   );
+
+  function setCustomScrollBar() {
+    if (tableData.value?.config) {
+      tableData.value.config.scrollbar = {
+        vertical: {
+          thumbColor: 'var(--color-bg-control-accent)',
+          thumbHoverColor: 'var(--color-bg-control-accent-hover)',
+          thumbActiveColor: 'var(--color-bg-control-accent-hover)',
+          trackWidth: 8,
+        },
+        horizontal: {
+          thumbColor: 'var(--color-bg-control-accent)',
+          thumbHoverColor: 'var(--color-bg-control-accent-hover)',
+          thumbActiveColor: 'var(--color-bg-control-accent-hover)',
+          trackHeight: 8,
+        },
+      };
+    }
+  }
 </script>
 
 <template>
@@ -164,7 +184,6 @@
           />
         </template>
       </ui3n-table>
-
       <div
         v-if="commonLoading"
         :class="$style.loader"
@@ -191,6 +210,11 @@
   .tableWrapper {
     position: relative;
     height: 100%;
+
+    div[class*='ui3nTable'] {
+      height: auto;
+      overflow: visible !important;
+    }
   }
   .loader {
     position: absolute;
