@@ -1,6 +1,6 @@
 {
   "type": "android",
-  "platform": "0.21.33",
+  "platform": "0.21.34",
   "apps": {
     "launcher.app.privacysafe.io": "0.11.44",
     "startup.app.privacysafe.io": "0.10.11"
@@ -8,13 +8,13 @@
   "app-packs": {
     "chat.app.privacysafe.io": "0.12.31",
     "contacts.app.privacysafe.io": "0.8.49",
-    "files.app.privacysafe.io": "0.8.12",
+    "files.app.privacysafe.io": "0.8.13",
     "inbox.app.privacysafe.io": "0.3.48",
-    "treasure.app.privacysafe.io": "0.2.7"
+    "treasure.app.privacysafe.io": "0.2.8"
   },
   "date": "26.10",
-  "buildNum": 39,
-  "bundleId": "26.10-0.21.33.39",
-  "versionCode": 12610039,
-  "versionName": "26.10-0.21.33.39"
+  "buildNum": 40,
+  "bundleId": "26.10-0.21.34.40",
+  "versionCode": 12610040,
+  "versionName": "26.10-0.21.34.40"
 }
