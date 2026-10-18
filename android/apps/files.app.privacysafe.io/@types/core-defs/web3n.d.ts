@@ -54,13 +54,6 @@ declare namespace web3n {
 		connectType: 'dns';
 	}
 
-	interface NetworkConnectException extends ConnectException {
-		connectType: 'network';
-		networkType: 'regular' | 'onion' | 'i2p';
-		location: string;
-		noImplementationSet?: true;
-	}
-
 	interface HTTPException extends HTTPErrorDetails {
 		type: 'http-request';
 		status: number;
@@ -82,11 +75,6 @@ declare namespace web3n {
 		 * domain in the address.
 		 */
 		noServiceRecord?: true;
-
-		/**
-		 * malformedRecord flag indicates that 3NWeb service value is malformed.
-		 */
-		malformedRecord?: true;
 	}
 
 	interface EncryptionException {
