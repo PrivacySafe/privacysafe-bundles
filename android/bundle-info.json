@@ -9,12 +9,12 @@
     "chat.app.privacysafe.io": "0.12.32",
     "contacts.app.privacysafe.io": "0.8.49",
     "files.app.privacysafe.io": "0.8.14",
-    "inbox.app.privacysafe.io": "0.3.49",
+    "inbox.app.privacysafe.io": "0.3.48",
     "treasure.app.privacysafe.io": "0.2.9"
   },
   "date": "26.10",
-  "buildNum": 44,
-  "bundleId": "26.10-0.21.34.44",
-  "versionCode": 12610044,
-  "versionName": "26.10-0.21.34.44"
+  "buildNum": 45,
+  "bundleId": "26.10-0.21.34.45",
+  "versionCode": 12610045,
+  "versionName": "26.10-0.21.34.45"
 }
