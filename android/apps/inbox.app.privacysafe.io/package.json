@@ -1,6 +1,6 @@
 {
   "name": "inbox.app.privacysafe.io",
-  "version": "0.3.49",
+  "version": "0.3.50",
   "description": "Inbox App",
   "author": "3NSoft, Inc.",
   "license": "GPL-3.0",
@@ -59,6 +59,7 @@
     "@vue/devtools": "8.2.1",
     "@vue/eslint-config-typescript": "14.9.0",
     "@vue/test-utils": "2.5.0",
+    "esbuild": "0.28.2",
     "eslint": "10.10.0",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-import": "2.32.0",

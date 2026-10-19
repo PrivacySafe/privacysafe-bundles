@@ -3,6 +3,7 @@ strictDepBuilds: false
 allowBuilds:
   '@parcel/watcher': true
   electron: true
+  esbuild: true
   vue-demi: true
 
 minimumReleaseAgeExclude:
