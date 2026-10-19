@@ -1,6 +1,6 @@
 {
   "name": "treasure.app.privacysafe.io",
-  "version": "0.2.7",
+  "version": "0.2.9",
   "private": true,
   "type": "module",
   "scripts": {
@@ -47,6 +47,7 @@
     "@vue/devtools": "8.2.1",
     "@vue/eslint-config-typescript": "14.9.0",
     "@vuedx/typescript-plugin-vue": "0.7.6",
+    "esbuild": "0.28.2",
     "eslint": "10.11.0",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-import": "2.32.0",

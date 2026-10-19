@@ -166,6 +166,9 @@ importers:
 
   .:
     dependencies:
+      '@dbushell/hyperless':
+        specifier: ^0.35.0
+        version: 0.35.0
       '@v1nt1248/3nclient-lib':
         specifier: 0.4.6
         version: 0.4.6(pinia@3.0.4(typescript@6.0.3)(vue@3.5.43(typescript@6.0.3)))(vue@3.5.43(typescript@6.0.3))
@@ -586,6 +589,9 @@ packages:
     engines: {node: '>=20.19.0'}
     peerDependencies:
       postcss-selector-parser: ^7.1.1
+
+  '@dbushell/hyperless@0.35.0':
+    resolution: {integrity: sha512-GOM6PiLJwpA9ZlUIaqG7i8FRG2AG2ILIoSKdCCK8cbNgIxG3bAOidmNQERpkOuKn74DMrQgSDPxa9prBW6dLlg==}
 
   '@electron/get@2.0.3':
     resolution: {integrity: sha512-Qkzpg2s9GnVV2I2BjRksUi43U5e6+zaQMcjoJy0C+C5oxaKl+fmckGDQFtRpZpZV0NQekuZZ+tGz7EA9TVnQtQ==}
@@ -5084,6 +5090,8 @@ snapshots:
   '@csstools/selector-specificity@6.0.0(postcss-selector-parser@7.1.6)':
     dependencies:
       postcss-selector-parser: 7.1.6
+
+  '@dbushell/hyperless@0.35.0': {}
 
   '@electron/get@2.0.3(supports-color@10.2.2)':
     dependencies:

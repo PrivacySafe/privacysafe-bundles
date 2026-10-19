@@ -2,6 +2,7 @@
   import { usePickerState } from '@picker/common/composables/usePickerState';
   import { Ui3nIcon } from '@v1nt1248/3nclient-lib';
   import { useI18n } from 'vue-i18n';
+  import CustomScrollBar from '@/components/common/custom-scroll-bar.vue';
 
   const { t } = useI18n();
   const picker = usePickerState();
@@ -9,45 +10,47 @@
 
 <template>
   <nav :class="$style.sidebar">
-    <template
-      v-for="category in picker.categories.value"
-      :key="category.key"
-    >
-      <div
-        v-if="category.mode === 'single'"
-        :class="[$style.navItem, { [$style.active]: picker.activeRootId.value === category.roots[0].id }]"
-        @click="picker.switchRoot(category.roots[0].id)"
+    <custom-scroll-bar>
+      <template
+        v-for="category in picker.categories.value"
+        :key="category.key"
       >
-        <ui3n-icon
-          :icon="category.roots[0].icon"
-          width="22"
-          height="22"
-          color="var(--color-icon-control-secondary-default)"
-        />
-        <span>{{ t(category.labelKey) }}</span>
-      </div>
-
-      <template v-else>
-        <div :class="$style.sectionDivider" />
-        <div :class="$style.sectionHeader">
-          {{ t(category.labelKey) }}
-        </div>
         <div
-          v-for="root in category.roots"
-          :key="root.id"
-          :class="[$style.navItem, $style.subItem, { [$style.active]: picker.activeRootId.value === root.id }]"
-          @click="picker.switchRoot(root.id)"
+          v-if="category.mode === 'single'"
+          :class="[$style.navItem, { [$style.active]: picker.activeRootId.value === category.roots[0].id }]"
+          @click="picker.switchRoot(category.roots[0].id)"
         >
           <ui3n-icon
-            :icon="root.icon"
+            :icon="category.roots[0].icon"
             width="22"
             height="22"
             color="var(--color-icon-control-secondary-default)"
           />
-          <span>{{ root.name }}</span>
+          <span>{{ t(category.labelKey) }}</span>
         </div>
+
+        <template v-else>
+          <div :class="$style.sectionDivider" />
+          <div :class="$style.sectionHeader">
+            {{ t(category.labelKey) }}
+          </div>
+          <div
+            v-for="root in category.roots"
+            :key="root.id"
+            :class="[$style.navItem, $style.subItem, { [$style.active]: picker.activeRootId.value === root.id }]"
+            @click="picker.switchRoot(root.id)"
+          >
+            <ui3n-icon
+              :icon="root.icon"
+              width="22"
+              height="22"
+              color="var(--color-icon-control-secondary-default)"
+            />
+            <span>{{ root.name }}</span>
+          </div>
+        </template>
       </template>
-    </template>
+    </custom-scroll-bar>
   </nav>
 </template>
 

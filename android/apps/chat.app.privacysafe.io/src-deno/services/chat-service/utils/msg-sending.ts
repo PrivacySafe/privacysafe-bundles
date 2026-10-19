@@ -15,7 +15,7 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
 // @ts-ignore
-import { excerpt } from 'jsr:@dbushell/hyperless';
+import { excerpt } from '@dbushell/hyperless';
 import type {
   ChatIdObj,
   ChatIncomingMessage,

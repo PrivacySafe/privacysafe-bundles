@@ -8,4 +8,6 @@ Deno.env = {
 }
 " > "app/treasureDenoServices.js"
 
-deno bundle --no-lock "src-deno/treasure-deno-srv.ts" >> "app/treasureDenoServices.js" || exit $?
+esbuild "src-deno/treasure-deno-srv.ts" --bundle --platform=node --format=esm >> "app/treasureDenoServices.js" || exit $?
+
+# deno bundle --no-lock "src-deno/treasure-deno-srv.ts" >> "app/treasureDenoServices.js" || exit $?
