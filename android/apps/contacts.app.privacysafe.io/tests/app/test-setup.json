@@ -1,0 +1,16 @@
+{
+	"apps": {
+    "contacts.app.privacysafe.io": {
+      "dir": "build"
+    }
+	},
+	"users": [
+		{
+			"idTemplate": "contacts app tester %d @3nweb.com"
+		},
+		{
+			"idTemplate": "contacts app tester %d @3nweb.com"
+		}
+	],
+	"userCreds": "build/test-user-creds.json"
+}
