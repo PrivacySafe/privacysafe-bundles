@@ -1,0 +1,30 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@main/*": ["../src-main/*"],
+      "@video/*": ["../src-video/*"],
+      "@shared/*": ["../shared-libs/*"],
+      "@deno/*": ["../src-deno/*"],
+      "@bg/*": ["../src-deno/*"],
+      "@tests/*": ["./src/*"],
+      "~/*": ["../types/*"]
+    }
+  },
+  "include": [
+    "src/**/*",
+    "vite.config.ts",
+    "../vite.config.ts",
+    "../src-main/**/*",
+    "../src-video/**/*",
+    "../shared-libs/**/*",
+    "../src-deno/**/*",
+    "../types/**/*",
+    "../@types/**/*"
+  ],
+  "exclude": [
+    "build",
+    "test-ext-apps",
+    "test-data_*"
+  ]
+}

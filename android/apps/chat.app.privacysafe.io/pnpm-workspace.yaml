@@ -1,0 +1,11 @@
+strictDepBuilds: false
+
+allowBuilds:
+  '@parcel/watcher': true
+  electron: true
+  esbuild: true
+  unrs-resolver: true
+  vue-demi: true
+
+minimumReleaseAgeExclude:
+  - '@v1nt1248/3nclient-lib@0.4.4 || 0.4.6'

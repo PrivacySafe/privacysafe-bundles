@@ -1,0 +1,106 @@
+
+stages:
+  - collect items
+  - publish
+  - app channels
+  - bundling platform
+
+
+variables:
+  GIT_USER: $GIT_USER
+  GIT_EMAIL: $USER_EMAIL
+
+
+collect items:
+  stage: collect items
+  image: node-24
+  needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: pack
+  script:
+    - ls -lh ${APP_DOMAIN}-*
+    - echo $APP_DOMAIN
+  artifacts:
+    paths:
+      - ci
+      - ${APP_DOMAIN}-*
+    expire_in: 3days
+
+
+push to codeberg:
+  stage: publish
+  allow_failure: true
+  image: git_node-24
+  variables:
+    SITE: codeberg
+    GIT_TOKEN: $CODEBERG_TOKEN
+  script:
+    - ci/apps/push-to-public-repo.sh $SITE
+
+push to github:
+  extends: push to codeberg
+  variables:
+    SITE: github
+    GIT_TOKEN: $GITHUB_TOKEN
+
+
+publish nightly:
+  stage: publish
+  image: node-24
+  script:
+    - ci/apps/publish-app.sh app.version
+    - ci/apps/add-to-channel.sh $APP_DOMAIN $(cat app.version) nightly
+  artifacts:
+    paths:
+      - app.version
+    expire_in: 90days
+
+
+test channel:
+  stage: app channels
+  when: manual
+  needs:
+    - publish nightly
+    - collect items
+  variables:
+    CHANNEL: test
+  script:
+    - ci/apps/add-to-channel.sh $APP_DOMAIN $(cat app.version) $CHANNEL
+
+latest channel:
+  extends: test channel
+  variables:
+    CHANNEL: latest
+
+
+bundle nightly:
+  stage: bundling platform
+  image: node-24
+  rules:
+    - if: $APP_DOMAIN == "startup.app.privacysafe.io"
+      when: manual
+    - if: $APP_DOMAIN == "launcher.app.privacysafe.io"
+      when: manual
+  needs:
+    - publish nightly
+  variables:
+    CHANNEL: nightly
+  script:
+    - curl -X POST -F "token=${CI_JOB_TOKEN}" -F ref=main -F "variables[BRAND]=PrivacySafe" -F "variables[CHANNEL]=${CHANNEL}" "https://gitlab.3nsoft.net/api/v4/projects/${BUNDLER_PROJ}/trigger/pipeline"
+
+bundle test:
+  extends: bundle nightly
+  needs:
+    - publish nightly
+    - test channel
+  variables:
+    CHANNEL: test
+
+bundle latest:
+  extends: bundle nightly
+  needs:
+    - publish nightly
+    - latest channel
+  variables:
+    CHANNEL: latest
+
