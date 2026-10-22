@@ -1,6 +1,6 @@
 {
   "type": "android",
-  "platform": "0.21.42",
+  "platform": "0.21.43",
   "apps": {
     "launcher.app.privacysafe.io": "0.11.45",
     "startup.app.privacysafe.io": "0.10.11"
@@ -13,8 +13,8 @@
     "treasure.app.privacysafe.io": "0.2.9"
   },
   "date": "26.10",
-  "buildNum": 56,
-  "bundleId": "26.10-0.21.42.56",
-  "versionCode": 12610056,
-  "versionName": "26.10-0.21.42.56"
+  "buildNum": 57,
+  "bundleId": "26.10-0.21.43.57",
+  "versionCode": 12610057,
+  "versionName": "26.10-0.21.43.57"
 }

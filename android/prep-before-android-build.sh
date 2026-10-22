@@ -33,11 +33,18 @@ build_app() {
 	cp $app_dir/manifest.json $dst_dir/ || return $?
 }
 
+revert_domain() {
+	local app_domain="$1"
+	node -e "
+	console.log('$app_domain'.split('.').reverse().join('.'));
+	" || return $?
+}
+
 echo
 echo "  1️⃣  system 3NWeb apps"
 for app in $(info .apps | jq -r keys[])
 do
-	dst_dir="platform-ts/dist/bundled-apps/$app"
+	dst_dir="platform-ts/dist/bundled-apps/$(revert_domain $app)"
 	build_app apps/$app $dst_dir || exit $?
 	(cd $dst_dir || exit $?
 		node "../../../../../tools/hash-content.cjs" manifest.json app > content.json || exit $?
@@ -48,7 +55,7 @@ echo
 echo "  2️⃣  bundled 3NWeb apps"
 for app in $(info '."app-packs"' | jq -r keys[])
 do
-	dst_dir="platform-ts/dist/bundled-app-packs/$app"
+	dst_dir="platform-ts/dist/bundled-app-packs/$(revert_domain $app)"
 	build_app apps/$app $dst_dir || exit $?
 	(cd $dst_dir || exit $?
 		node "../../../../../tools/hash-content.cjs" manifest.json app > content.json || exit $?
