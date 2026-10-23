@@ -1,0 +1,4 @@
+src-main/common/assets
+shared-libs/**/*.js
+ci/**/*
+.gitlab-ci.yml
