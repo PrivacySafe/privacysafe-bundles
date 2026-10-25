@@ -1,6 +1,6 @@
 {
   "name": "chat.app.privacysafe.io",
-  "version": "0.12.32",
+  "version": "0.12.33",
   "license": "GPL-3.0-or-later",
   "private": true,
   "type": "module",
