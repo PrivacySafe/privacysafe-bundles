@@ -434,13 +434,12 @@
   .tab {
     position: relative;
     height: var(--main-tabs-height);
-    min-width: 120px;
+    width: 120px;
     display: flex;
     justify-content: center;
     align-items: center;
     font-size: var(--font-14);
     font-weight: 500;
-    padding: var(--spacing-s);
   }
 
   .btns {
