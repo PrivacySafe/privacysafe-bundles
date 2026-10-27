@@ -69,6 +69,17 @@ export function useSettings() {
     });
   }
 
+  type AvailableLanguage = 'en' | 'es' | 'fr';
+  function changeLanguage(langId: AvailableLanguage) {
+    if (lang.value === langId) {
+      return;
+    }
+
+    updateAppConfig({
+      lang: langId,
+    });
+  }
+
   function changeAllowShowingDevtool(val: boolean) {
     updateSettings({
       allowShowingDevtool: val,
@@ -161,6 +172,7 @@ export function useSettings() {
     lang,
     colorTheme,
     changeColorTheme,
+    changeLanguage,
 
     allowShowingDevtool,
     changeAllowShowingDevtool,
