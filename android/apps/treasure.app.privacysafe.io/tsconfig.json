@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "noEmit": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "target": "esnext",
+    "module": "esnext",
+    "useDefineForClassFields": true,
+    "strictNullChecks": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "jsxImportSource": "vue",
+    "noImplicitThis": true,
+    "strict": true,
+    "importHelpers": true,
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@shared/*": ["./shared/*"],
+      "@deno/*": ["./src-deno/*"]
+    }
+  },
+  "include": [
+    "./vite.config.ts",
+    "./vitest.config.ts",
+    "./src/**/*",
+    "./shared/**/*",
+    "./src-deno/**/*",
+    "./tests/unit/**/*",
+    "./@types/**/*"
+  ],
+  "exclude": ["./node_modules", "./public", "./app"]
+}

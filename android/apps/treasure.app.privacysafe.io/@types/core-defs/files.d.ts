@@ -1,0 +1,1750 @@
+/*
+ Copyright (C) 2016 - 2018, 2020, 2022, 2025 - 2026 3NSoft Inc.
+
+ This program is free software: you can redistribute it and/or modify it under
+ the terms of the GNU General Public License as published by the Free Software
+ Foundation, either version 3 of the License, or (at your option) any later
+ version.
+
+ This program is distributed in the hope that it will be useful, but
+ WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ See the GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License along with
+ this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+
+
+declare namespace web3n.files {
+
+	interface FileException extends RuntimeException, FileExceptionFlag {
+		type: 'file';
+		code: string|undefined;
+		path: string;
+		fsEtityType?: 'file' | 'link' | 'folder';
+	}
+
+	interface FileExceptionFlag {
+		notFound?: true;
+		alreadyExists?: true;
+		notDirectory?: true;
+		notFile?: true;
+		notLink?: true;
+		isDirectory?: true;
+		notEmpty?: true;
+		endOfFile?: true;
+		opNotPermitted?: true;
+		busy?: true;
+		ioError?: true;
+		inconsistentStateOfFS?: true;
+		concurrentUpdate?: true;
+		parsingError?: true;
+		notImplemented?: true;
+		attrsNotEnabledInFS?: true;
+		versionMismatch?: true;
+		storageIsNotSyncedType?: true;
+		isEndless?: true;
+		storageClosed?: true;
+		remoteNotSet?: true;
+		notLinkableFile?: true;
+		notLinkableFolder?: true;
+		badFnCallArguments?: true;
+	}
+
+	interface exceptionCode {
+		notFound: 'ENOENT';
+		alreadyExists: 'EEXIST';
+		notDirectory: 'ENOTDIR';
+		notFile: 'ENOTFILE';
+		isDirectory: 'EISDIR';
+		notEmpty: 'ENOTEMPTY';
+		endOfFile: 'EEOF';
+		opNotPermitted: 'EPERM';
+		busy: 'EBUSY';
+		ioError: 'EIO';
+		notImplemented: 'ENOSYS';
+	}
+
+	interface FSSyncException extends RuntimeException {
+		type: 'fs-sync';
+		path: string;
+		localVersion?: number;
+		uploadVersion?: number;
+		remoteVersion?: number;
+		alreadyUploading?: true;
+		uploadTaskId?: number;
+		versionNotFound?: true;
+		childNeverUploaded?: true;
+		childName?: string;
+		removedOnServer?: true;
+		versionMismatch?: true;
+		conflict?: true;
+		isBehind?: true;
+		notSynced?: true;
+		remoteIsArchived?: true;
+		remoteFolderItemNotFound?: true;
+		overlapsLocalItem?: true;
+		nameOverlaps?: string[];
+		noNamePostfixGiven?: true;
+	}
+
+	/**
+	 * Instances of this interface are produced by folder listing method(s).
+	 */
+	interface ListingEntry {
+
+		/**
+		 * This is name of an entity in its parent folder.
+		 */
+		name: string;
+
+		/**
+		 * When present with true value, it indicates that an entity is a folder.
+		 */
+		isFolder?: boolean;
+
+		/**
+		 * When present with true value, it indicates that an entity is a file.
+		 */
+		isFile?: boolean;
+
+		/**
+		 * When present with true value, it indicates that an entity is a link.
+		 */
+		isLink?: boolean;
+	}
+
+	interface Stats {
+
+		isFile?: boolean;
+
+		isFolder?: boolean;
+
+		isLink?: boolean;
+
+		writable: boolean;
+
+		/**
+		 * File size in bytes.
+		 */
+		size?: number;
+
+		/**
+		 * Flag indicating if file is an endless (unknown place of end) stream.
+		 */
+		isEndless?: boolean;
+
+		/**
+		 * Last content modification time stamp.
+		 * If such information cannot be provided, this field will be absent.
+		 */
+		mtime?: Date;
+
+		/**
+		 * Last change of metadata time stamp.
+		 * If such information cannot be provided, this field will be absent.
+		 */
+		ctime?: Date;
+
+		/**
+		 * This tells object's version.
+		 * If such information cannot be provided, this field will be absent.
+		 */
+		version?: number;
+
+		/**
+		 * This gives a number of bytes that should be downloaded to have file
+		 * completly on a device.
+		 */
+		bytesNeedDownload?: number;
+
+		versionSyncBranch?: SyncBranch;
+
+	}
+
+	type SyncBranch = 'local' | 'synced' | 'remote';
+
+	/**
+	 * Sync status contains info about possible version branches with possible
+	 * states:
+	 * 1. unsynced - have local branch, and possibly synced one.
+	 *    Local version(s) should be uploaded to get into synced state.
+	 * 2. synced - have only synced branch.
+	 * 3. behind - have both synced and remote branches.
+	 *    Should explicitly advance to newer version to get into synced state.
+	 * 4. conflicting - have conflicting local and remote branches, with possible
+	 *    common synced history branch.
+	 *    Conflict gets fixed by uploading some local version with value greater
+	 *    than remote's latest. Making this version is a custom magic of
+	 *    conflict resolution that you do for your app.
+	 */
+	interface SyncStatus {
+		state: SyncState;
+		synced?: SyncVersionsBranch;
+		local?: LocalVersion;
+		remote?: SyncVersionsBranch;
+		existsInSyncedParent?: boolean;
+		uploading?: UploadingState;
+	}
+
+	interface LocalVersion {
+		latest?: number;
+		isArchived?: boolean;
+	}
+
+	interface SyncVersionsBranch {
+		latest?: number;
+		archived?: number[];
+		isArchived?: boolean;
+	}
+
+	type SyncState = 'synced' | 'behind' | 'unsynced' | 'conflicting';
+
+	interface UploadingState {
+		/**
+		 * Local version that is uploaded to server.
+		 * If it is an upload of object removal, version is -1.
+		 */
+		localVersion: number;
+		/**
+		 * New remote version that is uploaded to server.
+		 * If it is an upload of object removal, version is -1.
+		 */
+		remoteVersion: number;
+		/**
+		 * Bytes left to upload.
+		 */
+		bytesLeftToUpload: number;
+		uploadStarted: boolean;
+	}
+
+	interface FileByteSource {
+
+		/**
+		 * This reads file bytes from a current position. Read advances current
+		 * position. Seek method sets position to a particular value. Initial
+		 * value of current read position is zero.
+		 * Returned promise resolves to either read bytes, or undefined.
+		 * If byte array has same length as given read limit, there may be more
+		 * bytes to read. Otherwise, all bytes are read to the end of file.
+		 * Undefined is returned when there are no bytes to read, starting from
+		 * the current read position.
+		 * @param len maximum number of bytes to read from file. If undefine is
+		 * given, all bytes are read from current postion to the end of file.
+		 */
+		readNext(len: number|undefined): Promise<Uint8Array|undefined>;
+
+		/**
+		 * This moves current position to a given value and read given number of
+		 * bytes. It is equivalent to calling seek() and readNext() with
+		 * respective arguments.
+		 * @param pos is a position at which to start read.
+		 * @param len maximum number of bytes to read from file. If undefine is
+		 * given, all bytes are read from current postion to the end of file.
+		 */
+		readAt(pos: number, len: number|undefined): Promise<Uint8Array|undefined>;
+
+		/**
+		 * This returns a promise, resolvable to the size of this file.
+		 */
+		getSize(): Promise<number>;
+
+		/**
+		 * This sets read position to a given value.
+		 * @param offset is new read position
+		 */
+		seek(offset: number): Promise<void>;
+
+		/**
+		 * This returns a promise, resolvable to current read position.
+		 */
+		getPosition(): Promise<number>;
+	}
+
+	interface LayoutSection {
+		src: 'new' | 'base' | 'empty';
+		ofs: number;
+		len: number;
+	}
+
+	interface FileLayout {
+		base?: number;
+		sections: LayoutSection[];
+	}
+
+	interface FileByteSink {
+
+		/**
+		 * This returns a promise, resolvable to current size. This size changes
+		 * when sink is splice and truncated.
+		 */
+		getSize(): Promise<number>;
+
+		/**
+		 * This splices file. It removes bytes, and inserts new ones. Note that
+		 * it is an insertion of bytes, and not over-writing.
+		 * @param pos in file at which deletion should occur, followed by
+		 * insertion of given bytes, if any given. If position is greater than
+		 * current size, empty section will be inserted up to it.
+		 * @param del number of bytes to cut at given position.
+		 * @param bytes when given, these bytes are inserted into file at given
+		 * position, after deletion.
+		 */
+		splice(pos: number, del: number, bytes?: Uint8Array): Promise<void>;
+
+		/**
+		 * This truncates file to a given size. If size is reduced, bytes are cut.
+		 * If size grows, empty section is added up to new end of file.
+		 * @param size 
+		 */
+		truncate(size: number): Promise<void>;
+
+		/**
+		 * This returns a promise, resolvable to current file layout. Returned
+		 * layout is not a shared object, and any new changes will be reflected
+		 * in layouts from following calls of this method.
+		 */
+		showLayout(): Promise<FileLayout>;
+
+		/**
+		 * This completes sink. Completion with error cancels file writing.
+		 * Regular completion may get an error thrown back, while canceling will
+		 * not.
+		 * @param err an optional error, presence of which indicates closing of
+		 * sink with this error. When err is given, no errors will be thrown back
+		 * to this call.
+		 */
+		done(err?: any): Promise<void>;
+
+	}
+
+	type Linkable = File | FS;
+
+	/**
+	 * This is an interface for a symbolic link.
+	 * In unix file systems there are both symbolic and hard links. We do not
+	 * have hard links here, but we need to highlight that nature of links here
+	 * is symbolic. For example, when a target is deleted, symbolic link becomes
+	 * broken. 
+	 */
+	interface SymLink {
+
+		/**
+		 * Flag that indicates if access to link's target is readonly (true), or
+		 * can be writable (false value).
+		 */
+		readonly: boolean;
+
+		/**
+		 * Indicates with true value if target is a file
+		 */
+		isFile?: boolean;
+
+		/**
+		 * Indicates with true value if target is a folder
+		 */
+		isFolder?: boolean;
+
+		target(): Promise<Linkable>;
+	}
+
+	type File = ReadonlyFile | WritableFile;
+
+	interface ReadonlyFile {
+
+		writable: boolean;
+
+		v?: ReadonlyFileVersionedAPI;
+
+		/**
+		 * Is a file name, given by the outside to this file. It may, or may not,
+		 * be the same as an actual file name in the file system. It may also be
+		 * null.
+		 */
+		name: string;
+
+		/**
+		 * Is a flag that says, whether file existed at the moment of this
+		 * object's creation.
+		 */
+		isNew: boolean;
+
+		/**
+		 * This returns a promise, resolvable to file stats.
+		 */
+		stat(): Promise<Stats>;
+
+		/**
+		 * This returns an extended attribute value. Undefined is returned when
+		 * attribute is not known.
+		 * @param xaName 
+		 */
+		getXAttr(xaName: string): Promise<any>;
+
+		/**
+		 * This returns an array of set extended attributes.
+		 */
+		listXAttrs(): Promise<string[]>;
+
+		/**
+		 * This returns a promise, resolvable to either non-empty byte array, or
+		 * undefined.
+		 * @param start optional parameter, setting a beginning of read. If
+		 * missing, read will be done as if neither start, nor end parameters
+		 * are given.
+		 * @param end optional parameter, setting an end of read. If end is
+		 * greater than file length, all available bytes are read. If parameter
+		 * is missing, read will be done to file's end.
+		 */
+		readBytes(start?: number, end?: number): Promise<Uint8Array|undefined>;
+
+		/**
+		 * This returns a promise, resolvable to text, read from file, assuming
+		 * utf8 encoding.
+		 */
+		readTxt(): Promise<string>;
+
+		/**
+		 * This returns a promise, resolvable to json, read from file
+		 */
+		readJSON<T>(): Promise<T>;
+
+		/**
+		 * This returns a promise, resolvable to bytes source with seek, which
+		 * allows random reads.
+		 */
+		getByteSource(): Promise<FileByteSource>;
+
+		watch(observer: Observer<FileEvent|RemoteEvent|UploadEvent|DownloadEvent>): () => void;
+
+	}
+
+	interface WritableFile extends ReadonlyFile {
+
+		v?: WritableFileVersionedAPI;
+
+		/**
+		 * This updates extended attributes.
+		 * @param changes is an object with changes to attributes. Note these are
+		 * explicit changes of extended attributes, not an implicit replacement.
+		 */
+		updateXAttrs(changes: XAttrsChanges): Promise<void>;
+
+		/**
+		 * This returns a promise, resolvable when file is written
+		 * @param bytes is a complete file content to write
+		 * @param xattrChanges is optional changes to xattrs, to pack them in the
+		 * same go
+		 */
+		writeBytes(
+			bytes: Uint8Array, xattrChanges?: XAttrsChanges
+		): Promise<void>;
+
+		/**
+		 * This returns a promise, resolvable when file is written
+		 * @param txt to write to file, using utf8 encoding
+		 * @param xattrChanges is optional changes to xattrs, to pack them in the
+		 * same go
+		 */
+		writeTxt(txt: string, xattrChanges?: XAttrsChanges): Promise<void>;
+
+		/**
+		 * This returns a promise, resolvable when file is written
+		 * @param json
+		 * @param xattrChanges is optional changes to xattrs, to pack them in the
+		 * same go
+		 */
+		writeJSON(json: any, xattrChanges?: XAttrsChanges): Promise<void>;
+
+		/**
+		 * This returns a promise, resolvable to byte sink with seek
+		 * @param truncateFile is an optional flag that truncates file content
+		 * before any bytes are writen to produced sink. When flag is false,
+		 * produced sink updates existing bytes. Default value is true.
+		 */
+		getByteSink(truncateFile?: boolean): Promise<FileByteSink>;
+
+		/**
+		 * This returns a promise, resolvable when copying is done.
+		 * @param file which content will be copied into this file
+		 */
+		copy(file: File): Promise<void>;
+
+	}
+
+	interface XAttrsChanges {
+		set?: { [xaName: string]: any|undefined; };
+		remove?: string[];
+	}
+
+	interface ReadonlyFileVersionedAPI {
+
+		/**
+		 * This returns a promise, resolvable to stats of the file.
+		 * @param flags are optional flags to read archived or remote versions.
+		 */
+		stat(flags?: VersionedReadFlags): Promise<Stats>;
+
+		getXAttr(
+			xaName: string, flags?: VersionedReadFlags
+		): Promise<{ attr: any; version: number; }>;
+	
+		listXAttrs(
+			flags?: VersionedReadFlags
+		): Promise<{ lst: string[]; version: number; }>;
+	
+		/**
+		 * This returns a promise, resolvable to either non-empty byte array, or
+		 * undefined.
+		 * @param start optional parameter, setting a beginning of read. If
+		 * missing, read will be done as if neither start, nor end parameters
+		 * are given.
+		 * @param end optional parameter, setting an end of read. If end is
+		 * greater than file length, all available bytes are read. If parameter
+		 * is missing, read will be done to file's end.
+		 * @param flags are optional flags to read archived or remote versions.
+		 */
+		readBytes(
+			start?: number, end?: number, flags?: VersionedReadFlags
+		): Promise<{ bytes: Uint8Array|undefined; version: number; }>;
+
+		/**
+		 * This returns a promise, resolvable to text, read from file, assuming
+		 * utf8 encoding.
+		 * @param flags are optional flags to read archived or remote versions.
+		 */
+		readTxt(
+			flags?: VersionedReadFlags
+		): Promise<{ txt: string; version: number; }>;
+
+		/**
+		 * This returns a promise, resolvable to json, read from file
+		 * @param flags are optional flags to read archived or remote versions.
+		 */
+		readJSON<T>(
+			flags?: VersionedReadFlags
+		): Promise<{ json: T; version: number; }>;
+
+		/**
+		 * This returns a promise, resolvable to bytes source with seek, which
+		 * allows random reads, and a file version
+		 * @param flags are optional flags to read archived or remote versions.
+		 */
+		getByteSource(
+			flags?: VersionedReadFlags
+		): Promise<{ src: FileByteSource; version: number; }>;
+
+		listVersions(
+			flags?: VersionedReadFlags
+		): Promise<{ current?: number; archived?: number[]; }>;
+		// XXX
+		// ): Promise<{ current?: number; archived?: number[]; synced?: number; conflictingRemote?: number[]; }>;
+
+		/**
+		 * File from synced storage has this api
+		 */
+		sync?: ReadonlyFileSyncAPI;
+
+	}
+
+	interface VersionedReadFlags {
+		archivedVersion?: number;
+		remoteVersion?: number;
+	}
+
+	interface WritableFileVersionedAPI extends ReadonlyFileVersionedAPI {
+
+		/**
+		 * This updates extended attributes.
+		 * @param changes is an object with changes to attributes. Note these are
+		 * explicit changes of extended attributes, not an implicit replacement.
+		 */
+		updateXAttrs(changes: XAttrsChanges): Promise<number>;
+		
+		/**
+		 * This returns a promise, resolvable to new file's version when file is
+		 * written
+		 * @param bytes is a complete file content to write
+		 * @param xattrChanges is optional changes to xattrs, to pack them into
+		 * the same file version
+		 */
+		writeBytes(
+			bytes: Uint8Array, xattrChanges?: XAttrsChanges
+		): Promise<number>;
+
+		/**
+		 * This returns a promise, resolvable to new file's version when file is
+		 * written
+		 * @param txt to write to file, using utf8 encoding
+		 * @param xattrChanges is optional changes to xattrs, to pack them into
+		 * the same file version
+		 */
+		writeTxt(txt: string, xattrChanges?: XAttrsChanges): Promise<number>;
+
+		/**
+		 * This returns a promise, resolvable to new file's version when file is
+		 * written
+		 * @param json
+		 * @param xattrChanges is optional changes to xattrs, to pack them into
+		 * the same file version
+		 */
+		writeJSON(json: any, xattrChanges?: XAttrsChanges): Promise<number>;
+
+		/**
+		 * This returns a promise, resolvable to byte sink with seek, and a file
+		 * version
+		 * @param truncateFile is an optional flag that truncates file content
+		 * before any bytes are writen to produced sink. When flag is false,
+		 * produced sink updates existing bytes. Default value is true.
+		 * @param currentVersion is an optional parameter, for non-truncated sink.
+		 * When current version is given, an error is thrown, if file version at
+		 * the moment of writing is different.
+		 */
+		getByteSink(
+			truncateFile?: boolean, currentVersion?: number
+		): Promise<{ sink: FileByteSink; version: number; }>;
+
+		/**
+		 * This returns a promise, resolvable to new file's version when copying
+		 * is done.
+		 * @param file which content will be copied into this file
+		 */
+		copy(file: File): Promise<number>;
+
+		archiveCurrent(version?: number): Promise<number>;
+
+		/**
+		 * File from synced storage has this api
+		 */
+		sync?: WritableFileSyncAPI;
+
+	}
+
+	interface ReadonlyFileSyncAPI {
+
+		/**
+		 * When connection exception is caught, use this to await connection to continue.
+		 * This returns a promise, resolvable when connected to storage server.
+		 */
+		whenConnected(): Promise<void>;
+
+		/**
+		 * Returns synchronization status of this object.
+		 * @param skipServerCheck is optional parameter to skip server check, that may be handy in offline 
+		 * situations. Default is false.
+		 */
+		status(skipServerCheck?: boolean): Promise<SyncStatus>;
+
+		/**
+		 * Returns a state of on-disk cache.
+		 * @param version 
+		 */
+		isRemoteVersionOnDisk(
+			version: number
+		): Promise<'partial'|'complete'|'none'>;
+
+		/**
+		 * This downloads bytes onto disk, skipping decryption, as file content isn't read here.
+		 * @param version 
+		 */
+		startDownload(version: number): Promise<{ downloadTaskId: number; }|undefined>;
+
+		/**
+		 * Adopts remote version.
+		 * In conflicting state remote version must be present in options.
+		 * @param opts options let one to pass exact remote version.
+		 */
+		adoptRemote(opts?: OptionsToAdopteRemote): Promise<void>;
+
+		/**
+		 * Calculates diff between current and remote states of file at given path.
+		 * @param path 
+		 * @param opts 
+		 */
+		diffCurrentAndRemoteVersions(opts?: OptionsToDiffFileVersions): Promise<FileDiff|undefined>;
+
+	}
+
+	interface OptionsToAdopteRemote {
+		/**
+		 * Identifies remote version that should be adopted.
+		 * In conflicting state this must be present.
+		 */
+		remoteVersion?: number;
+	}
+
+	interface OptionsToDiffFileVersions {
+		remoteVersion?: number;
+		// XXX implicit assumption that mtime changes only when file content changes
+		compareContentIfSameMTime?: boolean;
+	}
+
+	interface WritableFileSyncAPI extends ReadonlyFileSyncAPI {
+
+		/**
+		 * This starts/schedules an upload, if it hasn't been already.
+		 * Upload in conflicting and behind state of sync requires explicit upload version.
+		 * Undefined is returned when upload is not needed, e.g. version is already synced.
+		 * Upload version and upload task id are returned together with an indicator of whether
+		 * this call has started upload, or it has already been going on.
+		 * Upload task id can be used to filter watched events.
+		 * @param opts 
+		 */
+		startUpload(
+			opts?: OptionsToUploadLocal
+		): Promise<{ uploadVersion: number; uploadTaskId: number; }|undefined>;
+
+		/**
+		 * Upload in conflicting and behind state of sync requires explicit upload version.
+		 * This upload will not be generating upload events.
+		 * @param opts 
+		 */
+		upload(opts?: OptionsToUploadLocal): Promise<number|undefined>;
+
+	}
+
+	interface OptionsToUploadLocal {
+		localVersion?: number;
+		uploadVersion?: number;
+	}
+
+	type FSType = 'device' | 'synced' | 'local' | 'share' | 'asmail-msg';
+
+	type FS = ReadonlyFS | WritableFS;
+
+	interface ReadonlyFS {
+
+		type: FSType;
+
+		v?: ReadonlyFSVersionedAPI;
+		
+		writable: boolean;
+
+		/**
+		 * Is a folder name, given by the outside to this file system. It may, or
+		 * may not, be the same as an actual folder name. It may also be null.
+		 */
+		name: string;
+		
+		/**
+		 * This returns a promise, resolvable to true, if folder exists, and to
+		 * false, if folder is not found.
+		 * @param path of a folder, which presence we want to check
+		 * @param throwIfMissing is an optional flag, which forces with true value
+		 * throwing of an exception, when folder does not exist. Default value is
+		 * false.
+		 */
+		checkFolderPresence(
+			path: string, throwIfMissing?: boolean
+		): Promise<boolean>;
+		
+		/**
+		 * This returns a promise, resolvable to true, if file exists, and to
+		 * false, if file is not found.
+		 * @param path of a file, which presence we want to check
+		 * @param throwIfMissing is an optional flag, which forces with true value
+		 * throwing of an exception, when file does not exist. Default value is
+		 * false.
+		 */
+		checkFilePresence(
+			path: string, throwIfMissing?: boolean
+		): Promise<boolean>;
+		
+		/**
+		 * This returns a promise, resolvable to true, if link exists, and to
+		 * false, if link is not found.
+		 * @param path of a link, which presence we want to check
+		 * @param throwIfMissing is an optional flag, which forces with true value
+		 * throwing of an exception, when link does not exist. Default value is
+		 * false.
+		 */
+		checkLinkPresence(
+			path: string, throwIfMissing?: boolean
+		): Promise<boolean>;
+		
+		/**
+		 * This returns a promise, resolvable to stats of an entity at a given
+		 * path.
+		 * @param path
+		 */
+		stat(path: string): Promise<Stats>;
+
+		/**
+		 * This returns an extended attribute value. Undefined is returned when
+		 * attribute is not known.
+		 * @param path
+		 * @param xaName 
+		 */
+		getXAttr(path: string, xaName: string): Promise<any>;
+
+		/**
+		 * This returns an array of set extended attributes.
+		 * @param path
+		 */
+		listXAttrs(path: string): Promise<string[]>;
+
+		readLink(path: string): Promise<SymLink>;
+
+		watchFolder(
+			path: string, observer: Observer<FolderEvent|RemoteEvent|UploadEvent|DownloadEvent>
+		): () => void;
+
+		watchFile(
+			path: string, observer: Observer<FileEvent|RemoteEvent|UploadEvent|DownloadEvent>
+		): () => void;
+
+		watchTree(
+			path: string, depth: number|undefined,
+			observer: Observer<FolderEvent|FileEvent|RemoteEvent|UploadEvent|DownloadEvent>
+		): () => void;
+
+		close(): Promise<void>;
+
+		/**
+		 * This returns a promise, resolvable to a file system object, rooted to a
+		 * given folder.
+		 * @param folder is a path of a root folder.
+		 */
+		readonlySubRoot(folder: string): Promise<ReadonlyFS>;
+
+		/**
+		 * This returns a promise, resolvable to a list of informational objects
+		 * for entries in the folder.
+		 * @param path of a folder that should be listed
+		 */
+		listFolder(folder: string): Promise<ListingEntry[]>;
+
+		/**
+		 * This returns a promise, resolvable to json, read from file
+		 * @param path of a file from which to read json
+		 */
+		readJSONFile<T>(path: string): Promise<T>;
+
+		/**
+		 * This returns a promise, resolvable to text, read from file, assuming
+		 * utf8 encoding.
+		 * @param path of a file from which to read text
+		 */
+		readTxtFile(path: string): Promise<string>;
+
+		/**
+		 * This returns a promise, resolvable to either non-empty byte array, or
+		 * undefined.
+		 * @param path of a file from which to read bytes
+		 * @param start optional parameter, setting a beginning of read. If
+		 * missing, read will be done as if neither start, nor end parameters
+		 * are given.
+		 * @param end optional parameter, setting an end of read. If end is
+		 * greater than file length, all available bytes are read. If parameter
+		 * is missing, read will be done to file's end.
+		 */
+		readBytes(
+			path: string, start?: number, end?: number
+		): Promise<Uint8Array|undefined>;
+
+		/**
+		 * This returns a promise, resolvable to bytes source with seek, which
+		 * allows random reads.
+		 * @param path of a file from which to read bytes
+		 */
+		getByteSource(path: string): Promise<FileByteSource>;
+
+		/**
+		 * This returns a promise, resolvable to readonly file object.
+		 * @param path
+		 */
+		readonlyFile(path: string): Promise<ReadonlyFile>;
+
+		/**
+		 * This function selects items inside given path, following given
+		 * criteria. It start selection process, which may be long, and returns a
+		 * promise, resolvable to items collection into selected items will
+		 * eventually be placed, and a completion promise, that resolves when
+		 * selection/search process completes.
+		 * Note that collection can be watched for changes as they happen.
+		 * @param path 
+		 * @param criteria 
+		 */
+		select(
+			path: string, criteria: SelectCriteria
+		): Promise<{ items: FSCollection; completion: Promise<void>; }>;
+
+	}
+
+	interface SelectCriteria {
+
+		/**
+		 * This is a match for name. There are three match types:
+		 * pattern, regexp and exact.
+		 * 1) Pattern is a common cli search like "*.png" that treats *-symbol as
+		 * standing for anything. Search isn't case-sensitive.
+		 * When name field is a string, it is assumed to be this pattern type.
+		 * 2) Regexp is used directly to make a match.
+		 * 3) Exact matches given string exactly to names of fs items.
+		 */
+		name: string | {
+			p: string;
+			type: 'pattern' | 'regexp' | 'exact';
+		};
+
+		/**
+		 * depth number, if present, limits search to folder depth in a file tree.
+		 */
+		depth?: number;
+
+		/**
+		 * type identifies type or types of elements this criteria should match.
+		 * If missing, all fs types are considered for further matching.
+		 */
+		type?: FSItemType | FSItemType[];
+
+		/**
+		 * action specifies what happens with items that match given criteria:
+		 * include or exclude from search results. Selection with include action
+		 * returns only items that match criteria. Selection with exclude action
+		 * returns all items that don't match criteria.
+		 */
+		action: 'include' | 'exclude';
+	}
+
+	type FSItemType = 'folder' | 'file' | 'link';
+
+	interface FSItem {
+		isFile?: boolean;
+		isFolder?: boolean;
+		isLink?: boolean;
+		isCollection?: boolean;
+		item?: FS|File|FSCollection;
+		location?: {
+			fs: FS;
+			path: string;
+			storageUse?: storage.StorageUse;
+			storageType?: storage.StorageType;
+		};
+	}
+	
+	interface FSCollection {
+		get(name: string): Promise<FSItem|undefined>;
+		getAll(): Promise<[ string, FSItem ][]>;
+		entries(): Promise<AsyncIterator<[ string, FSItem ]>>;
+		watch(observer: Observer<CollectionEvent>): () => void;
+		set?: (name: string, f: FSItem) => Promise<void>;
+		remove?: (name: string) => Promise<boolean>;
+		clear?: () => Promise<void>;
+	}
+
+	interface CollectionItemRemovalEvent {
+		type: 'entry-removal';
+		path?: string;
+	}
+
+	interface CollectionItemAdditionEvent {
+		type: 'entry-addition';
+		path: string;
+		item: FSItem;
+	}
+
+	type CollectionEvent = CollectionItemAdditionEvent |
+		CollectionItemRemovalEvent;
+
+	interface WritableFS extends ReadonlyFS {
+
+		v?: WritableFSVersionedAPI;
+
+		/**
+		 * This updates extended attributes.
+		 * @param path
+		 * @param changes is an object with changes to attributes. Note these are
+		 * explicit changes of extended attributes, not an implicit replacement.
+		 */
+		updateXAttrs(path: string, changes: XAttrsChanges): Promise<void>;
+
+		/**
+		 * This either finds existing, or creates new folder, asynchronously.
+		 * @param path of a folder that should be created
+		 * @param exclusive is an optional flag, which when set to true, throws
+		 * if folder already exists. Default value is false, i.e. if folder
+		 * exists, nothing happens.
+		 */
+		makeFolder(path: string, exclusive?: boolean): Promise<void>;
+
+		/**
+		 * This returns a promise, resolvable when folder has been removed
+		 * @param path of a folder that should be removed
+		 * @param removeContent is an optional flag, which true values forces
+		 * recursive removal of all content in the folder. Default value is false.
+		 * If folder is not empty, and content removal flag is not set, then an
+		 * error is thrown.
+		 */
+		deleteFolder(path: string, removeContent?: boolean): Promise<void>;
+
+		/**
+		 * This returns a promise, resolvable when file has been removed
+		 * @param path of a file that should be removed
+		 */
+		deleteFile(path: string): Promise<void>;
+
+		/**
+		 * This returns a promise, resolvable when file (or folder) has been
+		 * moved.
+		 * @param src is an initial path of a file (or folder)
+		 * @param dst is a new path of a file (or folder)
+		 */
+		move(src: string, dst: string): Promise<void>;
+
+		/**
+		 * This returns a promise, resolvable when file has been copied.
+		 * @param src is an initial path of a file
+		 * @param dst is a path of a file
+		 * @param overwrite is a flag that with a true value allows
+		 * overwrite of existing dst file. Default value is false.
+		 */
+		copyFile(
+			src: string, dst: string, overwrite?: boolean
+		): Promise<void>;
+
+		/**
+		 * This returns a promise, resolvable when folder has been recursively
+		 * copied.
+		 * @param src is an initial path of a folder
+		 * @param dst is a path of a folder
+		 * @param mergeAndOverwrite is a flag that with true value allows
+		 * merge into existing folder and files overwriting inside. Default
+		 * value is false.
+		 */
+		copyFolder(
+			src: string, dst: string, mergeAndOverwrite?: boolean
+		): Promise<void>;
+
+		/**
+		 * This returns a promise, resolvable when file has been saved.
+		 * @param file is a file to save
+		 * @param dst is a path where to save given file
+		 * @param overwrite is a flag that with a true value allows
+		 * overwrite of existing dst file. Default value is false.
+		 */
+		saveFile(file: File, dst: string, overwrite?: boolean): Promise<void>;
+
+		/**
+		 * This returns a promise, resolvable when folder has been recursively
+		 * saved.
+		 * @param folder is a folder to save
+		 * @param dst is a path where to save given folder
+		 * @param mergeAndOverwrite is a flag that with true value allows
+		 * merge into existing folder and files overwriting inside. Default
+		 * value is false.
+		 */
+		saveFolder(
+			folder: FS, dst: string, mergeAndOverwrite?: boolean
+		): Promise<void>;
+
+		/**
+		 * This returns a promise, resolvable when file has been removed
+		 * @param path of a link that should be removed
+		 */
+		deleteLink(path: string): Promise<void>;
+
+		link(path: string, target: File | FS): Promise<void>;
+
+		/**
+		 * This returns a promise, resolvable to a file system object, rooted to a
+		 * given folder.
+		 * @param folder is a path of a root folder.
+		 * @param flags are optional flags. Default flags are create=true,
+		 * exclusive=false.
+		 */
+		writableSubRoot(folder: string, flags?: FileFlags): Promise<WritableFS>;
+
+		/**
+		 * This returns a promise, resolvable when file is written
+		 * @param path of a file to write given json
+		 * @param json
+		 * @param flags are optional flags. Default flags are create=true,
+		 * exclusive=false.
+		 */
+		writeJSONFile(path: string, json: any, flags?: FileFlags): Promise<void>;
+
+		/**
+		 * This returns a promise, resolvable when file is written
+		 * @param path of a file to write given text
+		 * @param txt to write to file, using utf8 encoding
+		 * @param flags are optional flags. Default flags are create=true,
+		 * exclusive=false.
+		 */
+		writeTxtFile(path: string, txt: string, flags?: FileFlags): Promise<void>;
+
+		/**
+		 * This returns a promise, resolvable when file is written
+		 * @param path of a file to write
+		 * @param bytes to write to file. This is a whole of file content.
+		 * @param flags are optional flags. Default flags are create=true,
+		 * exclusive=false.
+		 */
+		writeBytes(
+			path: string, bytes: Uint8Array, flags?: FileFlags
+		): Promise<void>;
+
+		/**
+		 * This returns a promise, resolvable to byte sink with seek
+		 * @param path of a file for which we want to get a writable byte sink
+		 * @param flags are optional flags. Default flags are create=true,
+		 * exclusive=false, truncate=true.
+		 */
+		getByteSink(path: string, flags?: FileFlags): Promise<FileByteSink>;
+
+		/**
+		 * This returns a promise, resolvable to file object.
+		 * @param path
+		 * @param flags are optional flags. Default flags are create=true,
+		 * exclusive=false.
+		 */
+		writableFile(path: string, flags?: FileFlags): Promise<WritableFile>;
+
+	}
+
+	interface FileFlags {
+
+		/**
+		 * truncate flag is optional. True value forces truncation of file, if it
+		 * already exists. Default value is true.
+		 */
+		truncate?: boolean;
+
+		/**
+		 * create flag is optional. True value forces creation of file, if it is
+		 * missing. Default value is true.
+		 */
+		create?: boolean;
+
+		/**
+		 * exclusive flag is optional. This flag is applicable when create is
+		 * true. True value ensures that file doesn't exist, and an error is
+		 * thrown, when file exists. Default value is false.
+		 */
+		exclusive?: boolean;
+
+	}
+
+	interface FSEvent {
+		path: string;
+	}
+
+	interface FSChangeEvent {
+		path: string;
+		src: 'local'|'sync';
+	}
+
+	interface RemovedEvent extends FSChangeEvent {
+		type: 'removed';
+	}
+
+	interface VersionChangeOnUpload extends FSChangeEvent {
+		type: 'version-change-on-upload';
+		src: 'sync';
+		newVersion: number;
+	}
+
+	type FolderEvent = EntryRemovalEvent | EntryAdditionEvent |
+		EntryRenamingEvent | RemovedEvent | VersionChangeOnUpload;
+
+	interface EntryRemovalEvent extends FSChangeEvent {
+		type: 'entry-removal';
+		name: string;
+		moveLabel?: number;
+		newVersion?: number;
+	}
+
+	interface EntryAdditionEvent extends FSChangeEvent {
+		type: 'entry-addition';
+		entry: ListingEntry;
+		moveLabel?: number;
+		newVersion?: number;
+	}
+
+	interface EntryRenamingEvent extends FSChangeEvent {
+		type: 'entry-renaming';
+		oldName: string;
+		newName: string;
+		newVersion?: number;
+	}
+
+	type FileEvent = FileChangeEvent | RemovedEvent | VersionChangeOnUpload;
+
+	interface FileChangeEvent extends FSChangeEvent {
+		type: 'file-change';
+		newVersion: number;
+	}
+
+	type RemoteEvent = RemoteVersionArchivalEvent | RemoteArchVerRemovalEvent |
+		RemoteRemovalEvent | RemoteChangeEvent;
+
+	/**
+	 * SyncStatus has fields that connect to item's parent, uploading, i.e. not just state of the item.
+	 * Hence, we pick only related fields.
+	 */
+	type ItemSyncStatus = Pick<SyncStatus, 'state' | 'remote' | 'synced' | 'local'>;
+
+	interface RemoteVersionArchivalEvent extends FSEvent {
+		type: 'remote-version-archival';
+		archivedVersion: number;
+		syncStatus: ItemSyncStatus;
+	}
+
+	interface RemoteArchVerRemovalEvent extends FSEvent {
+		type: 'remote-arch-ver-removal';
+		removedArchVer: number;
+		syncStatus: ItemSyncStatus;
+	}
+
+	interface RemoteRemovalEvent extends FSEvent {
+		type: 'remote-removal';
+		syncStatus: ItemSyncStatus;
+	}
+
+	interface RemoteChangeEvent extends FSEvent {
+		type: 'remote-change';
+		newRemoteVersion: number;
+		syncStatus: ItemSyncStatus;
+	}
+
+	type UploadEvent = UploadStartEvent | UploadProgressEvent | UploadDisconnectedEvent | UploadDoneEvent;
+
+	interface UploadEventBase extends FSEvent {
+		uploadTaskId: number;
+		localVersion: number;
+		uploadVersion: number;
+	}
+
+	interface UploadStartEvent extends UploadEventBase {
+		type: 'upload-started';
+		isRestart: boolean;
+		totalBytesToUpload: number;
+	}
+
+	interface UploadProgressEvent extends UploadEventBase {
+		type: 'upload-progress';
+		totalBytesToUpload: number;
+		bytesLeftToUpload: number;
+	}
+
+	interface UploadDisconnectedEvent extends UploadEventBase {
+		type: 'upload-disconnected';
+	}
+
+	interface UploadDoneEvent extends UploadEventBase {
+		type: 'upload-done';
+	}
+
+	type DownloadEvent = DownloadStartEvent | DownloadProgressEvent | DownloadDoneEvent;
+
+	interface DownloadEventBase extends FSEvent {
+		downloadTaskId: number;
+		version: number;
+	}
+
+	interface DownloadStartEvent extends DownloadEventBase {
+		type: 'download-started';
+		totalBytesToDownload: number;
+	}
+
+	interface DownloadDoneEvent extends DownloadEventBase {
+		type: 'download-done';
+	}
+
+	interface DownloadProgressEvent extends DownloadEventBase {
+		type: 'download-progress';
+		totalBytesToDownload: number;
+		bytesLeftToDownload: number;
+	}
+
+	interface VersionedFileWriteFlags extends FileFlags {
+
+		/**
+		 * currentVersion flag is optional. This flag is applicable to existing
+		 * file. An error is thrown when at the time of writing current file
+		 * version is different from a given value.
+		 */
+		currentVersion?: number;
+
+	}
+
+	interface ReadonlyFSVersionedAPI {
+
+		/**
+		 * This returns a promise, resolvable to stats of an entity at a given
+		 * path.
+		 * @param path
+		 * @param flags are optional flags to read archived or remote versions.
+		 */
+		stat(path: string, flags?: VersionedReadFlags): Promise<Stats>;
+
+		getXAttr(
+			path: string, xaName: string, flags?: VersionedReadFlags
+		): Promise<{ attr: any; version: number; }>;
+	
+		listXAttrs(
+			path: string, flags?: VersionedReadFlags
+		): Promise<{ lst: string[]; version: number; }>;
+
+		/**
+		 * This returns a promise, resolvable to a list of informational objects
+		 * for entries in the folder, and a folder's version.
+		 * @param path of a folder that should be listed
+		 * @param flags are optional flags to read archived or remote versions.
+		 */
+		listFolder(
+			path: string, flags?: VersionedReadFlags
+		): Promise<{ lst: ListingEntry[]; version: number; }>;
+
+		/**
+		 * This returns a promise, resolvable to json, read from file, and a
+		 * version of file.
+		 * @param path of a file from which to read json
+		 * @param flags are optional flags to read archived or remote versions.
+		 */
+		readJSONFile<T>(
+			path: string, flags?: VersionedReadFlags
+		): Promise<{ json: T; version: number; }>;
+
+		/**
+		 * This returns a promise, resolvable to text, read from file, assuming
+		 * utf8 encoding, and version of file.
+		 * @param path of a file from which to read text
+		 * @param flags are optional flags to read archived or remote versions.
+		 */
+		readTxtFile(
+			path: string, flags?: VersionedReadFlags
+		): Promise<{ txt: string; version: number; }>;
+
+		/**
+		 * This returns a promise, resolvable to bytes, that is either non-empty
+		 * byte array, or an undefined, and version of file.
+		 * @param path of a file from which to read bytes
+		 * @param start optional parameter, setting a beginning of read. If
+		 * missing, read will be done as if neither start, nor end parameters
+		 * are given.
+		 * @param end optional parameter, setting an end of read. If end is
+		 * greater than file length, all available bytes are read. If parameter
+		 * is missing, read will be done to file's end.
+		 * @param flags are optional flags to read archived or remote versions.
+		 */
+		readBytes(
+			path: string, start?: number, end?: number,
+			flags?: VersionedReadFlags
+		): Promise<{ bytes: Uint8Array|undefined; version: number; }>;
+
+		/**
+		 * This returns a promise, resolvable to bytes source with seek, which
+		 * allows random reads, and a file version
+		 * @param path of a file from which to read bytes
+		 * @param flags are optional flags to read archived or remote versions.
+		 */
+		getByteSource(
+			path: string, flags?: VersionedReadFlags
+		): Promise<{ src: FileByteSource; version: number; }>;
+
+		listVersions(
+			path: string
+		): Promise<{ current?: number; archived?: number[]; }>;
+
+		/**
+		 * Folder/FS from synced storage has this api
+		 */
+		sync?: ReadonlyFSSyncAPI;
+
+	}
+
+	interface WritableFSVersionedAPI  extends ReadonlyFSVersionedAPI {
+
+		/**
+		 * This updates extended attributes.
+		 * @param path
+		 * @param changes is an object with changes to attributes. Note these are
+		 * explicit changes of extended attributes, not an implicit replacement.
+		 */
+		updateXAttrs(path: string, changes: XAttrsChanges): Promise<number>;
+
+		/**
+		 * This returns a promise, resolvable to new file's version when file is
+		 * written.
+		 * @param path of a file to write given json
+		 * @param json
+		 * @param flags are optional flags. Default flags are create=true,
+		 * exclusive=false.
+		 */
+		writeJSONFile(
+			path: string, json: any, flags?: VersionedFileWriteFlags
+		): Promise<number>;
+
+		/**
+		 * This returns a promise, resolvable to new file's version when file is
+		 * written
+		 * @param path of a file to write given text
+		 * @param txt to write to file, using utf8 encoding
+		 * @param flags are optional flags. Default flags are create=true,
+		 * exclusive=false.
+		 */
+		writeTxtFile(
+			path: string, txt: string, flags?: VersionedFileWriteFlags
+		): Promise<number>;
+
+		/**
+		 * This returns a promise, resolvable to new file's version when file is
+		 * written
+		 * @param path of a file to write
+		 * @param bytes to write to file. This is a whole of file content.
+		 * @param flags are optional flags. Default flags are create=true,
+		 * exclusive=false.
+		 */
+		writeBytes(
+			path: string, bytes: Uint8Array, flags?: VersionedFileWriteFlags
+		): Promise<number>;
+
+		/**
+		 * This returns a promise, resolvable to byte sink with seek, and a file
+		 * version
+		 * @param path of a file for which we want to get a writable byte sink
+		 * @param flags are optional flags. Default flags are create=true,
+		 * exclusive=false, truncate=true.
+		 */
+		getByteSink(
+			path: string, flags?: VersionedFileWriteFlags
+		): Promise<{ sink: FileByteSink; version: number; }>;
+
+		archiveCurrent(path: string, version?: number): Promise<number>;
+
+		/**
+		 * Folder/FS from synced storage has this api
+		 */
+		sync?: WritableFSSyncAPI;
+
+	}
+
+	interface ReadonlyFSSyncAPI {
+
+		/**
+		 * When connection exception is caught, use this to await connection to continue.
+		 * This returns a promise, resolvable when connected to storage server.
+		 */
+		whenConnected(): Promise<void>;
+
+		/**
+		 * Returns synchronization status of item at given path.
+		 * @param path
+		 * @param skipServerCheck is optional parameter to skip server check, that may be handy in offline 
+		 * situations. Default is false.
+		 */
+		status(path: string, skipServerCheck?: boolean): Promise<SyncStatus>;
+
+		/**
+		 * Returns a state of on-disk cache of an item in fs.
+		 * @param version 
+		 */
+		isRemoteVersionOnDisk(path: string, version: number): Promise<'partial'|'complete'|'none'>;
+
+		/**
+		 * This downloads bytes onto disk, skipping decryption, as item's content isn't read here.
+		 * @param path 
+		 * @param version 
+		 */
+		startDownload(path: string, version: number): Promise<{ downloadTaskId: number; }|undefined>;
+
+		/**
+		 * Adopts remote version of fs object at given path.
+		 * In conflicting state remote version must be present in options.
+		 * @param path 
+		 * @param opts options let one to pass exact remote version.
+		 */
+		adoptRemote(path: string, opts?: OptionsToAdopteRemote): Promise<void>;
+
+		/**
+		 * Calculates diff between current and remote states of folder at given path.
+		 * @param path 
+		 * @param remoteVersion 
+		 */
+		diffCurrentAndRemoteFolderVersions(path: string, remoteVersion?: number): Promise<FolderDiff|undefined>;
+
+		/**
+		 * Calculates diff between current and remote states of file at given path.
+		 * @param path 
+		 * @param opts 
+		 */
+		diffCurrentAndRemoteFileVersions(
+			path: string, opts?: OptionsToDiffFileVersions
+		): Promise<FileDiff|undefined>;
+
+		/**
+		 * Returns stats of a child from remote version of a folder.
+		 * @param path of folder
+		 * @param remoteItemName 
+		 * @param remoteVersion of folder. Default is current remote.
+		 */
+		statRemoteItem(path: string, remoteItemName: string, remoteVersion?: number): Promise<Stats>;
+
+		/**
+		 * Lists child folder from remote version of a folder.
+		 * @param path of folder
+		 * @param remoteItemName 
+		 * @param remoteVersion of folder. Default is current remote.
+		 */
+		listRemoteFolderItem(path: string, remoteItemName: string, remoteVersion?: number): Promise<ListingEntry[]>;
+
+		/**
+		 * Returns child file from remote version of a folder.
+		 * @param path of folder
+		 * @param remoteItemName 
+		 * @param remoteVersion of folder. Default is current remote.
+		 */
+		getRemoteFileItem(path: string, remoteItemName: string, remoteVersion?: number): Promise<ReadonlyFile>;
+
+		/**
+		 * Returns child folder from remote version of a folder.
+		 * @param path of folder
+		 * @param remoteItemName 
+		 * @param remoteVersion of folder. Default is current remote.
+		 */
+		getRemoteFolderItem(path: string, remoteItemName: string, remoteVersion?: number): Promise<ReadonlyFS>;
+
+		// compareLocalAndRemoteFileItems(path: string, itemName: string, remoteVersion?: number): Promise<FileDiff>;
+
+		// compareLocalAndRemoteFolderItems(
+		// 	path: string, itemName: string, remoteVersion?: number
+		// ): Promise<FolderContentDiff>;
+
+		// XXX method to work around damaged files
+		// reloadFromServer(path: string): Promise<SyncStatus>;
+
+	}
+
+	interface CommonDiff {
+		/**
+		 * Current version against which this diff is done.
+		 */
+		currentVersion: number;
+
+		/**
+		 * Flag indicating if current version is local, i.e. never uploaded.
+		 */
+		isCurrentLocal: boolean;
+
+		/**
+		 * Remote version against which this diff is done.
+		 */
+		remoteVersion?: number;
+
+		/**
+		 * Flag indicating if remote version is removed, i.e. has no current version.
+		 * If remote is removed, it has nothing inside, and with this implicit
+		 * understanding there is no need to have other data fields populated here.
+		 */
+		isRemoteRemoved: boolean;
+
+		/**
+		 * Synced version against which this diff is done.
+		 */
+		syncedVersion?: number;
+
+		/**
+		 * Creation time should always be same, but if not, this field will show different values.
+		 * If remote is removed, this field will be undefined.
+		 */
+		ctime?: {
+			remote: Date;
+			current: Date;
+			synced: Date;
+		};
+
+		/**
+		 * This field shows different modification times. If they are same, field will be undefined.
+		 * If remote is removed, this field will be undefined.
+		 */
+		mtime?: {
+			remote: Date;
+			current: Date;
+			synced: Date;
+		};
+
+		/**
+		 * Difference between xattrs. Same xattrs in both versions are not included.
+		 */
+		xattrs?: {
+			[name: string]: {
+				addedIn?: 'l'|'r'|'l&r';
+				removedIn?: 'l'|'r';
+				changedIn?: 'l'|'r'|'l&r';
+			};
+		};
+	}
+
+	/**
+	 * Difference of remote and local folder versions expressed as changes relative to synced version.
+	 * 
+	 * Consider the following example.
+	 * There is an item in local version, but not in remote.
+	 * Such difference can come about in two ways: addition in local branch, or removal in remote.
+	 * 
+	 * Contexts where versions are compared need information about change actions in folder.
+	 * Hence, this diff is a three point comparison, yielding richer info.
+	 */
+	interface FolderDiff extends CommonDiff {
+
+		/**
+		 * Items that were removed.
+		 * 
+		 * Consider the following example.
+		 * Item that is removed in local version is present in both remote and synced versions.
+		 * Hence, difference between local and remote versions is due to removal in local branch.
+		 */
+		removed?: {
+			inRemote?: string[];
+			inLocal?: string[];
+		};
+
+		/**
+		 * Items that were renamed. Pointing to where renaming is done in remote (r), or local (l) branches.
+		 * 
+		 * When item is renamed local branch, then local name was changed from synced value,
+		 * while remote name is still equal to synced (older) value.
+		 */
+		renamed?: {
+			local: string;
+			remote: string;
+			renamedIn: 'l'|'r'|'l&r';
+		}[];
+
+		/**
+		 * Items that were added.
+		 * 
+		 * When item added in remote branch, then it is present in remote version under the referenced name.
+		 * Synced (older) state of folder doesn't have it, and neither does local.
+		 */
+		added?: {
+			inRemote?: string[];
+			inLocal?: string[];
+		};
+
+		/**
+		 * Items that reencrypted and now have different keys.
+		 */
+		rekeyed?: {
+			local: string;
+			remote: string;
+			rekeyedIn: 'l'|'r'|'l&r';
+		}[];
+
+		/**
+		 * Name overlaps are items with same name, but different node objects underneath.
+		 */
+		nameOverlaps?: string[];
+	}
+
+	interface FileDiff extends CommonDiff {
+		areContentsSame: boolean;
+		/**
+		 * If sizes are different this field will have respective values.
+		 */
+		size?: {
+			remote: number;
+			current: number;
+		};
+	}
+
+	// interface FolderContentDiff extends CommonDiff {
+	// 	local: ({
+
+	// 	} & ListingEntry)[];
+	// 	remote: ({} & ListingEntry)[];
+	// }
+
+	interface WritableFSSyncAPI extends ReadonlyFSSyncAPI {
+
+		/**
+		 * This starts/schedules an upload, if it hasn't been already.
+		 * Upload in conflicting and behind state of sync requires explicit upload version.
+		 * Undefined is returned when upload is not needed, e.g. version is already synced.
+		 * Upload version and upload task id are returned together with an indicator of whether
+		 * this call has started upload, or it has already been going on.
+		 * Upload task id can be used to filter watched events.
+		 * @param path 
+		 * @param opts 
+		 */
+		startUpload(
+			path: string, opts?: OptionsToUploadLocal
+		): Promise<{ uploadVersion: number; uploadTaskId: number; }|undefined>;
+
+		/**
+		 * Upload in conflicting and behind state of sync requires explicit upload version.
+		 * This upload will not be generating upload events.
+		 * @param path 
+		 * @param opts 
+		 */
+		upload(path: string, opts?: OptionsToUploadLocal): Promise<number|undefined>;
+
+		/**
+		 * This method is for resolving conflicts on folders, an action item by item.
+		 * It adopts only given folder item, that is present in remote version and is missing in local version.
+		 * Returns new local version.
+		 * @param path 
+		 * @param remoteItemName 
+		 * @param opts 
+		 */
+		adoptRemoteFolderItem(
+			path: string, remoteItemName: string, opts?: OptionsToAdoptRemoteItem
+		): Promise<number>;
+
+		/**
+		 * This method is for resolving conflicts on folders.
+		 * It completely absorbs folder changes done in remote version.
+		 * Such wholesome may or may not be appriate in all circumstances, so use `adoptRemoteFolderItem`
+		 * for a more nuanced item-by-item operations.
+		 * Returns new local version, if there were remote items to adopt and their were added to local state.
+		 * @param path 
+		 * @param opts
+		 */
+		absorbRemoteFolderChanges(
+			path: string, opts?: OptionsToAdoptRemoteFolderChanges
+		): Promise<number|undefined>;
+
+		// XXX
+		// makeSnapshot(path: string); // -> snapshot points and archives current versions of tree elements
+
+	}
+
+	interface OptionsToAdoptRemoteItem {
+		/**
+		 * Folder's local version. If not given, current local version is used.
+		 */
+		localVersion?: number;
+		/**
+		 * Folder's remote version. If not given, current remote version is used.
+		 */
+		remoteVersion?: number;
+		/**
+		 * Flag to force replacement of locally referenced item under the same item name (or new name).
+		 * If not given, and there is an overlapping local, an exception is thrown.
+		 */
+		replaceLocalItem?: boolean;
+		/**
+		 * Name for item when it is added into local folder version.
+		 */
+		newItemName?: string;
+	}
+
+	interface OptionsToAdoptRemoteFolderChanges {
+		/**
+		 * Folder's local version. If not given, current local version is used.
+		 */
+		localVersion?: number;
+		/**
+		 * Folder's remote version. If not given, current remote version is used.
+		 */
+		remoteVersion?: number;
+		/**
+		 * Postfix to add to remote item names that have overlapping names with existing local items.
+		 * If there are name overlaps and postfix isn't given, then exception is thrown.
+		 */
+		postfixForNameOverlaps?: string;
+	}
+
+}

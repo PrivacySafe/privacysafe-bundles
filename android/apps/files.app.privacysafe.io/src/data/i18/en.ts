@@ -1,0 +1,354 @@
+/*
+ Copyright (C) 2026 3NSoft Inc.
+
+ This program is free software: you can redistribute it and/or modify it under
+ the terms of the GNU General Public License as published by the Free Software
+ Foundation, either version 3 of the License, or (at your option) any later
+ version.
+
+ This program is distributed in the hope that it will be useful, but
+ WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ See the GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License along with
+ this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+export const en = {
+  '-': '',
+
+  app: {
+    title: 'Storage',
+    status: {
+      label: 'Status',
+      online: 'online',
+      offline: 'offline',
+    },
+    open: 'Open',
+    exit: 'Exit',
+    create: 'Create',
+    create_folder: 'Create Folder',
+    selected: 'Selected',
+    favorites_title: 'Favorites',
+    settings: {
+      title: 'Settings',
+      label: {
+        folders_local: 'Show Local Folders',
+        folders_system: 'Show System Folders',
+        folders_device: 'Show Device Folders',
+        on: 'On',
+        off: 'Off',
+      },
+    },
+    sync: {
+      start: 'The process of synchronizing folders/files is in progress',
+    },
+    message: {
+      service_unavailable:
+        'The storage service has stopped responding. Changes are not synchronized. Please restart the app.',
+    },
+    upload: 'Upload',
+    upload_file: 'Upload File',
+    adopt: 'Adopt',
+    download: 'Download',
+    resolve: 'Resolve',
+    damaged: 'Damaged',
+    damaged_reason: 'Errors during',
+  },
+
+  dashboard: {
+    toolbar: {
+      action: {
+        shift_path_left: 'Shift left',
+        shift_path_right: 'Shift right',
+      },
+      tooltip: {
+        table_view: 'Table view',
+        tile_view: 'Tile view',
+        split_mode: 'Split mode',
+        simple_mode: 'Simple mode',
+      },
+    },
+  },
+
+  validation: {
+    text: {
+      required: 'This field is required. ',
+      equality: 'The old and new values must not be equal. ',
+      length: 'No more then {length} characters ',
+      invalid_name: "A name must not be '.' or '..' and must not contain '/' or '\\'. ",
+    },
+  },
+
+  dialog: {
+    upload_files: {
+      text1: 'Your files will be uploaded to the next folder',
+      text2: `You can <b>Drag & Drop</b> files here or`,
+    },
+    warning: {
+      title: 'Warning',
+    },
+    button: {
+      confirm: 'Done',
+      cancel: 'Cancel',
+    },
+    confirmation: {
+      text: 'Are you sure?',
+    },
+    create_folder: {
+      title: 'Create Folder',
+      button: {
+        confirm: 'Create',
+      },
+    },
+    rename_folder: {
+      title: 'Rename Folder',
+      field: {
+        placeholder: {
+          input: 'Enter Name',
+        },
+      },
+    },
+    rename_file: {
+      title: 'Rename File',
+    },
+    resolve: {
+      title: 'Conflict Resolving Tool',
+      btn: {
+        compare: 'Compare',
+        back: 'Back',
+        keep_cloud: 'Keep Cloud',
+        keep_local: 'Keep Local',
+        keep_both: 'Keep Both',
+        merge: 'Merge',
+        absorb: 'Absorb Remote',
+        absorb_tooltip: 'By clicking this button you absorb remote changes to local folder.',
+      },
+      cloud_text: 'Cloud',
+      local_text: 'Local',
+      checkbox_text: 'Keep this option for all conflicting objects',
+      error: "Couldn't resolve the conflict of '{name}'.",
+    },
+    restore: {
+      text: 'There is already an object named "{name}" in this folder | There are already objects named "{name}" in this folder',
+      question: 'Do you want to replace it? | Do you want to replace them?',
+    },
+    file_exist: {
+      title: 'File already exists',
+      placeholder: {
+        new_name: 'New file name',
+      },
+      warning: 'already exists in this folder. Overwrite it, or choose a different name?',
+      button: {
+        rename: 'Rename',
+        cancel: '@:dialog.button.cancel',
+        change: 'Change',
+        overwrite: 'Overwrite',
+      },
+    },
+  },
+
+  folder_banner: {
+    text: {
+      resolve_root: 'Please resolve conflict at the Home directory',
+      resolve_trash: 'Please resolve conflict at the Trash directory',
+      resolve_folder: 'Folder "{name}" has a conflict: changes from other devices are not shown',
+    },
+  },
+
+  favorite_folder: {
+    warning: {
+      missing_text: 'The favorite folder "{path}" you want to open is missing (maybe deleted or moved)',
+      missing_question: 'Remove the selected folder from the favorites list?',
+    },
+  },
+
+  fs: {
+    sync_state: {
+      synced: 'synced',
+      unsynced: 'unsynced',
+      behind: 'behind',
+      conflicting: 'conflicting',
+      remote: 'remote',
+    },
+    load_error: "Couldn't load this folder.",
+    rename_error: "Couldn't rename '{name}'.",
+    upload_error: "Couldn't upload the file {names}. | Couldn't upload the files: {names}.",
+    create_folder_error: "Couldn't create the folder '{name}'.",
+    target_folder_missing: "The folder '{path}' was renamed or removed. Open the folder again and repeat.",
+    favorite_error: "Couldn't update the favorites.",
+    folder_name: {
+      user_synced_home: 'Home',
+      user_local_home: 'Home (local)',
+      user_synced_recent: 'Recent',
+      user_synced_trash: 'Trash',
+      user_local_trash: 'Trash (local)',
+    },
+    table: {
+      header: {
+        name: 'Name',
+        type: 'Type',
+        size: 'Size',
+        sync: 'Sync',
+        date: 'Date',
+      },
+      folder: {
+        empty_shorttext: 'The folder is empty',
+        empty_text: 'The folder is empty, you can Drag & Drop files here or',
+      },
+    },
+    tile: {
+      header: {
+        text_default: 'Click to Active',
+        text_active: 'Active Panel',
+      },
+    },
+    entity: {
+      sorting_text: 'Sorting',
+      info: {
+        type: 'Type',
+        type_folder: 'Folder',
+        type_file: 'File',
+        type_link: 'Link',
+        path: 'Path',
+        size: 'Size',
+        date: 'Created',
+        changes: 'Updated',
+        tags: 'Tags',
+        status: 'Sync Status',
+        calculate_hash: 'Calculate hash',
+        sync_state: 'state',
+        local_version: 'local ver',
+        synced_version: 'synced ver',
+        remote_version: 'remote ver',
+      },
+      button: {
+        restore_replace: 'Replace',
+        restore_keep: 'Keep both',
+      },
+      message: {
+        success: {
+          delete:
+            'The selected object has been successfully deleted. | The selected objects ({count}) have been successfully deleted.',
+          restore: 'The selected objects have been successfully restored.',
+          download:
+            'The selected object has been successfully downloaded. | The selected objects ({count}) have been successfully downloaded.',
+          copy: 'The selected object has been successfully copied. | The selected objects ({count}) have been successfully copied.',
+          move: 'The selected object has been successfully moved. | The selected objects ({count}) have been successfully moved.',
+        },
+        error: {
+          delete:
+            'Error while deleting the selected object. | Error while deleting the selected objects ({count}).',
+          restore: 'Error while restoring the selected objects',
+          download:
+            'Error while downloading the selected object. | Error while downloading the selected objects ({count}).',
+          copy: 'Error while copying the selected object. | Error while copying the selected objects ({count}).',
+          move: 'Error while moving the selected object. | Error while moving the selected objects ({count}).',
+          into_itself: "A folder can't be copied or moved into itself or its subfolder.",
+          open: 'Could not open "{name}"',
+        },
+      },
+    },
+    action: {
+      copy_label: 'Copy',
+      move_label: 'Move',
+      copying: 'Copying',
+      moving: 'Moving',
+    },
+    bulk_action: {
+      tooltip: {
+        set_favorite: 'Mark as/Unmark as Favorite folder',
+        download: 'Download selected objects',
+        resolve: 'Resolve conflicts for selected objects',
+        delete: 'Delete selected objects to the Trash folder',
+        delete_completely: 'Permanently delete selected objects',
+        restore: 'Restore selected objects',
+        copy_move: 'Copy/Move selected objects',
+      },
+    },
+    permanently_delete: {
+      title: 'Confirm Permanent Deletion',
+      warning1: 'Are you sure you want to permanently delete the selected items?',
+      warning2: 'This action cannot be undone.',
+      button: {
+        confirm: 'Delete Completely',
+      },
+    },
+    mount: {
+      button: {
+        busy: 'Please wait…',
+        mount: 'Mount',
+        unmount: 'Unmount',
+      },
+      message: {
+        success: {
+          mount: 'Folder is mounted',
+          unmount: 'Folder is unmounted',
+        },
+        error: {
+          mount: 'Unable to mount folder',
+          unmount: 'Unable to unmount folder',
+          unmount_unconfirmed: 'Could not confirm that the folder was unmounted. Please check your file manager.',
+        },
+      },
+    },
+  },
+  file_picker: {
+    header: {
+      select_file: 'Select Files',
+      save_file: 'Save Files',
+      select_folder: 'Select folder',
+      save_folder: 'Save folder',
+    },
+    message_status: {
+      loading: 'Loading...',
+      load_error: "Couldn't load this folder.",
+    },
+    button: {
+      cancel: '@:dialog.button.cancel',
+      select: 'Select',
+      save: 'Save',
+      proceed: 'Proceed',
+      new_folder: 'New Folder',
+      create: 'Create',
+      use_folder: 'Use folder',
+      select_this_folder: 'Select this folder',
+    },
+    selected_items: '{count} item selected | {count} items selected',
+    notification: {
+      error: {
+        invalid_filename:
+          'Invalid file name. Avoid reserved characters, control characters, and reserved system names.',
+        save_file: 'Failed to save file',
+        open_file: 'Failed to open the selected file',
+        folder_name_collision: 'A folder with that name already exists. Please choose a different name.',
+        link_name_collision: 'A link with that name already exists. Please choose a different name.',
+        open_folder: 'Failed to open folder.',
+        save_folder: 'Failed to prepare folder for saving.',
+        create_folder: 'Failed to create folder. Check the name and your access to this location.',
+        folder_create_conflict: 'An item with this name already exists. Choose another name.',
+        folder_target_conflict: 'A file or link with this name already exists. Choose another folder name.',
+        folder_unavailable: 'This folder is no longer available. Choose another folder.',
+      },
+      success: {
+        save_file: 'File saved successfully',
+      },
+    },
+    footer: {
+      save_as: 'Save as',
+    },
+    category: {
+      home: 'Home',
+      device: 'Device',
+      system_synced: 'System Synced',
+      system_local: 'System Local',
+      device_system: 'Device System',
+    },
+    folder_name: 'Folder name',
+    folder_name_empty_hint: 'Leave blank to use the current folder.',
+    folder_exists: {
+      title: 'Use existing folder',
+      message: 'A folder named "{name}" already exists. Use this folder? Existing contents will be kept.',
+    },
+  },
+};

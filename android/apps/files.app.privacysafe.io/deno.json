@@ -1,0 +1,17 @@
+{
+  "exclude": [
+    "app/",
+    "node_modules/",
+    "src/",
+    "src-file-picker/",
+    "tests/",
+    "plans/",
+    "doc/",
+    "public/",
+    "setup-w3n.bundle.js",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "eslint.config.js",
+    ".stylelint.config.cjs"
+  ]
+}
