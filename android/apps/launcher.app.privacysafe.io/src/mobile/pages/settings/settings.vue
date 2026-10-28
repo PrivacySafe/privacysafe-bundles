@@ -15,7 +15,7 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 -->
 <script lang="ts" setup>
-  import { Ui3nButton, Ui3nMenu, Ui3nSwitch } from '@v1nt1248/3nclient-lib';
+  import { Ui3nButton, Ui3nMenu, Ui3nRadio, Ui3nSwitch } from '@v1nt1248/3nclient-lib';
   import { AVAILABLE_THEMES, AVAILABLE_LANGS } from '@/common/constants';
   import { useSettings } from '@/common/composables/useSettings';
   import CustomScrollBar from '@/common/components/custom-scroll-bar.vue';
@@ -25,7 +25,6 @@
     lang,
     colorTheme,
     changeColorTheme,
-    changeLanguage,
     allowShowingDevtool,
     changeAllowShowingDevtool,
     autoUpdate,
@@ -97,34 +96,15 @@
           </h4>
 
           <div :class="$style.value">
-            <ui3n-menu
-              :offset-x="-48"
-              :offset-y="4"
-              :allow-flip="false"
+            <ui3n-radio
+              size="20"
+              :checked-value="AVAILABLE_LANGS.en.value"
+              :unchecked-value="AVAILABLE_LANGS.en.value"
+              :disabled="true"
+              :model-value="lang"
             >
-              <ui3n-button
-                type="custom"
-                color="var(--color-bg-control-secondary-default)"
-                text-color="var(--color-text-button-tritery-default)"
-                icon="outline-arrow-drop-down"
-                icon-size="16"
-                icon-color="var(--color-icon-button-tritery-default)"
-                icon-position="right"
-              >
-                {{ AVAILABLE_LANGS[lang].label }}
-              </ui3n-button>
-
-              <template #menu>
-                <div
-                  v-for="(language, id) in AVAILABLE_LANGS"
-                  :key="id"
-                  :class="$style.colorThemesItem"
-                  @click="changeLanguage(id)"
-                >
-                  {{ language.label }}
-                </div>
-              </template>
-            </ui3n-menu>
+              {{ AVAILABLE_LANGS[lang].label }}
+            </ui3n-radio>
           </div>
         </div>
 
@@ -311,7 +291,7 @@
   .row {
     display: flex;
     width: 100%;
-    height: var(--spacing-xl);
+    height: var(--spacing-l);
     padding: 0 var(--spacing-s);
     justify-content: space-between;
     align-items: center;
