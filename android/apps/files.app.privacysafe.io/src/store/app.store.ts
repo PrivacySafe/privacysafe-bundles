@@ -32,7 +32,6 @@ import { getOperatingSystem, type OperatingSystem } from '@shared/utils/operatin
 import { blobFromDataURL } from '@/utils/image-files';
 import { APP_SETTINGS_DEFAULT } from '@shared/constants';
 import { appStorageSrv } from '@/services/services-provider';
-import { useI18n } from 'vue-i18n';
 
 export const useAppStore = defineStore('app', () => {
   const appVersion = ref<string>('');
@@ -49,7 +48,6 @@ export const useAppStore = defineStore('app', () => {
 
   const appStorageSettings = ref<StorageAppSettings>(cloneDeep(APP_SETTINGS_DEFAULT));
   const commonLoading = ref<boolean>(false);
-  const { locale } = useI18n();
 
   async function getAppVersion() {
     const v = await w3n.myVersion();
@@ -88,7 +86,6 @@ export const useAppStore = defineStore('app', () => {
 
   function setLang(value: AvailableLanguage) {
     lang.value = value;
-    locale.value = value;
   }
 
   function setColorTheme(theme: ThemeId) {
@@ -156,10 +153,7 @@ export const useAppStore = defineStore('app', () => {
     };
   }
 
-  async function setAppStorageSettings<K extends keyof StorageAppSettings>(
-    field: K,
-    value: StorageAppSettings[K],
-  ) {
+  async function setAppStorageSettings<K extends keyof StorageAppSettings>(field: K, value: StorageAppSettings[K]) {
     const appStorageConfig = await getAppStorageSettings();
 
     appStorageSettings.value[field] = value;
