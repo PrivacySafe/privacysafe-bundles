@@ -22,8 +22,13 @@ import { appTreasureDenoSrv } from '@/common/services/service-provider';
 import { backupFileName } from '@shared/utils/backup-archive';
 import type { Ui3nNotificationProps, Nullable } from '@v1nt1248/3nclient-lib';
 import type { ThemeId } from '@v1nt1248/3nclient-lib/plugins';
-import type { AppConfig, AppConfigs, AvailableLanguage, BackupProgress, RestoreProgress } from '@shared/@types';
-import { useI18n } from 'vue-i18n';
+import type {
+  AppConfig,
+  AppConfigs,
+  AvailableLanguage,
+  BackupProgress,
+  RestoreProgress,
+} from '@shared/@types';
 
 function isBackupCancelledError(err: unknown): boolean {
   const errorObj = err as (Error & { cause?: unknown }) | undefined;
@@ -37,7 +42,10 @@ function isBackupCancelledError(err: unknown): boolean {
     .filter(Boolean)
     .join(' ');
 
-  return Boolean(errorObj?.name === 'AbortError' || /cancelled|aborterror|aborted/i.test(combined));
+  return Boolean(
+    errorObj?.name === 'AbortError' ||
+      /cancelled|aborterror|aborted/i.test(combined),
+  );
 }
 
 async function saveBackupArchiveToFile(
@@ -83,7 +91,6 @@ export const useAppStore = defineStore('app', () => {
 
   const backupProgress = ref<BackupProgress | null>(null);
   const restoreProgress = ref<RestoreProgress | null>(null);
-  const { locale } = useI18n();
 
   async function getAppVersion() {
     appVersion.value = await w3n.myVersion();
@@ -111,7 +118,6 @@ export const useAppStore = defineStore('app', () => {
 
   function setLang(value: AvailableLanguage) {
     lang.value = value;
-    locale.value = value;
   }
 
   // Only the value is kept here. Putting it on the document is the job of the

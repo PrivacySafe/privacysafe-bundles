@@ -101,6 +101,7 @@
   }
 
   .addBtn {
+    width: calc(var(--spacing-s) * 7);
     font-weight: 600;
     text-transform: capitalize;
     border-radius: var(--spacing-m) !important;

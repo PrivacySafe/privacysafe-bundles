@@ -19,7 +19,6 @@ import { THEME_KEY, type ThemeId, type ThemePlugin } from '@v1nt1248/3nclient-li
 import { makeAppConfigs } from '@/common/store/app/ui-settings';
 import { blobFromDataURL } from '@/common/utils/image-files';
 import type { AppConfig, AvailableLanguage } from '@/common/types';
-import { useI18n } from 'vue-i18n';
 
 function getActiveTheme(value: ThemeId | 'default' | 'dark1' | 'dark2'): ThemeId {
   if (value === 'default') {
@@ -42,11 +41,9 @@ export function makeSystemLevelAppConfig() {
   const systemFoldersDisplaying = ref(false);
   const allowShowingDevtool = ref(false);
   const customLogoSrc = ref<string>();
-  const { locale } = useI18n();
 
   function setLang(value: AvailableLanguage) {
     lang.value = value;
-    locale.value = value;
   }
 
   function setColorTheme(theme: ThemeId) {
