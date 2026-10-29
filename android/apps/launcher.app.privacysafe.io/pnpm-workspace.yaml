@@ -4,3 +4,19 @@ allowBuilds:
   '@parcel/watcher': true
   'electron': true
   'vue-demi': true
+
+minimumReleaseAgeExclude:
+  - '@typescript-eslint/eslint-plugin@8.72.1'
+  - '@typescript-eslint/parser@8.72.1'
+  - '@typescript-eslint/project-service@8.72.1'
+  - '@typescript-eslint/scope-manager@8.72.1'
+  - '@typescript-eslint/tsconfig-utils@8.72.1'
+  - '@typescript-eslint/type-utils@8.72.1'
+  - '@typescript-eslint/types@8.72.1'
+  - '@typescript-eslint/typescript-estree@8.72.1'
+  - '@typescript-eslint/utils@8.72.1'
+  - '@typescript-eslint/visitor-keys@8.72.1'
+  - '@v1nt1248/3nclient-lib@0.4.15'
+  - eslint-plugin-vue@10.12.0
+  - stylelint-scss@7.4.0
+  - typescript-eslint@8.72.1

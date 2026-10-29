@@ -240,6 +240,7 @@ export const en = {
         download: 'Download the file',
         download_all: 'Download all files',
         view: 'View the file',
+        open_external: 'Open in external app',
         import_contacts: 'Import contacts',
         make_preview: 'Show a preview (reads the whole file)',
         reply: 'Reply',
@@ -318,6 +319,14 @@ export const en = {
       partially_downloaded: '{done} of {total} files saved; the rest are on another of your devices.',
     },
     attachment: {
+      opening: {
+        preparing: 'Preparing the file to open…',
+        unavailable: 'Opening attachments in external apps is not available on this device.',
+        error: 'Could not open the file {fileName} in an external app.',
+        prepare_timeout: 'Preparing {fileName} took too long. Please try again.',
+        mount_pending:
+          'File mounting is still waiting for a response. Try again shortly. If this continues, restart PrivacySafe.',
+      },
       import_contacts: {
         title: 'Contacts Export File',
         count: '{n} contact | {n} contacts',

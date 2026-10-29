@@ -27,7 +27,7 @@ export type AppViewInstance = ReturnType<typeof useAppPage>;
 export function useAppPage() {
   const { t } = useI18n();
   const appStore = useAppStore();
-  const { appVersion, user, connectivityStatus, appElement, customLogoSrc } = storeToRefs(appStore);
+  const { appVersion, user, connectivityStatus, appElement, customLogoSrc, lang } = storeToRefs(appStore);
 
   const appsStore = useAppsStore();
   const { restart, applicationsInSystem, platform } = storeToRefs(appsStore);

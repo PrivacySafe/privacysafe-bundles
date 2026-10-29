@@ -19,8 +19,8 @@
   import { useI18n } from 'vue-i18n';
   import { storeToRefs } from 'pinia';
   import isEmpty from 'lodash/isEmpty';
-  import { Ui3nProgressCircular } from '@v1nt1248/3nclient-lib';
   import { useAppsStore } from '@/common/store/apps.store';
+  import InitialSetupProgress from '@/common/components/initial-setup-progress.vue';
   import Launchers from '@/desktop/components/app-launchers.vue';
 
   const { t } = useI18n();
@@ -41,17 +41,7 @@
         {{ t('install.process') }}
       </span>
 
-      <template v-if="initialSetup">
-        <span>
-          {{ t('install.progress', { installed: initialSetup.installed, total: initialSetup.total }) }}
-        </span>
-
-        <ui3n-progress-circular
-          :value="Math.floor((initialSetup.installed / initialSetup.total) * 100)"
-          :size="120"
-          :width="4"
-        />
-      </template>
+      <initial-setup-progress />
     </div>
 
     <template v-else>

@@ -29,9 +29,10 @@ import { useAppsStore } from '@/common/store/apps.store';
 import { SettingsJSON } from '@/common/store/app/ui-settings';
 import { readImageFileIntoDataURL, selectOneImageFileWithDialog } from '../utils/image-files';
 import TurnAutologinOn from '../dialogs/turn-autologin-on.vue';
+import { AvailableLanguage } from '@/common/types';
 
 export function useSettings() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const dialog = inject<DialogsPlugin>(DIALOGS_KEY)!;
   const appStore = useAppStore();
   const { updateSettings } = appStore;
@@ -59,14 +60,25 @@ export function useSettings() {
     }
   }
 
-  function changeColorTheme(val: ThemeId) {
+  async function changeColorTheme(val: ThemeId) {
     if (colorTheme.value === val) {
       return;
     }
 
-    updateAppConfig({
+    await updateAppConfig({
       colorTheme: val,
     });
+  }
+
+  async function changeLang(val: AvailableLanguage) {
+    if (lang.value === val) {
+      return;
+    }
+
+    await updateAppConfig({
+      lang: val,
+    });
+    locale.value = val;
   }
 
   function changeAllowShowingDevtool(val: boolean) {
@@ -159,6 +171,7 @@ export function useSettings() {
   return {
     t,
     lang,
+    changeLang,
     colorTheme,
     changeColorTheme,
 

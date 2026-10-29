@@ -15,14 +15,16 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 -->
 <script lang="ts" setup>
-  import { Ui3nButton, Ui3nMenu, Ui3nRadio, Ui3nSwitch } from '@v1nt1248/3nclient-lib';
+  import { Ui3nButton, Ui3nMenu, Ui3nSwitch } from '@v1nt1248/3nclient-lib';
   import { AVAILABLE_THEMES, AVAILABLE_LANGS } from '@/common/constants';
   import { useSettings } from '@/common/composables/useSettings';
   import CustomScrollBar from '@/common/components/custom-scroll-bar.vue';
+  import { AvailableLanguage } from '@/common/types';
 
   const {
     t,
     lang,
+    changeLang,
     colorTheme,
     changeColorTheme,
     allowShowingDevtool,
@@ -59,12 +61,15 @@
 
           <div :class="$style.value">
             <ui3n-menu
-              :offset-x="-48"
               :offset-y="4"
               :allow-flip="false"
+              :content-border-radius="16"
+              :content-styles="{ width: '100%' }"
             >
               <ui3n-button
                 type="custom"
+                size="large"
+                block
                 color="var(--color-bg-control-secondary-default)"
                 text-color="var(--color-text-button-tritery-default)"
                 icon="outline-arrow-drop-down"
@@ -79,7 +84,7 @@
                 <div
                   v-for="id in ['dark', 'light', 'midnight'] as const"
                   :key="id"
-                  :class="[$style.colorThemesItem, colorTheme === id && $style.colorThemesItemSelected]"
+                  :class="[$style.menuItem, colorTheme === id && $style.menuItemSelected]"
                   @click="changeColorTheme(id)"
                 >
                   {{ t(AVAILABLE_THEMES[id].label) }}
@@ -96,15 +101,37 @@
           </h4>
 
           <div :class="$style.value">
-            <ui3n-radio
-              size="20"
-              :checked-value="AVAILABLE_LANGS.en.value"
-              :unchecked-value="AVAILABLE_LANGS.en.value"
-              :disabled="true"
-              :model-value="lang"
+            <ui3n-menu
+              :offset-y="4"
+              :allow-flip="false"
+              :content-border-radius="16"
+              :content-styles="{ width: '100%' }"
             >
-              {{ AVAILABLE_LANGS[lang].label }}
-            </ui3n-radio>
+              <ui3n-button
+                type="custom"
+                size="large"
+                block
+                color="var(--color-bg-control-secondary-default)"
+                text-color="var(--color-text-button-tritery-default)"
+                icon="outline-arrow-drop-down"
+                icon-size="16"
+                icon-color="var(--color-icon-button-tritery-default)"
+                icon-position="right"
+              >
+                {{ AVAILABLE_LANGS[lang].label }}
+              </ui3n-button>
+
+              <template #menu>
+                <div
+                  v-for="item in Object.values(AVAILABLE_LANGS) as { value: AvailableLanguage; label: string }[]"
+                  :key="item.value"
+                  :class="[$style.menuItem, lang === item.value && $style.menuItemSelected]"
+                  @click="changeLang(item.value)"
+                >
+                  {{ item.label }}
+                </div>
+              </template>
+            </ui3n-menu>
           </div>
         </div>
 
@@ -117,6 +144,8 @@
             <ui3n-button
               v-if="!customLogoSrc"
               type="primary"
+              size="large"
+              block
               icon="round-plus"
               icon-position="left"
               @click="addCustomLogo"
@@ -153,16 +182,16 @@
             {{ t('settings.label.autoupdates') }}
           </h4>
 
-          <div :class="$style.value">
+          <div :class="[$style.value, $style.left]">
             <span
               :class="[$style.pointer, $style.text]"
               @click="changeAutoUpdate(false)"
             >
-              {{ t('settings.label.off') }}
+              {{ t('settings.label.no') }}
             </span>
 
             <ui3n-switch
-              size="16"
+              size="24"
               :model-value="autoUpdate"
               @change="toggleAutoUpdate"
             />
@@ -171,7 +200,7 @@
               :class="[$style.pointer, $style.text]"
               @click="changeAutoUpdate(true)"
             >
-              {{ t('settings.label.on') }}
+              {{ t('settings.label.yes') }}
             </span>
           </div>
         </div>
@@ -182,7 +211,7 @@
             {{ t('settings.label.showing_devtool') }}
           </h4>
 
-          <div :class="$style.value">
+          <div :class="[$style.value, $style.left]">
             <span
               :class="[$style.pointer, $style.text]"
               @click="changeAllowShowingDevtool(false)"
@@ -191,7 +220,7 @@
             </span>
 
             <ui3n-switch
-              size="16"
+              size="24"
               :model-value="allowShowingDevtool"
               @change="changeAllowShowingDevtool"
             />
@@ -218,17 +247,17 @@
 
           <div
             v-else
-            :class="$style.value"
+            :class="[$style.value, $style.left]"
           >
             <span
               :class="[$style.pointer, $style.text]"
               @click="changeAutoLogin(false)"
             >
-              {{ t('settings.label.off') }}
+              {{ t('settings.label.no') }}
             </span>
 
             <ui3n-switch
-              size="16"
+              size="24"
               :model-value="autoLogin"
               @change="changeAutoLogin"
             />
@@ -237,7 +266,7 @@
               :class="[$style.pointer, $style.text]"
               @click="changeAutoLogin(true)"
             >
-              {{ t('settings.label.on') }}
+              {{ t('settings.label.yes') }}
             </span>
           </div>
         </div>
@@ -252,6 +281,8 @@
         <div :class="$style.row">
           <ui3n-button
             type="tertiary"
+            size="large"
+            block
             @click="wipeDataFromDevice"
           >
             {{ t('system.data_removal.wipe_from_device') }}
@@ -276,25 +307,32 @@
   .block {
     position: relative;
     width: 100%;
+    border: 1px solid var(--color-border-block-primary-default);
+    border-radius: var(--spacing-m);
+    padding: var(--spacing-m) 0;
     margin-bottom: var(--spacing-m);
   }
 
   .title {
-    font-size: var(--font-14);
+    font-size: var(--font-16);
     font-weight: 600;
     line-height: var(--font-20);
     color: var(--color-text-block-primary-default);
     text-transform: capitalize;
+    text-align: center;
     margin-bottom: var(--spacing-s);
   }
 
   .row {
+    --ui3n-button-height-large: 40px;
+
     display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: stretch;
+    row-gap: var(--spacing-s);
     width: 100%;
-    height: var(--spacing-l);
-    padding: 0 var(--spacing-s);
-    justify-content: space-between;
-    align-items: center;
+    padding: var(--spacing-s);
   }
 
   .label {
@@ -312,19 +350,30 @@
     justify-content: center;
     align-items: center;
     gap: var(--spacing-s);
+
+    &.left {
+      justify-content: flex-start;
+      padding-left: var(--spacing-s);
+    }
+
+    div[data-ui3n='menu'] {
+      width: 100% !important;
+    }
   }
 
   .text {
+    position: relative;
+    width: 24px;
     font-size: var(--font-12);
     font-weight: 500;
     color: var(--color-text-control-primary-default);
     text-transform: capitalize;
   }
 
-  .colorThemesItem {
+  .menuItem {
     display: flex;
-    width: 120px;
-    height: var(--spacing-l);
+    width: 100%;
+    height: var(--spacing-xl);
     padding: 0 12px;
     justify-content: flex-start;
     align-items: center;
@@ -332,11 +381,11 @@
     font-weight: 500;
     color: var(--color-text-control-primary-default);
 
-    &:not(.colorThemesItemSelected) {
+    &:not(.menuItemSelected) {
       cursor: pointer;
     }
 
-    &.colorThemesItemSelected {
+    &.menuItemSelected {
       color: var(--color-text-button-secondary-default);
     }
 

@@ -1,7 +1,7 @@
 {
   "name": "Inbox",
   "appDomain": "inbox.app.privacysafe.io",
-  "version": "0.3.50",
+  "version": "0.3.51",
   "description": "Send and receive encrypted messages with an improved version of email.",
   "icon": "logo.png",
 
@@ -27,6 +27,8 @@
         "appRPC": ["AppInboxInternal"],
         "shell": {
           "fileDialog": "all",
+          "mounts": "mail",
+          "openInMountedFolder": "all",
           "userNotifications": true,
           "startAppCmds": {
             "otherApps": {
@@ -78,6 +80,8 @@
         "appRPC": ["AppInboxInternal"],
         "shell": {
           "fileDialog": "all",
+          "mounts": "mail",
+          "openInMountedFolder": "all",
           "userNotifications": true,
           "startAppCmds": {
             "otherApps": {

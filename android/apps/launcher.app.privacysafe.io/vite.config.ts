@@ -45,6 +45,8 @@ export const makeConfig = ({ mode }: ConfigEnv): UserConfig => {
 
     define: {
       'process.env.NODE_ENV': JSON.stringify(mode),
+      __VUE_I18N_LEGACY_API__: false,
+      __VUE_I18N_PROD_DEVTOOLS__: true,
     },
 
     resolve: {

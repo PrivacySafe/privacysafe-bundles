@@ -138,6 +138,8 @@ export const en = {
   install: {
     process: 'The initial installation of applications is in progress',
     progress: '{installed} of {total} apps installed',
+    unpacking: 'Unpacking {name}…',
+    installing: 'Installing {name}…',
   },
 
   update_check: {
@@ -180,3 +182,5 @@ export const en = {
     },
   },
 };
+
+export type MessageSchema = typeof en;

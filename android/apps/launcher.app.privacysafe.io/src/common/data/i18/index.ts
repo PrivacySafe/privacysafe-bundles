@@ -15,13 +15,18 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
 import { createI18n } from 'vue-i18n';
-import { en } from './en';
+import { en, type MessageSchema } from './en';
+import { es } from './es';
+import { fr } from './fr';
+import type { AvailableLanguage } from '@/common/types';
 
 const messages = {
   en,
+  es,
+  fr,
 };
 
-const i18nInstance = createI18n({
+const i18nInstance = createI18n<[MessageSchema], AvailableLanguage>({
   legacy: false,
   locale: 'en',
   fallbackLocale: 'en',

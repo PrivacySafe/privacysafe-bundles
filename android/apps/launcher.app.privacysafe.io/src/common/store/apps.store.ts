@@ -14,7 +14,7 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 import { makeProcessesPlace } from './apps/processes';
 import { AppInfo, ChannelVersion } from '@/common/types';
@@ -78,6 +78,37 @@ export const useAppsStore = defineStore('apps', () => {
     getBundleDistInfo,
   } = makeAppsAndLaunchersInfoPlace();
   const { restart, setAppsRestart, setPlatformRestart } = makeRestartInfoPlace();
+
+  const initialSetupCurrentApp = computed<
+    | {
+        appId: string;
+        name: string;
+        stage: 'unzipping' | 'installing';
+        progressValue?: number;
+      }
+    | undefined
+  >(() => {
+    const appId = initialSetup.value?.inProgressAppId;
+    if (!appId) {
+      return;
+    }
+
+    const appProcs = processes.value[appId];
+    const proc =
+      appProcs?.find(({ procType }) => procType === 'unzipping') ??
+      appProcs?.find(({ procType }) => procType === 'installing');
+    if (!proc) {
+      return;
+    }
+
+    const name = applicationsInSystem.value.find(app => app.appId === appId)?.name || appId;
+    return {
+      appId,
+      name,
+      stage: proc.procType as 'unzipping' | 'installing',
+      progressValue: proc.progressValue,
+    };
+  });
   const { platform, downloadPlatformUpdate } = makePlatform(
     delProcess,
     upsertProcess,
@@ -338,6 +369,7 @@ export const useAppsStore = defineStore('apps', () => {
 
     for (const { id, version } of bundledAppsForInstall) {
       try {
+        initialSetup.value.inProgressAppId = id;
         await installBundledApp(id, version);
         await updateAppsAndLaunchersInfo();
         initialSetup.value.installed += 1;
@@ -398,6 +430,7 @@ export const useAppsStore = defineStore('apps', () => {
     restart,
     processes,
     initialSetup,
+    initialSetupCurrentApp,
 
     getApp,
     toggleAutoUpdate,
