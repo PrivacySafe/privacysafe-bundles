@@ -2,19 +2,19 @@
   "type": "android",
   "platform": "0.22.0",
   "apps": {
-    "launcher.app.privacysafe.io": "0.11.45",
+    "launcher.app.privacysafe.io": "0.11.47",
     "startup.app.privacysafe.io": "0.10.11"
   },
   "app-packs": {
-    "chat.app.privacysafe.io": "0.12.32",
+    "chat.app.privacysafe.io": "0.12.34",
     "contacts.app.privacysafe.io": "0.8.52",
-    "files.app.privacysafe.io": "0.8.16",
-    "inbox.app.privacysafe.io": "0.3.50",
-    "treasure.app.privacysafe.io": "0.2.9"
+    "files.app.privacysafe.io": "0.8.17",
+    "inbox.app.privacysafe.io": "0.3.51",
+    "treasure.app.privacysafe.io": "0.2.11"
   },
   "date": "26.10",
-  "buildNum": 65,
-  "bundleId": "26.10-0.22.0.65",
-  "versionCode": 12610065,
-  "versionName": "26.10-0.22.0.65"
+  "buildNum": 66,
+  "bundleId": "26.10-0.22.0.66",
+  "versionCode": 12610066,
+  "versionName": "26.10-0.22.0.66"
 }

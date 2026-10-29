@@ -65,7 +65,7 @@ export interface AppLaunchers {
   dynamicLaunchers: Launcher[];
 }
 
-export type AvailableLanguage = 'en';
+export type AvailableLanguage = 'en' | 'es' | 'fr';
 
 export interface AppConfig {
   lang: AvailableLanguage;
