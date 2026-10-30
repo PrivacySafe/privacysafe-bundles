@@ -27,6 +27,7 @@
   import { inboxSrv } from '@common/services/services-provider';
   import { makeLogger } from '@shared/utils/logger';
   import { useDownloadAttachments } from '@/common/composables/useDownloadAttachments';
+  import { useOpenAttachments } from '@/common/composables/useOpenAttachments';
   import { useImportSharedContacts } from '@/common/composables/useImportSharedContacts';
   import type { AppGlobalEvents, AttachmentInfo, IncomingMessageView, OutgoingMessageView } from '@common/types';
   import MessageContentAttachment from './message-content-attachment.vue';
@@ -56,6 +57,16 @@
     msgId: props.message.msgId,
     isIncomingMessage: isIncomingMessage.value,
   });
+
+  const { isOpenAvailable, isPreparingAttachment, openAttachment } = useOpenAttachments({ t });
+
+  function openAttachmentInExternalApp(attachment: AttachmentInfo) {
+    return openAttachment({
+      msgId: props.message.msgId,
+      isIncomingMessage: isIncomingMessage.value,
+      attachment,
+    });
+  }
 
   const wrapperEl = ref<Nullable<HTMLDivElement>>(null);
   const bodyEl = ref<Nullable<HTMLDivElement>>(null);
@@ -222,8 +233,11 @@
           :msg-id="message.msgId"
           :is-incoming-message="isIncomingMessage"
           :cached-thumbnail="thumbnails[attachment.fileName]"
+          :can-open-externally="isIncomingMessage && isOpenAvailable()"
+          :is-preparing-to-open="isPreparingAttachment(message.msgId, attachment.fileName)"
           @download="downloadAttachment"
           @view="viewAttachment"
+          @open="openAttachmentInExternalApp"
           @import="importSharedContacts"
           @thumbnail="onThumbnailMade"
         />
