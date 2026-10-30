@@ -6,15 +6,15 @@
     "startup.app.privacysafe.io": "0.10.11"
   },
   "app-packs": {
-    "chat.app.privacysafe.io": "0.12.34",
+    "chat.app.privacysafe.io": "0.12.32",
     "contacts.app.privacysafe.io": "0.8.52",
-    "files.app.privacysafe.io": "0.8.17",
-    "inbox.app.privacysafe.io": "0.3.51",
-    "treasure.app.privacysafe.io": "0.2.11"
+    "files.app.privacysafe.io": "0.8.16",
+    "inbox.app.privacysafe.io": "0.3.50",
+    "treasure.app.privacysafe.io": "0.2.9"
   },
   "date": "26.10",
-  "buildNum": 70,
-  "bundleId": "26.10-0.23.0.70",
-  "versionCode": 12610070,
-  "versionName": "26.10-0.23.0.70"
+  "buildNum": 69,
+  "bundleId": "26.10-0.23.0.69",
+  "versionCode": 12610069,
+  "versionName": "26.10-0.23.0.69"
 }
