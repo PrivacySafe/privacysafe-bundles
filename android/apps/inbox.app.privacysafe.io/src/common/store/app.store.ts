@@ -22,6 +22,7 @@ import type { ThemeId } from '@v1nt1248/3nclient-lib/plugins';
 import type { AvailableLanguage, ConnectivityStatus, AppState, AppConfig } from '@common/types';
 import type { SyncActivityView } from '@deno/services/sync/sync-activity';
 import { blobFromDataURL } from '../utils/image-files';
+import { useI18n } from 'vue-i18n';
 
 export const useAppStore = defineStore('app', () => {
   const appVersion = ref<string>('');
@@ -30,6 +31,7 @@ export const useAppStore = defineStore('app', () => {
   const lang = ref<AvailableLanguage>('en');
   const colorTheme = ref<ThemeId>('dark');
   const customLogoSrc = ref<string>();
+  const { locale } = useI18n();
   const appWindowSize = ref<{ width: number; height: number }>({
     width: 0,
     height: 0,
@@ -113,6 +115,7 @@ export const useAppStore = defineStore('app', () => {
 
   function setLang(value: AvailableLanguage) {
     lang.value = value;
+    locale.value = value;
   }
 
   function setColorTheme(theme: ThemeId) {
