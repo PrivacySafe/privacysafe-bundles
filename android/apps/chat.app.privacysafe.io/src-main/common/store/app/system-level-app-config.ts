@@ -15,28 +15,26 @@ You should have received a copy of the GNU General Public License along with
 this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-import { toRO } from '@main/common/utils/readonly.ts';
-import { getActiveTheme, SystemSettings } from '@main/common/utils/ui-settings.ts';
-import { ref } from 'vue';
+import { toRO } from "@main/common/utils/readonly.ts";
+import { getActiveTheme, SystemSettings } from "@main/common/utils/ui-settings.ts";
+import { ref } from "vue";
 import type { ThemeId } from '@v1nt1248/3nclient-lib/plugins';
 import { AppConfig, AvailableLanguage, SettingsJSON } from '~/app.types.ts';
 import { blobFromDataURL } from '@main/common/utils/image-files.ts';
 import { makeLogger, setDebugLogging } from '@shared/logger';
-import { useI18n } from 'vue-i18n';
 
 const log = makeLogger('AppConfig');
 
 export function useSystemLevelAppConfig() {
+
   const appVersion = ref<string>('');
   const user = ref<string>('');
   const lang = ref<AvailableLanguage>('en');
   const colorTheme = ref<ThemeId>('dark');
   const customLogoSrc = ref<string>();
-  const { locale } = useI18n();
 
   function setLang(value: AvailableLanguage) {
     lang.value = value;
-    locale.value = value;
   }
 
   /**
@@ -53,14 +51,14 @@ export function useSystemLevelAppConfig() {
         const imgBlob = blobFromDataURL(dataURL);
         customLogoSrc.value = URL.createObjectURL(imgBlob);
       } catch (err) {
-        log.error('Parsing dataURL with customLogo throws error.', err);
+        log.error('Parsing dataURL with customLogo throws error.' , err);
       }
     } else {
       customLogoSrc.value = undefined;
     }
   }
 
-  let unsubFromConfigWatch: (() => void) | undefined = undefined;
+  let unsubFromConfigWatch: (() => void)|undefined = undefined;
 
   /**
    * The app's "developer mode" flag doubles as the switch for diagnostic
@@ -104,7 +102,7 @@ export function useSystemLevelAppConfig() {
         user.value = addr;
       }),
 
-      readAndStartWatchingAppConfig(),
+      readAndStartWatchingAppConfig()
     ]);
   }
 
@@ -120,6 +118,6 @@ export function useSystemLevelAppConfig() {
     customLogoSrc: toRO(customLogoSrc),
 
     initialize,
-    stopWatching,
+    stopWatching
   };
 }
