@@ -33,6 +33,9 @@ import { blobFromDataURL } from '@/utils/image-files';
 import { APP_SETTINGS_DEFAULT } from '@shared/constants';
 import { appStorageSrv } from '@/services/services-provider';
 import { useI18n } from 'vue-i18n';
+import { makeLogger } from '@shared/utils/logger';
+
+const log = makeLogger('AppStore');
 
 export const useAppStore = defineStore('app', () => {
   const appVersion = ref<string>('');
@@ -106,7 +109,7 @@ export const useAppStore = defineStore('app', () => {
         const imgBlob = blobFromDataURL(dataURL);
         customLogoSrc.value = URL.createObjectURL(imgBlob);
       } catch (err) {
-        console.error(`Parsing dataURL with customLogo throws error:`, err);
+        log.error(`Parsing dataURL with customLogo throws error:`, err);
       }
     } else {
       customLogoSrc.value = undefined;
@@ -131,7 +134,7 @@ export const useAppStore = defineStore('app', () => {
         },
       });
     } catch (e) {
-      console.error('Load the app config error: ', e);
+      log.error('Load the app config error: ', e);
     }
   }
 

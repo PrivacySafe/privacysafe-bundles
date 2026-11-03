@@ -47,6 +47,9 @@ import { createServiceHealthCheck } from '@/utils/service-health';
 import { getWindowPathAfterRename } from '@/utils/path-after-rename';
 import { getEntityNameAndParent } from '@shared/utils/fs-utils';
 import { useNavigation } from '@/composables/useNavigation';
+import { makeLogger } from '@shared/utils/logger';
+
+const log = makeLogger('AppView');
 
 export function useAppView() {
   const { t, locale } = useI18n();
@@ -60,7 +63,7 @@ export function useAppView() {
   const serviceHealth = createServiceHealthCheck({
     ping: () => appStorageSrv.getSyncQueue(),
     onUnavailable: reason => {
-      w3n.log('error', 'The storage service does not answer. ', reason);
+      log.error('The storage service does not answer. ', reason);
       notifications.$createNotice({
         type: 'error',
         withIcon: true,
@@ -376,13 +379,13 @@ export function useAppView() {
             }
 
             case 'sync:error': {
-              w3n.log('error', 'The storage service reports a sync error. ', payload);
+              log.error('The storage service reports a sync error. ', payload);
               break;
             }
           }
         },
         error: e => {
-          w3n.log('error', '🔥 Error watching storage events. ', e);
+          log.error('🔥 Error watching storage events. ', e);
           serviceHealth.reportFailure(e);
         },
         complete: () => storageSrvConnection.close(),
@@ -406,7 +409,7 @@ export function useAppView() {
         });
       }, 60000);
     } catch (e) {
-      console.error('🔥 Error while mounted the app. ', e);
+      log.error('🔥 Error while mounted the app. ', e);
       throw e;
     }
   });

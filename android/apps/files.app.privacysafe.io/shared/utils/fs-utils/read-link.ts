@@ -14,6 +14,10 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
+import { makeLogger } from '../logger.ts';
+
+const log = makeLogger('FsUtils');
+
 export async function readLink({
   fs,
   path,
@@ -26,7 +30,7 @@ export async function readLink({
   try {
     return await fs.readLink(path);
   } catch (err) {
-    console.log(
+    log.error(
       `🔥 [readLink] Error reading of the link '${path}' . 'stopErrorPropagate' flag is ${stopErrorPropagate} .`,
       err,
     );

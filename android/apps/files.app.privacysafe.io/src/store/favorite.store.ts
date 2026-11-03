@@ -18,6 +18,9 @@ import { computed, ComputedRef, ref } from 'vue';
 import { defineStore } from 'pinia';
 import { appStorageSrv } from '@/services/services-provider';
 import type { FavoriteFolder } from '@shared/types';
+import { makeLogger } from '@shared/utils/logger';
+
+const log = makeLogger('FavoriteStore');
 
 export const useFavoriteStore = defineStore('favorite', () => {
   const favoriteFolders = ref<FavoriteFolder[]>([]);
@@ -41,7 +44,7 @@ export const useFavoriteStore = defineStore('favorite', () => {
     try {
       favoriteFolders.value = await appStorageSrv.getFavorites();
     } catch (e) {
-      w3n.log('error', 'Failed to get favorite folders', e);
+      log.error('Failed to get favorite folders', e);
     }
   }
 
@@ -57,7 +60,7 @@ export const useFavoriteStore = defineStore('favorite', () => {
       favoriteFolders.value.push(favoriteFolder);
       return favoriteFolder.favId;
     } catch (e) {
-      w3n.log('error', `Failed to add favorite folder [${fullPath}]`, e);
+      log.error(`Failed to add favorite folder [${fullPath}]`, e);
     }
   }
 
@@ -77,21 +80,21 @@ export const useFavoriteStore = defineStore('favorite', () => {
         favoriteFolders.value[index] = { favId: id, fsId, fullPath };
       }
     } catch (e) {
-      w3n.log('error', `Failed to update favorite folder [${fullPath}]`, e);
+      log.error(`Failed to update favorite folder [${fullPath}]`, e);
     }
   }
 
   async function deleteFavoriteFolder(favoriteFolderId: string) {
     try {
       if (!favoriteFolderId) {
-        console.error('Missing favorite folder id to delete.');
+        log.error('Missing favorite folder id to delete.');
         return;
       }
 
       const updatedFavoriteFolders = await appStorageSrv.deleteFavorite(favoriteFolderId);
       favoriteFolders.value = updatedFavoriteFolders || [];
     } catch (e) {
-      w3n.log('error', `Failed to delete favorite folder [${favoriteFolderId}]`, e);
+      log.error(`Failed to delete favorite folder [${favoriteFolderId}]`, e);
     }
   }
 

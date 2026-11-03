@@ -14,13 +14,17 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
+import { makeLogger } from '../../../shared/utils/logger.ts';
+
+const log = makeLogger('SyncService');
+
 export async function checkServerConnection(fs: web3n.files.WritableFS) {
   try {
     const res = await fs.v?.sync?.status('');
     return !!res;
   } catch (err) {
     if ((err as web3n.ConnectException).type !== 'connect') {
-      console.error('🔥 Error while checking server connection. ', err);
+      log.error('🔥 Error while checking server connection. ', err);
     }
     return false;
   }

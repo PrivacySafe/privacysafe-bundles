@@ -14,6 +14,10 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
+import { makeLogger } from '../logger.ts';
+
+const log = makeLogger('FsUtils');
+
 export async function saveFolder({
   fs,
   folder,
@@ -30,7 +34,7 @@ export async function saveFolder({
   try {
     return await fs.saveFolder(folder, dst, mergeAndOverwrite);
   } catch (err) {
-    console.log(
+    log.error(
       `🔥 [saveFolder] Error saving folder '${dst}' . 'stopErrorPropagate' flag is ${stopErrorPropagate} .`,
       err,
     );

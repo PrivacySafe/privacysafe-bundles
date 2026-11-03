@@ -29,6 +29,9 @@ import { isUploadingNewVersion, syncUpload } from './sync-service.utils/sync-upl
 import { isIpcConnectionLost } from '../../shared/utils/ipc/ipc-connection-lost.ts';
 import { syncAdopt } from './sync-service.utils/sync-adopt.ts';
 import { syncDownload } from './sync-service.utils/sync-download.ts';
+import { makeLogger } from '../../shared/utils/logger.ts';
+
+const log = makeLogger('SyncService');
 
 const MAX_ATTEMPTS = 3;
 // An item that used up its attempts blocks its parents; it gets a new series of
@@ -115,7 +118,7 @@ export async function syncService({
         syncQueue.set(key, value);
       }
     } catch (err) {
-      console.error('Error while loading the sync queue data file. ', err);
+      log.error('Error while loading the sync queue data file. ', err);
       emitStorageEvent({
         event: 'fs_sync:error',
         payload: { failedAction: 'Queue loading' },
@@ -130,7 +133,7 @@ export async function syncService({
       try {
         await appLocalFs.writeJSONFile(SYNC_QUEUE_DATA_FILE, dataToSave);
       } catch (err) {
-        await w3n.log('error', 'Error while saving the sync queue data file. ', err);
+        log.error('Error while saving the sync queue data file. ', err);
       }
     });
   }
@@ -258,7 +261,7 @@ export async function syncService({
     }
 
     debounceTimer = setTimeout(() => {
-      processQueue().catch(err => w3n.log('error', 'Error while processing the sync queue. ', err));
+      processQueue().catch(err => log.error('Error while processing the sync queue. ', err));
     }, ms);
   }
 
@@ -279,7 +282,7 @@ export async function syncService({
   }
 
   function abortProcessing(reason?: string) {
-    console.warn('⛔ Reason for abortion of processing: ', reason);
+    log.warn('⛔ Reason for abortion of processing: ', reason);
     processingGeneration += 1;
 
     if (resetInProgressItems()) {
@@ -288,7 +291,7 @@ export async function syncService({
   }
 
   function handlePermanentFailure(item: SyncQueueItem) {
-    console.error(`FS object ${item.path} could not be synchronized after ${MAX_ATTEMPTS} attempts.`);
+    log.error(`FS object ${item.path} could not be synchronized after ${MAX_ATTEMPTS} attempts.`);
     emitStorageEvent({
       event: 'sync:error',
       payload: {
@@ -345,7 +348,7 @@ export async function syncService({
       // removed children fails). Then there is nothing to repeat.
       const statusAfter = await userSyncedFs.v?.sync?.status(formattedPath).catch(() => undefined);
       if (statusAfter && statusAfter.state !== 'behind') {
-        await w3n.log('error', `Adoption of '${formattedPath}' reported an error, but the version is adopted. `, err);
+        log.error(`Adoption of '${formattedPath}' reported an error, but the version is adopted. `, err);
         await deleteSyncQueueItem(formattedPath);
         planSync(100);
         return;
@@ -366,7 +369,7 @@ export async function syncService({
           await actionAfterAdopt(itemPath, itemStats);
         } catch (err) {
           // a broken child must not keep the adopted folder in the queue
-          await w3n.log('error', `Error checking '${itemPath}' after adoption of its folder. `, err);
+          log.error(`Error checking '${itemPath}' after adoption of its folder. `, err);
         }
       }
 
@@ -441,7 +444,7 @@ export async function syncService({
       fsEntitySyncStatus = await userSyncedFs.v?.sync?.status(formattedPath);
     } catch (err) {
       if ((err as web3n.files.FileException).notFound) {
-        console.warn(`The FS entity '${formattedPath}' may have been removed`);
+        log.warn(`The FS entity '${formattedPath}' may have been removed`);
         await onSyncDone(formattedPath);
         return 'continue';
       }
@@ -453,7 +456,7 @@ export async function syncService({
         return 'break';
       }
 
-      console.error(`🔥 Error (${item.attempts}/${MAX_ATTEMPTS}) for '${path}' . `, err);
+      log.error(`🔥 Error (${item.attempts}/${MAX_ATTEMPTS}) for '${path}' . `, err);
       onSyncFailed(formattedPath, errorMessageOf(err));
       // a status request fails mostly because of the server, so the pass stops
       return 'break';
@@ -480,7 +483,7 @@ export async function syncService({
     try {
       await startSyncAction(fsEntitySyncStatus, formattedPath);
     } catch (err) {
-      console.error(`🔥 Sync action error (${item.attempts}/${MAX_ATTEMPTS}) for '${path}' . `, err);
+      log.error(`🔥 Sync action error (${item.attempts}/${MAX_ATTEMPTS}) for '${path}' . `, err);
       onSyncFailed(formattedPath, errorMessageOf(err));
     }
     return 'continue';
@@ -506,7 +509,7 @@ export async function syncService({
     const generation = processingGeneration;
 
     if (!isServerConnectionAvailable) {
-      console.warn('No connection, processing delayed.');
+      log.warn('No connection, processing delayed.');
       return;
     }
 
@@ -560,7 +563,7 @@ export async function syncService({
           return;
         }
       } catch (err) {
-        console.error(`🔥 Error checking the status of '${path}' after its upload. `, err);
+        log.error(`🔥 Error checking the status of '${path}' after its upload. `, err);
       }
     }
 
@@ -610,7 +613,7 @@ export async function syncService({
     }
     runningUploadsCheckTimer = setTimeout(() => {
       checkRunningUploads()
-        .catch(err => w3n.log('error', 'Error while checking the running uploads. ', err))
+        .catch(err => log.error('Error while checking the running uploads. ', err))
         .finally(() => {
           runningUploadsCheckTimer = null;
           if (runningUploads.size > 0) {
@@ -647,7 +650,7 @@ export async function syncService({
         if ((err as web3n.files.FileException).notFound) {
           await onSyncDone(path);
         } else {
-          await w3n.log('error', `Error checking the status of '${path}' with a running upload. `, err);
+          log.error(`Error checking the status of '${path}' with a running upload. `, err);
         }
         continue;
       }
@@ -679,7 +682,7 @@ export async function syncService({
         }
 
         case 'unsynced': {
-          await w3n.log('error', `The upload of '${path}' has ended without completion. `);
+          log.error(`The upload of '${path}' has ended without completion. `);
           onSyncFailed(path, 'The upload has ended without completion.');
           break;
         }
@@ -841,7 +844,7 @@ export async function syncService({
       }
       for (const [i, res] of results.entries()) {
         if (res.status === 'rejected') {
-          await w3n.log('error', `Error getting the sync status of '${rootFolderList[i].name}' in the scan. `, res.reason);
+          log.error(`Error getting the sync status of '${rootFolderList[i].name}' in the scan. `, res.reason);
         }
       }
 
@@ -894,7 +897,7 @@ export async function syncService({
       }
 
       case 'upload-done': {
-        onUploadDone(path).catch(err => w3n.log('error', `Error handling the upload end of '${path}'. `, err));
+        onUploadDone(path).catch(err => log.error(`Error handling the upload end of '${path}'. `, err));
         emitStorageEvent({
           event: 'upload:end',
           payload: { path },
@@ -921,7 +924,7 @@ export async function syncService({
       }
 
       case 'download-done': {
-        onSyncDone(path).catch(err => w3n.log('error', `Error handling the download end of '${path}'. `, err));
+        onSyncDone(path).catch(err => log.error(`Error handling the download end of '${path}'. `, err));
         emitStorageEvent({
           event: 'download:end',
           payload: { path },
@@ -945,7 +948,7 @@ export async function syncService({
         if (syncStatus.state === 'behind') {
           // adopted by the queue: one at a time, and children before parents
           addSyncQueueItem({ path, status: 'pending', attempts: 0, lastError: '', lastChanged: Date.now() }).catch(
-            err => w3n.log('error', `Error queuing the remote change of '${path}'. `, err),
+            err => log.error(`Error queuing the remote change of '${path}'. `, err),
           );
         } else if (syncStatus.state === 'conflicting') {
           emitStorageEvent({
@@ -973,10 +976,10 @@ export async function syncService({
     const resubscribeLater = (err: unknown) => {
       if (isIpcConnectionLost(err)) {
         // nothing can be watched until the app is restarted
-        w3n.log('error', 'Error watching the synced FS tree: the connection to the platform is lost. ', err);
+        log.error('Error watching the synced FS tree: the connection to the platform is lost. ', err);
         return;
       }
-      w3n.log('error', 'Error watching the synced FS tree; it will be watched again. ', err);
+      log.error('Error watching the synced FS tree; it will be watched again. ', err);
       setTimeout(() => {
         watchSyncedTree();
         if (resetInProgressItems()) {
@@ -1001,7 +1004,7 @@ export async function syncService({
   }
 
   async function initialize() {
-    console.log(`🌼 SYNC SERVICE INITIALIZATION HAS STARTED 🌼`);
+    log.info(`🌼 SYNC SERVICE INITIALIZATION HAS STARTED 🌼`);
     const doesSyncQueueFileExist = await appLocalFs.checkFilePresence(SYNC_QUEUE_DATA_FILE);
 
     if (!doesSyncQueueFileExist) {
@@ -1021,7 +1024,7 @@ export async function syncService({
 
     isServerConnectionAvailable = await checkServerConnection(userSyncedFs);
     if (isServerConnectionAvailable) {
-      await initialScan().catch(err => w3n.log('error', 'Error while scanning for unsynced changes. ', err));
+      await initialScan().catch(err => log.error('Error while scanning for unsynced changes. ', err));
     }
 
     w3n.connectivity?.watch({
@@ -1036,7 +1039,7 @@ export async function syncService({
           });
 
           if (isOnline && !isInitialScanDone) {
-            initialScan().catch(err => w3n.log('error', 'Error while scanning for unsynced changes. ', err));
+            initialScan().catch(err => log.error('Error while scanning for unsynced changes. ', err));
           } else if (isOnline && syncQueue.size > 0) {
             planSync(100);
           }
@@ -1050,7 +1053,7 @@ export async function syncService({
 
     watchSyncedTree();
 
-    console.log('🌼 SYNC SERVICE INITIALIZATION IS COMPLETE 🌼 ');
+    log.info('🌼 SYNC SERVICE INITIALIZATION IS COMPLETE 🌼 ');
   }
 
   await initialize();

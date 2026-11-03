@@ -40,6 +40,9 @@ import { useAppStore, useFsStore, useRunModeInfoStore } from '@/store';
 import { isValidEntityName } from '@shared/utils/fs-utils/entity-name';
 import { type AppGlobalEvents, FsFolderEntityEvent, ListingEntryExtended } from '@shared/types';
 import type { FsTableBulkActionName } from '@/components/common/fs-table-bulk-actions/types';
+import { makeLogger } from '@shared/utils/logger';
+
+const log = makeLogger('FsFolder');
 
 export function useFsFolder(fsFolderWindow: ComputedRef<'1' | '2'>) {
   const { t } = useI18n();
@@ -128,7 +131,7 @@ export function useFsFolder(fsFolderWindow: ComputedRef<'1' | '2'>) {
         fsFolderData.value = data;
       }
     } catch (err) {
-      w3n.log('error', `Error loading the folder '${requestedPath}'. `, err);
+      log.error(`Error loading the folder '${requestedPath}'. `, err);
       // Do not leave the previous folder's entities on screen: actions would target them.
       if (requestedRootFolderId === currentWindowRootFolderId.value && requestedPath === getCurrentPath()) {
         fsFolderData.value = [];
@@ -207,7 +210,7 @@ export function useFsFolder(fsFolderWindow: ComputedRef<'1' | '2'>) {
         try {
           await renameEntity({ fsId: currentWindowFsId.value as string, entity, newName });
         } catch (err) {
-          w3n.log('error', `Error renaming '${entity.fullPath}'. `, err);
+          log.error(`Error renaming '${entity.fullPath}'. `, err);
           revert?.();
           notifications.$createNotice({
             type: 'error',
@@ -245,7 +248,7 @@ export function useFsFolder(fsFolderWindow: ComputedRef<'1' | '2'>) {
         try {
           await deleteSelectedEntities({ fsId: currentWindowFsId.value as string, entities, completely: false });
         } catch (err) {
-          w3n.log('error', 'Error moving the selected objects to the trash. ', err);
+          log.error('Error moving the selected objects to the trash. ', err);
           notifications.$createNotice({
             type: 'error',
             withIcon: true,
@@ -279,7 +282,7 @@ export function useFsFolder(fsFolderWindow: ComputedRef<'1' | '2'>) {
               content: t('fs.entity.message.success.delete', { count: entities.length }),
             });
           } catch (err) {
-            w3n.log('error', err as string);
+            log.error('Error deleting the selected objects completely. ', err);
 
             notifications.$createNotice({
               type: 'error',
@@ -314,7 +317,7 @@ export function useFsFolder(fsFolderWindow: ComputedRef<'1' | '2'>) {
             });
           }
         } catch (err) {
-          w3n.log('error', err as string);
+          log.error('Error restoring the selected objects. ', err);
           notifications.$createNotice({
             type: 'error',
             withIcon: true,

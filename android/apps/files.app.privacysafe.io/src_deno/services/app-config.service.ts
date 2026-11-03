@@ -17,6 +17,9 @@
 import { CONFIG_FILE, TRASH_FOLDER_NAME_PREFIX } from '../constants.ts';
 import type { StorageAppConfig } from '../../shared/types/index.ts';
 import type { AppConfigService } from '../types.ts';
+import { makeLogger } from '../../shared/utils/logger.ts';
+
+const log = makeLogger('AppConfigService');
 
 export async function appConfigService(): Promise<AppConfigService> {
   const appLocalFs = await w3n.storage!.getAppLocalFS();
@@ -25,7 +28,7 @@ export async function appConfigService(): Promise<AppConfigService> {
 
   async function getDefaultTrashFolderName(): Promise<string> {
     const user = await w3n.mailerid?.getUserId().catch(err => {
-      w3n.log('error', 'Error getting the user id for the trash folder name. ', err);
+      log.error('Error getting the user id for the trash folder name. ', err);
       return undefined;
     });
     return `${TRASH_FOLDER_NAME_PREFIX}-${user || ''}`;
@@ -50,7 +53,7 @@ export async function appConfigService(): Promise<AppConfigService> {
         await appLocalFs.writeJSONFile(CONFIG_FILE, { ...configFileData, trashFolderName });
       }
     } catch (err) {
-      w3n.log('error', 'Error making the config file. ', err);
+      log.error('Error making the config file. ', err);
       if (!trashFolderName) {
         trashFolderName = await getDefaultTrashFolderName();
       }
@@ -61,7 +64,7 @@ export async function appConfigService(): Promise<AppConfigService> {
     try {
       return await appLocalFs.readJSONFile(CONFIG_FILE);
     } catch (err) {
-      w3n.log('error', 'Error loading the config file. ', err);
+      log.error('Error loading the config file. ', err);
     }
   }
 
@@ -69,7 +72,7 @@ export async function appConfigService(): Promise<AppConfigService> {
     try {
       return await appLocalFs.writeJSONFile(CONFIG_FILE, value);
     } catch (err) {
-      w3n.log('error', 'Error saving the config file. ', err);
+      log.error('Error saving the config file. ', err);
     }
   }
 

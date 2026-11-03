@@ -21,7 +21,6 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "types": ["vite/client", "@types/node", "@types/lodash"],
     "paths": {
       "@/*": ["./src/*"],
       "@deno/*": ["./src_deno/*"],
@@ -29,6 +28,14 @@
       "@picker/*": ["./src-file-picker/*"]
     }
   },
-  "include": ["vite.config.ts", "vitest.config.ts", "src/**/*", "shared/**/*", "@types/**/*", "src-file-picker/**/*", "tests/**/*"],
-  "exclude": ["public", "app", "node_modules/.deno"]
+  "include": [
+    "vite.config.ts",
+    "vitest.config.ts",
+    "src/**/*",
+    "shared/**/*",
+    "@types/**/*",
+    "src-file-picker/**/*",
+    "tests/**/*"
+  ],
+  "exclude": ["public", "app", "node_modules/.deno", "doc"]
 }

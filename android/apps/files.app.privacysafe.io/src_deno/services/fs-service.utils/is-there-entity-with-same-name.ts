@@ -16,6 +16,9 @@
 */
 import type { WritableFS } from '../../../shared/types/index.ts';
 import { getFsStat } from '../../../shared/utils/fs-utils/get-fs-stat.ts';
+import { makeLogger } from '../../../shared/utils/logger.ts';
+
+const log = makeLogger('FsService');
 
 export async function isThereEntityWithSameName({
   fs,
@@ -46,7 +49,7 @@ export async function isThereEntityWithSameName({
         return fs.checkLinkPresence(path);
     }
   } catch (e) {
-    w3n.log('error', `ERROR WHILE CHECKING THE ${type} "${path}" PRESENCE. `, e);
+    log.error(`ERROR WHILE CHECKING THE ${type} "${path}" PRESENCE. `, e);
     return false;
   }
 }

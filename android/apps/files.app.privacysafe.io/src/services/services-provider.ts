@@ -16,6 +16,9 @@
 */
 import { makeServiceCaller } from '@shared/utils/ipc/ipc-service-caller';
 import type { StorageAppDenoService } from '@deno/types';
+import { makeLogger } from '@shared/utils/logger';
+
+const log = makeLogger('ServicesProvider');
 
 const CLOSE_DELAY_SECONDS = 10;
 
@@ -114,7 +117,7 @@ export async function initializationServices() {
     ]) as StorageAppDenoService;
 
   } catch (e) {
-    await w3n.log('error', 'Error connecting to the storage service. ', e);
+    log.error('Error connecting to the storage service. ', e);
     // the caller must not mount the app: every store call would fail without the service
     throw e;
   }

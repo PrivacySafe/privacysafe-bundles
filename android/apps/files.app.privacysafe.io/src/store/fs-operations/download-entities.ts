@@ -16,6 +16,9 @@
 */
 import { getReadonlyFile, getReadonlySubRoot, readLink, saveFile, saveFolder } from '@shared/utils/fs-utils';
 import type { ListingEntryExtended } from '@shared/types';
+import { makeLogger } from '@shared/utils/logger';
+
+const log = makeLogger('FsOperations');
 
 export async function downloadEntities({
   fs,
@@ -64,7 +67,7 @@ export async function downloadEntities({
       }
     }
   } catch (e) {
-    w3n.log('error', `Error while downloading ${entities.map(entity => entity.name).join(', ')}. `, e);
+    log.error(`Error while downloading ${entities.map(entity => entity.name).join(', ')}. `, e);
     throw e;
   }
 }

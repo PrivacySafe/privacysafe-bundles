@@ -32,6 +32,9 @@ import { renameFsEntity } from './fs-service.utils/rename-fs-entity.ts';
 import { relocateFavorites } from './fs-service.utils/relocate-favorites.ts';
 import { deleteFsEntities } from './fs-service.utils/delete-fs-entities.ts';
 import { restoreFsEntities as _restoreFsEntities } from './fs-service.utils/restore-fs-entities.ts';
+import { makeLogger } from '../../shared/utils/logger.ts';
+
+const log = makeLogger('FsService');
 
 export function fsService({
   getFsItem,
@@ -61,7 +64,7 @@ export function fsService({
 
       return undefined;
     } catch (err) {
-      w3n.log('error', `Failed to set the ${fullPath} folder as favorite. `, err);
+      log.error(`Failed to set the ${fullPath} folder as favorite. `, err);
     }
   }
 
@@ -83,7 +86,7 @@ export function fsService({
 
       return undefined;
     } catch (err) {
-      w3n.log('error', `Failed to unset the ${fullPath} folder as favorite. `, err);
+      log.error(`Failed to unset the ${fullPath} folder as favorite. `, err);
     }
   }
 
@@ -91,7 +94,7 @@ export function fsService({
     try {
       return await favoritesSrv.deleteFavorite(id, true);
     } catch (err) {
-      w3n.log('error', `Failed while removing the favorite folder with ID ${id} from the list. `, err);
+      log.error(`Failed while removing the favorite folder with ID ${id} from the list. `, err);
     }
   }
   /* end of block of methods for FAVORITES */
@@ -233,7 +236,7 @@ export function fsService({
         : entitySyncStatus;
     } catch (err) {
       const errorMessage = `🔥 [getSyncedStatus] Error reading the sync status for the FS object ${fullPath}. `;
-      w3n.log!('error', errorMessage, err);
+      log.error(errorMessage, err);
 
       if (!stopErrorPropagate) {
         throw err;
@@ -259,7 +262,7 @@ export function fsService({
       return fsListItem.entity.v?.sync?.isRemoteVersionOnDisk(fullPath, version);
     } catch (err) {
       const errorMessage = `🔥 [isRemoteVersionOnDisk] Error executing function on the FS object ${fullPath}. `;
-      w3n.log!('error', errorMessage, err);
+      log.error(errorMessage, err);
 
       if (!stopErrorPropagate) {
         throw err;

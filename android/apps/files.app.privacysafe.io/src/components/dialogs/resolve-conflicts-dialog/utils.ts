@@ -19,6 +19,9 @@ import { getListFolder, getFsStat, getRemoteFileItem, getRemoteFolderItem } from
 import { useAppStore } from '@/store';
 import type { FolderListItem } from './types';
 import { EntitySyncStatus } from '@deno/types.ts';
+import { makeLogger } from '@shared/utils/logger';
+
+const log = makeLogger('ResolveConflicts');
 
 function getEntryType(entry: web3n.files.ListingEntry): 'file' | 'folder' | 'link' {
   return entry.isFile ? 'file' : entry.isFolder ? 'folder' : 'link';
@@ -228,7 +231,7 @@ export async function prepareComparativeFolderTree(
 
   const localFolderTree = await prepareLocalFolderTree({ fs, folderPath, diff, trashFolder });
   const remoteFolderTree = await prepareRemoteFolderTree({ fs, folderPath, syncStatus, diff, trashFolder }).catch(
-    e => console.error(e),
+    e => log.error(`Error preparing the remote tree of '${folderPath}'. `, e),
   );
 
   return {

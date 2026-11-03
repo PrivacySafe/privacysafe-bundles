@@ -14,6 +14,10 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
+import { makeLogger } from '../logger.ts';
+
+const log = makeLogger('FsUtils');
+
 export async function moveFsEntity({
   fs,
   src,
@@ -28,7 +32,7 @@ export async function moveFsEntity({
   try {
     return await fs.move(src, dst);
   } catch (err) {
-    console.log(
+    log.error(
       `🔥 [moveFsEntity] Error moving the FS object '${src}' . 'stopErrorPropagate' flag is ${stopErrorPropagate} .`,
       err,
     );

@@ -18,6 +18,9 @@
 import type { StorageEvent } from '../../../shared/types/index.ts';
 import { executeFunc } from '../../../shared/utils/execute-function.ts';
 import { formatPath } from '../../../shared/utils/various.ts';
+import { makeLogger } from '../../../shared/utils/logger.ts';
+
+const log = makeLogger('SyncService');
 
 /** A removal waiting for upload is reported with localVersion -1; only a new version is an upload. */
 export function isUploadingNewVersion(status: web3n.files.SyncStatus | undefined): boolean {
@@ -72,7 +75,7 @@ export async function syncUpload({
     defaultValue: undefined,
     doesErrorPropagateStop: stopErrorPropagate,
     actionIfError: err => {
-      console.error(`🔥 UPLOAD PROCESSING ERROR FOR '${path}'. `, err);
+      log.error(`🔥 UPLOAD PROCESSING ERROR FOR '${path}'. `, err);
 
       emitEvent({
         event: 'upload:end',

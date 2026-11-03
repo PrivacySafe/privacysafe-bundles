@@ -29,6 +29,9 @@ import { formatPath } from '../../../shared/utils/various.ts';
 import { getEntityTargetPath } from './get-entity-target-path.ts';
 import { moveFsEntity } from './move-fs-entity.ts';
 import { listXAttrs, removeXAttrs, updateXAttrs } from './actions-on-x-attrs.ts';
+import { makeLogger } from '../../../shared/utils/logger.ts';
+
+const log = makeLogger('FsService');
 
 async function completeRemoval({
   fs,
@@ -132,7 +135,7 @@ async function moveToTrash({
       try {
         await moveWithinFs({ fs, src: pathInTrash, dst: entity.fullPath });
       } catch (rollbackErr) {
-        await w3n.log!('error', `Error moving '${pathInTrash}' back to '${entity.fullPath}'. `, rollbackErr);
+        log.error(`Error moving '${pathInTrash}' back to '${entity.fullPath}'. `, rollbackErr);
         throw new TrashedWithoutOriginError(pathInTrash, err);
       }
       throw new TrashMoveRolledBackError(err);
@@ -149,7 +152,7 @@ async function moveToTrash({
         await removeXAttrs({ fs, path: pathInTrash, attrs: ['favoriteId'] });
       }
     } catch (err) {
-      await w3n.log!('error', `Error removing the favorite mark of '${pathInTrash}'. `, err);
+      log.error(`Error removing the favorite mark of '${pathInTrash}'. `, err);
     }
   }
 
@@ -197,7 +200,7 @@ export async function deleteFsEntities({
 
   const logFailure = async (entity: ListingEntryExtended, err: unknown) => {
     failedPaths.push(entity.fullPath);
-    await w3n.log!('error', `Error deleting '${entity.fullPath}'. `, err);
+    log.error(`Error deleting '${entity.fullPath}'. `, err);
   };
 
   if (removeCompletely) {

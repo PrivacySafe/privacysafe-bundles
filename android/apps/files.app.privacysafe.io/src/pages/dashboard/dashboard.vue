@@ -24,6 +24,7 @@
   import { useDashboard } from '@/composables/useDashboard';
   import { useAbilities } from '@/composables/useAbilities';
   import { useRunModeInfoStore, useSyncQueueStore } from '@/store';
+  import CustomScrollBar from '@/components/common/custom-scroll-bar.vue';
   import FsMountControl from '@/components/pages/dashboard/fs-mount-control.vue';
   import FolderListItem from '@/components/pages/dashboard/folder-list-item/folder-list-item.vue';
   import FavoriteListItem from '@/components/pages/dashboard/favorite-list-item/favorite-list-item.vue';
@@ -117,23 +118,9 @@
       </div>
 
       <div :class="$style.listBody">
-        <template
-          v-for="folder in userFsFolders"
-          :key="folder.id"
-        >
-          <folder-list-item
-            :folder="folder"
-            :is-selected="isFolderSelected(folder)"
-            @select="selectFolder"
-          />
-        </template>
-
-        <div
-          v-if="size(userDeviceFsFolders)"
-          :class="$style.listBlock"
-        >
+        <custom-scroll-bar>
           <template
-            v-for="folder in userDeviceFsFolders"
+            v-for="folder in userFsFolders"
             :key="folder.id"
           >
             <folder-list-item
@@ -142,45 +129,61 @@
               @select="selectFolder"
             />
           </template>
-        </div>
 
-        <div
-          v-if="size(systemFsFolders)"
-          :class="$style.listBlock"
-        >
-          <template
-            v-for="folder in systemFsFolders"
-            :key="folder.id"
+          <div
+            v-if="size(userDeviceFsFolders)"
+            :class="$style.listBlock"
           >
-            <folder-list-item
-              :folder="folder"
-              :is-selected="isFolderSelected(folder)"
-              @select="selectFolder"
-            />
-            <fs-mount-control :fs-id="folder.fsId" />
-          </template>
-        </div>
-
-        <div :class="$style.favorites">
-          <div :class="$style.favoritesTitle">
-            <span>{{ t('app.favorites_title') }}</span>
-            <ui3n-icon
-              icon="round-bookmark"
-              :width="16"
-              :height="16"
-              color="var(--color-icon-control-secondary-default)"
-            />
+            <template
+              v-for="folder in userDeviceFsFolders"
+              :key="folder.id"
+            >
+              <folder-list-item
+                :folder="folder"
+                :is-selected="isFolderSelected(folder)"
+                @select="selectFolder"
+              />
+            </template>
           </div>
 
-          <div :class="$style.favoritesContent">
-            <favorite-list-item
-              v-for="item in processedFavoriteFolders"
-              :key="item.favId"
-              :item="item"
-              @go="goToFavoriteFolder"
-            />
+          <div
+            v-if="size(systemFsFolders)"
+            :class="$style.listBlock"
+          >
+            <template
+              v-for="folder in systemFsFolders"
+              :key="folder.id"
+            >
+              <folder-list-item
+                :folder="folder"
+                :is-selected="isFolderSelected(folder)"
+                @select="selectFolder"
+              />
+              <fs-mount-control :fs-id="folder.fsId" />
+            </template>
           </div>
-        </div>
+
+          <div :class="$style.favorites">
+            <div :class="$style.favoritesTitle">
+              <span>{{ t('app.favorites_title') }}</span>
+              <ui3n-icon
+                icon="round-bookmark"
+                :width="16"
+                :height="16"
+                color="var(--color-icon-control-secondary-default)"
+              />
+            </div>
+
+            <div :class="$style.favoritesContent">
+              <favorite-list-item
+                v-for="item in processedFavoriteFolders"
+                :key="item.favId"
+                :item="item"
+                @go="goToFavoriteFolder"
+              />
+            </div>
+          </div>
+        </custom-scroll-bar>
       </div>
     </div>
 
@@ -350,7 +353,12 @@
     width: 100%;
     padding-right: var(--spacing-xs);
     height: calc(100% - var(--dashboard-toolbar-height));
-    overflow-y: auto;
+
+    div[data-ui3n="scrollbar-vertical"] {
+      div:last-child {
+        right: 0 !important;
+      }
+    }
   }
 
   .createContent {

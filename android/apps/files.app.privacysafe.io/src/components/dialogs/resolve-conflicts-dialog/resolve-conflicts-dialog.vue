@@ -45,6 +45,9 @@
   import EntityDataBlock from '@/components/dialogs/resolve-conflicts-dialog/entity-data-block.vue';
   import FolderCompareBlock from '@/components/dialogs/resolve-conflicts-dialog/folder-compare-block.vue';
   import { EntitySyncStatus } from '@deno/types.ts';
+  import { makeLogger } from '@shared/utils/logger';
+
+  const log = makeLogger('ResolveConflicts');
 
   const props = defineProps<{
     paths: string[];
@@ -251,7 +254,7 @@
         nextAction = applyToAllObjects.value && isActionApplicable(action) ? action : null;
       }
     } catch (err) {
-      w3n.log('error', `Error resolving the conflict of '${currentResolvingPath.value}'. `, err);
+      log.error(`Error resolving the conflict of '${currentResolvingPath.value}'. `, err);
       notifications.$createNotice({
         type: 'error',
         withIcon: true,
@@ -264,7 +267,7 @@
 
   onMounted(async () => {
     const hasConflict = await showConflictFrom(0).catch(err => {
-      w3n.log('error', 'Error loading the conflict information. ', err);
+      log.error('Error loading the conflict information. ', err);
       return false;
     });
     if (!hasConflict) {

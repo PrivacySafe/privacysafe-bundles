@@ -25,6 +25,9 @@
   import { styleByStatus } from './constants';
   import type { ListingEntryExtended } from '@shared/types';
   import type { EntitySyncStatus } from '@deno/types.ts';
+  import { makeLogger } from '@shared/utils/logger';
+
+  const log = makeLogger('FsEntitySyncStatus');
 
   const props = defineProps<{
     lockChanges?: boolean;
@@ -90,7 +93,7 @@
         path: adoptedPath,
         opts: { remoteVersion: fsEntitySyncStatus.value.remote.latest },
       })
-      .catch(err => w3n.log('error', `Error adopting the remote version of '${adoptedPath}'. `, err))
+      .catch(err => log.error(`Error adopting the remote version of '${adoptedPath}'. `, err))
       .finally(() => {
         // without this the progress indicator of the row stays forever after a failure
         removeProcess({ action: 'adoptRemote', path: adoptedPath });
@@ -181,7 +184,7 @@
       }
     } catch (e) {
       if ((e as web3n.ConnectException).type !== 'connect') {
-        console.error(`Error while the sync status getting for [${path.value}]. `, e);
+        log.error(`Error while the sync status getting for [${path.value}]. `, e);
       }
     } finally {
       syncStatusInProgress.value = false;

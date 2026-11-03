@@ -1,6 +1,9 @@
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import pdfjsWorker from 'pdfjs-dist/legacy/build/pdf.worker.mjs?url';
 import { schedulerYield } from '@v1nt1248/3nclient-lib/utils';
+import { makeLogger } from '@shared/utils/logger';
+
+const log = makeLogger('PdfActions');
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
@@ -36,7 +39,7 @@ export async function createPdfThumbnail(byteArray: Uint8Array, targetSize: numb
 
     return canvas.toDataURL();
   } catch (e) {
-    console.error('Error generating PDF preview:', e);
+    log.error('Error generating PDF preview:', e);
     throw e;
   } finally {
     if (loadingTask) {

@@ -18,6 +18,9 @@
 import type { StorageEvent } from '../../../shared/types/index.ts';
 import { executeFunc } from '../../../shared/utils/execute-function.ts';
 import { formatPath } from '../../../shared/utils/various.ts';
+import { makeLogger } from '../../../shared/utils/logger.ts';
+
+const log = makeLogger('SyncService');
 
 export async function syncDownload({
   fs,
@@ -42,7 +45,7 @@ export async function syncDownload({
     defaultValue: undefined,
     doesErrorPropagateStop: stopErrorPropagate,
     actionIfError: err => {
-      console.error(`🔥 DOWNLOAD PROCESSING ERROR FOR '${path}'. `, err);
+      log.error(`🔥 DOWNLOAD PROCESSING ERROR FOR '${path}'. `, err);
 
       emitEvent({
         event: 'download:end',

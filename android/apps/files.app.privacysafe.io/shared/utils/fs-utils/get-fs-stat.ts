@@ -14,6 +14,10 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
+import { makeLogger } from '../logger.ts';
+
+const log = makeLogger('FsUtils');
+
 export async function getFsStat({
   fs,
   path,
@@ -32,7 +36,7 @@ export async function getFsStat({
       ? await fs.v?.stat(path, flags)
       : await fs.stat(path);
   } catch (err) {
-    console.log(
+    log.error(
       `🔥 [getFsStat] Error in the process for the FS object '${path}'. 'stopErrorPropagate' flag is ${stopErrorPropagate} .`,
       err,
     );

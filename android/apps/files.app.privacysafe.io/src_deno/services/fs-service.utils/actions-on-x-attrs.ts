@@ -17,6 +17,9 @@
 /// <reference path="../../../@types/platform-defs/injected-w3n.d.ts" />
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { WritableFS } from '../../../shared/types/index.ts';
+import { makeLogger } from '../../../shared/utils/logger.ts';
+
+const log = makeLogger('FsService');
 
 export async function updateXAttrs({
   fs,
@@ -32,7 +35,7 @@ export async function updateXAttrs({
   } catch (err) {
     const attrNames = Object.keys(attrs).join(', ');
     const errorMessage = `🔥 [updateXAttrs] Error update xAttrs (${attrNames}) in the FS object ${path}. `;
-    w3n.log!('error', errorMessage, err);
+    log.error(errorMessage, err);
     throw err;
   }
 }
@@ -50,7 +53,7 @@ export async function removeXAttrs({
     return await fs.updateXAttrs(path, { remove: attrs });
   } catch (err) {
     const errorMessage = `🔥 [removeXAttrs] Error delete xAttrs (${attrs.join(', ')}) in the FS object ${path}. `;
-    w3n.log!('error', errorMessage, err);
+    log.error(errorMessage, err);
     throw err;
   }
 }
@@ -95,7 +98,7 @@ export async function getXAttrs<T>({
     return res as SimpleRes as T;
   } catch (err) {
     const errorMessage = `🔥 [getXAttrs] Error reading xAttr (${attrName}) in the FS object ${fullPath}. `;
-    w3n.log!('error', errorMessage, err);
+    log.error(errorMessage, err);
 
     actionIfError?.(err);
 
@@ -138,7 +141,7 @@ export async function listXAttrs({
     return res as string[];
   } catch (err) {
     const errorMessage = `🔥 [listXAttrs] Error getting xAttrs list in the FS object ${path}. `;
-    w3n.log!('error', errorMessage, err);
+    log.error(errorMessage, err);
     throw err;
   }
 }

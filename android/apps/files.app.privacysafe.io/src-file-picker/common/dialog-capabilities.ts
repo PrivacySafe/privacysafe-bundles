@@ -2,6 +2,9 @@ import { reactive, type InjectionKey } from 'vue';
 import { sleep } from '@shared/utils/processes/sleep';
 import type { DialogMode, DialogRequestState, DialogResult, DialogResultMap } from '@picker/common/types';
 import { normalizeFilters, normalizeOptionalText, normalizeText } from '@picker/common/utils/request-params';
+import { makeLogger } from '@shared/utils/logger';
+
+const log = makeLogger('Picker');
 
 export const DIALOG_REQUEST_KEY: InjectionKey<DialogRequestState> = Symbol('dialog-request');
 
@@ -121,7 +124,7 @@ export function settleDialog(
   try {
     resolve?.(result);
   } catch (err) {
-    console.error('🔥 ERROR RESOLVING DIALOG REQUEST. ', err);
+    log.error('🔥 ERROR RESOLVING DIALOG REQUEST. ', err);
   }
 
   if (closeWindow) {

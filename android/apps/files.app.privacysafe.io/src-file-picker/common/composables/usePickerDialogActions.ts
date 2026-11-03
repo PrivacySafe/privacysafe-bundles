@@ -17,6 +17,9 @@ import {
   openFolderTarget,
   type PickerFolderTarget,
 } from '@picker/common/utils/folder-operations';
+import { makeLogger } from '@shared/utils/logger';
+
+const log = makeLogger('Picker');
 
 export function usePickerDialogActions(
   dialogRequest: DialogRequestState,
@@ -45,7 +48,7 @@ export function usePickerDialogActions(
     try {
       await action();
     } catch (error) {
-      console.error('Error completing picker action.', error);
+      log.error('Error completing picker action.', error);
       showError(errorKey);
     } finally {
       picker.isBusy.value = false;

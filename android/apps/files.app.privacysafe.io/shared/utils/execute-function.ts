@@ -16,6 +16,9 @@
 */
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import { sleep } from '../../shared/utils/processes/sleep.ts';
+import { makeLogger } from './logger.ts';
+
+const log = makeLogger('ExecuteFunc');
 
 type ExtractArgs<F> = F extends (signal: AbortSignal, ...args: infer P) => any
   ? P
@@ -72,7 +75,7 @@ function runHandlerSafely(name: string, handler: (() => void) | undefined): void
   try {
     handler?.();
   } catch (err) {
-    console.error(`[executeFunc] The ${name} handler has thrown an error.`, err);
+    log.error(`[executeFunc] The ${name} handler has thrown an error.`, err);
   }
 }
 
@@ -127,7 +130,7 @@ export async function executeFunc<F extends (...args: any[]) => any, V = Awaited
       lastError = err;
 
       if (attempt < totalAttempts) {
-        console.warn(`[executeFunc] Attempt ${attempt} failed. Retrying in ${retryDelay}ms...`, err);
+        log.debug(`[executeFunc] Attempt ${attempt} failed. Retrying in ${retryDelay}ms...`, err);
         if (retryDelay > 0) {
           await sleep(retryDelay);
         }
@@ -158,7 +161,7 @@ export async function executeFunc<F extends (...args: any[]) => any, V = Awaited
         fnArgs: argsArray,
       });
 
-  console.error(`[executeFunc] All ${totalAttempts} attempts failed.`, finalError);
+  log.error(`[executeFunc] All ${totalAttempts} attempts failed.`, finalError);
   runHandlerSafely('actionIfError', () => actionIfError?.(lastError));
   runHandlerSafely('actionInFinally', actionInFinally);
 

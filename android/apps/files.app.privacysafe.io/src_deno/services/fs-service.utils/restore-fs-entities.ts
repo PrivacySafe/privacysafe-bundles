@@ -21,6 +21,9 @@ import { moveFsEntity, prepareRestoredPath } from '../../../shared/utils/fs-util
 import { deleteFsEntities } from './delete-fs-entities.ts';
 import { USER_FS, USER_LOCAL_FS } from '../../../shared/constants/index.ts';
 import { removeXAttrs } from './actions-on-x-attrs.ts';
+import { makeLogger } from '../../../shared/utils/logger.ts';
+
+const log = makeLogger('FsService');
 
 /**
  * Restores trashed entities one by one. Each entity is resolved against the
@@ -65,11 +68,11 @@ export async function restoreFsEntities({
       if ([USER_FS, USER_LOCAL_FS].includes(fsId)) {
         // stale trash marks outside of the trash are ignored, so a failure here is only logged
         await removeXAttrs({ fs, path: restoredPath, attrs: ['parentFolder', 'originalName'] }).catch(err =>
-          w3n.log('error', `Error removing the trash marks of the restored '${restoredPath}'. `, err),
+          log.error(`Error removing the trash marks of the restored '${restoredPath}'. `, err),
         );
       }
     } catch (err) {
-      await w3n.log('error', `Error while restoring ${entity.originalName || entity.name}. `, err);
+      log.error(`Error while restoring ${entity.originalName || entity.name}. `, err);
     }
   }
 

@@ -123,7 +123,11 @@
 
   function getFieldStyle(field: keyof ListingEntryExtended): Record<string, string> {
     const style = get(props.columnStyle, [field], { width: 'auto' });
-    return { width: style.width, minWidth: style.width };
+    return {
+      ...style,
+      width: style.width,
+      minWidth: style.width,
+    };
   }
 
   const { editableEl, validateName, onInvalidName, revertName } = useEntityNameEditing();
@@ -145,6 +149,7 @@
   <div
     :class="[
       $style.fsTableRow,
+      isRowSelected && $style.selected,
       !!row.brokeReason && $style.damaged,
       displayedFsEntityInfo?.fsId === fsId && displayedFsEntityInfo?.path === row.fullPath && $style.highlight,
       (disabled || readonly || (isFsEntryInProcessing && appStore.connectivityStatus === 'online')) &&
@@ -214,6 +219,25 @@
         :title="`${t('app.damaged')}. ${t('app.damaged_reason')}: ${row.brokeReason}`"
         :class="$style.iconDamaged"
       />
+
+      <ui3n-icon
+        v-if="isAvailableFavoriteActions && !isFsEntryInProcessing && !row.brokeReason"
+        icon="round-bookmark"
+        size="12"
+        :color="
+          row.favoriteId ? 'var(--color-icon-table-accent-selected)' : 'var(--color-icon-table-accent-unselected)'
+        "
+        :class="[$style.favoriteIcon, row.favoriteId && $style.favoriteIconSelected]"
+        @click.stop="updateFavorite"
+      />
+
+      <ui3n-icon
+        v-if="isFsEntryInProcessing && appStore.connectivityStatus === 'online'"
+        icon="round-lock"
+        size="12"
+        color="var(--color-icon-control-warning-default)"
+        :class="[$style.favoriteIcon, $style.favoriteIconSelected]"
+      />
     </div>
 
     <div
@@ -255,25 +279,6 @@
     >
       {{ row.displayingCTime }}
     </div>
-
-    <ui3n-icon
-      v-if="isAvailableFavoriteActions && !isFsEntryInProcessing && !row.brokeReason"
-      icon="round-bookmark"
-      size="12"
-      :color="
-        row.favoriteId ? 'var(--color-icon-table-accent-selected)' : 'var(--color-icon-table-accent-unselected)'
-      "
-      :class="[$style.favoriteIcon, row.favoriteId && $style.favoriteIconSelected]"
-      @click.stop="updateFavorite"
-    />
-
-    <ui3n-icon
-      v-if="isFsEntryInProcessing && appStore.connectivityStatus === 'online'"
-      icon="round-lock"
-      size="12"
-      color="var(--color-icon-control-warning-default)"
-      :class="[$style.favoriteIcon, $style.favoriteIconSelected]"
-    />
   </div>
 </template>
 
@@ -281,13 +286,10 @@
   .fsTableRow {
     --fs-table-row-height: 28px;
 
-    position: relative;
-    width: 100%;
     height: var(--fs-table-row-height);
     display: flex;
     justify-content: flex-start;
     align-items: center;
-    padding-left: var(--spacing-m);
     font-size: var(--font-12);
     font-weight: 400;
     color: var(--color-text-table-primary-default);
@@ -309,14 +311,22 @@
 
     &:hover {
       .name {
-        & > div {
-          color: var(--color-icon-table-accent-hover) !important;
-        }
+        background-color: var(--color-bg-control-primary-hover) !important;
+      }
+    }
+
+    &.selected {
+      .name {
+        background-color: var(--color-bg-control-primary-hover) !important;
       }
     }
 
     &.highlight {
-      background-color: var(--ui3n-table-row-bg-color-selected);
+      background-color: var(--color-bg-table-cell-selected) !important;
+
+      .name {
+        background-color: var(--color-bg-table-cell-selected) !important;
+      }
     }
   }
 
@@ -328,7 +338,11 @@
 
   .droppable {
     position: relative;
-    background-color: var(--color-bg-control-primary-hover);
+    background-color: var(--color-bg-control-primary-hover) !important;
+
+    .name {
+      background-color: var(--color-bg-table-cell-selected) !important;
+    }
   }
 
   .favoriteIcon {
@@ -348,7 +362,8 @@
 
   .name {
     position: relative;
-    flex-grow: 1;
+    height: 100%;
+    padding-left: var(--spacing-m);
     display: flex;
     justify-content: flex-start;
     align-items: center;

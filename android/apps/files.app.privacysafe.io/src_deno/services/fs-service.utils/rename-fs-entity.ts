@@ -18,6 +18,9 @@
 import { moveFsEntity } from './move-fs-entity.ts';
 import { getParentFolderPathFromEntityFullPath } from '../../../shared/utils/various.ts';
 import type { FsListItem, ListingEntryExtended } from '../../../shared/types/index.ts';
+import { makeLogger } from '../../../shared/utils/logger.ts';
+
+const log = makeLogger('FsService');
 
 export async function renameFsEntity({
   fsListItem,
@@ -35,8 +38,7 @@ export async function renameFsEntity({
     return await moveFsEntity({ fsListItem, entity, targetFsListItem, targetFolder, targetEntityName: newName });
   } catch (e) {
     const errorMessage = `Error renaming the entity ${entity.fullPath}. `;
-    console.error(errorMessage, e);
-    await w3n.log!('error', errorMessage, e);
+    log.error(errorMessage, e);
     return undefined;
   }
 }

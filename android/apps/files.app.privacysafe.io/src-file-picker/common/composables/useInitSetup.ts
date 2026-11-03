@@ -3,6 +3,9 @@ import { useI18n } from 'vue-i18n';
 import { THEME_KEY, type ThemePlugin } from '@v1nt1248/3nclient-lib/plugins';
 import { SystemSettings, getActiveTheme } from '@/utils/ui-settings';
 import type { AvailableLanguage } from '@shared/types';
+import { makeLogger } from '@shared/utils/logger';
+
+const log = makeLogger('Picker');
 
 /**
  * Loads app config (lang, theme) and subscribes to live changes.
@@ -39,7 +42,7 @@ export function useInitSetup() {
     } catch (e) {
       // UI settings are non-fatal for the picker. Keep the current/default
       // configuration and allow file selection to remain available.
-      console.error('🔥 Error while loading picker app config. ', e);
+      log.error('🔥 Error while loading picker app config. ', e);
     }
   });
 

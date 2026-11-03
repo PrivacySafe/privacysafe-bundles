@@ -21,6 +21,9 @@ import { relocateFavorites } from './relocate-favorites.ts';
 import { getEntityNameAndParent } from '../../../shared/utils/fs-utils/index.ts';
 import type { FsListItem, ListingEntryExtended } from '../../../shared/types/index.ts';
 import type { FavoritesService } from '../../types.ts';
+import { makeLogger } from '../../../shared/utils/logger.ts';
+
+const log = makeLogger('FsService');
 
 export async function moveFsEntities({
   fsListItem,
@@ -72,7 +75,7 @@ export async function moveFsEntities({
     return pathsMap;
   } catch (err) {
     const errorMessage = `Error while moving the ${entities}`;
-    await w3n.log!('error', errorMessage, err);
+    log.error(errorMessage, err);
     throw err;
   }
 }

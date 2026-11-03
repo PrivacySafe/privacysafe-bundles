@@ -23,6 +23,11 @@ import '@v1nt1248/3nclient-lib/style.css';
 import '@/assets/styles/main.css';
 
 import { initializationServices, showStartupError } from '@/services/services-provider';
+import { initDebugLogging, makeLogger } from '@shared/utils/logger';
+
+const log = makeLogger('Main');
+
+initDebugLogging();
 
 initializationServices()
   .then(() => {
@@ -51,5 +56,6 @@ initializationServices()
   })
   .catch(err => {
     console.error('🔥 ERROR CREATE APP. ', err);
+    log.error('Error creating the app. ', err);
     showStartupError();
   });

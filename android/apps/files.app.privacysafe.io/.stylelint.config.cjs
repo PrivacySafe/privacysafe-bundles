@@ -50,5 +50,6 @@ module.exports = {
       },
     ],
     'declaration-property-value-keyword-no-deprecated': [true, { ignoreKeywords: ['break-word'] }],
+    'scss/load-no-partial-leading-underscore': null,
   },
 };

@@ -18,6 +18,9 @@
 import type { StorageEvent } from '../../../shared/types/index.ts';
 import { executeFunc } from '../../../shared/utils/execute-function.ts';
 import { formatPath } from '../../../shared/utils/various.ts';
+import { makeLogger } from '../../../shared/utils/logger.ts';
+
+const log = makeLogger('SyncService');
 
 export async function syncAdopt({
   fs,
@@ -46,7 +49,7 @@ export async function syncAdopt({
     doesErrorPropagateStop: stopErrorPropagate,
     timeoutValue: 0,
     actionIfError: err => {
-      console.error(`🔥 ADOPT ERROR FOR '${path}' .`, err);
+      log.error(`🔥 ADOPT ERROR FOR '${path}' .`, err);
       emitEvent({
         event: 'sync:error',
         payload: {

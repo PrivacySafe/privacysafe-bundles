@@ -19,6 +19,9 @@ import { makeFolder } from '../../../shared/utils/fs-utils/index.ts';
 import { updateXAttrs } from './actions-on-x-attrs.ts';
 import { USER_FS, USER_LOCAL_FS } from '../../../shared/constants/index.ts';
 import type { FsListItem } from '../../../shared/types/index.ts';
+import { makeLogger } from '../../../shared/utils/logger.ts';
+
+const log = makeLogger('FsService');
 
 export async function createFolderInFS({
   fsListItem,
@@ -29,7 +32,7 @@ export async function createFolderInFS({
 }): Promise<string | undefined> {
   try {
     if (path.toLowerCase() === 'root') {
-      console.warn('🚫 You cannot create a folder named ROOT. It is a reserved folder.');
+      log.warn('🚫 You cannot create a folder named ROOT. It is a reserved folder.');
       return;
     }
 
@@ -43,7 +46,7 @@ export async function createFolderInFS({
     }
   } catch (e) {
     if (!(e as web3n.files.FSSyncException).childNeverUploaded) {
-      w3n.log!('error', `Error making folder ${path}. `, e);
+      log.error(`Error making folder ${path}. `, e);
       throw e;
     }
   }

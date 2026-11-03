@@ -43,6 +43,9 @@
   import FsTable from '@/components/common/fs-table/fs-table.vue';
   import TableBulkActions from '@/components/common/fs-table-bulk-actions/fs-table-bulk-actions.vue';
   import size from 'lodash/size';
+  import { makeLogger } from '@shared/utils/logger';
+
+  const log = makeLogger('TableView');
 
   const props = defineProps<{
     windowIndex: 1 | 2;
@@ -143,7 +146,7 @@
         try {
           await deleteSelectedEntities({ fsId: tableFsId.value, entities, completely: false });
         } catch (err) {
-          w3n.log('error', 'Error moving the selected objects to the trash. ', err);
+          log.error('Error moving the selected objects to the trash. ', err);
           notifications.$createNotice({
             type: 'error',
             withIcon: true,
@@ -177,7 +180,7 @@
               content: t('fs.entity.message.success.delete', { count: `${entities.length}` }),
             });
           } catch (err) {
-            w3n.log('error', err as string);
+            log.error('Error deleting the selected objects completely. ', err);
 
             notifications.$createNotice({
               type: 'error',
@@ -207,7 +210,7 @@
             });
           }
         } catch (err) {
-          w3n.log('error', err as string);
+          log.error('Error restoring the selected objects. ', err);
           notifications.$createNotice({
             type: 'error',
             withIcon: true,

@@ -34,6 +34,9 @@
   import type { FsSEntityInfoProps, FsSEntityInfoEmits } from './types';
   import type { ListingEntryExtended } from '@shared/types';
   import type { EntitySyncStatus } from '@deno/types.ts';
+  import { makeLogger } from '@shared/utils/logger';
+
+  const log = makeLogger('FsEntityInfo');
 
   const vUi3nClickOutside = Ui3nClickOutside;
 
@@ -150,7 +153,7 @@
         await loadHashing();
       }
     } catch (err) {
-      w3n.log('error', `Error loading the information about '${fullPath}'. `, err);
+      log.error(`Error loading the information about '${fullPath}'. `, err);
     } finally {
       if (isCurrentLoad()) {
         isLoading.value = false;
@@ -183,7 +186,7 @@
             entityStats.value.thumbnail = val;
           }
         })
-        .catch(err => w3n.log('error', `Error creating a thumbnail for '${fullPath}'. `, err));
+        .catch(err => log.error(`Error creating a thumbnail for '${fullPath}'. `, err));
     }
   }
 

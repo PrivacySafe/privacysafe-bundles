@@ -14,6 +14,10 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
+import { makeLogger } from '../logger.ts';
+
+const log = makeLogger('FsUtils');
+
 export async function getReadonlySubRoot({
   fs,
   folder,
@@ -26,7 +30,7 @@ export async function getReadonlySubRoot({
   try {
     return await fs.readonlySubRoot(folder);
   } catch (err) {
-    console.log(
+    log.error(
       `🔥 [getReadonlySubRoot] Error getting of the readonly sub root '${folder}' . 'stopErrorPropagate' flag is ${stopErrorPropagate} .`,
       err,
     );

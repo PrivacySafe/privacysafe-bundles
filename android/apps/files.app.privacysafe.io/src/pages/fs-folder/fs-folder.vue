@@ -24,6 +24,9 @@
   import TableView from '@/components/common/table-view/table-view.vue';
   import TileView from '@/components/common/tile-view/tile-view.vue';
   import RootConflictBanner from '@/components/pages/dashboard/root-conflict-banner.vue';
+  import { makeLogger } from '@shared/utils/logger';
+
+  const log = makeLogger('FsFolder');
 
   const props = defineProps<{
     windowIndex?: 1 | 2;
@@ -60,7 +63,7 @@
     try {
       state = (await getSyncedStatus({ fsId: USER_FS, fullPath: path }))?.state;
     } catch (err) {
-      w3n.log('error', `Error checking the sync status of '${path}'. `, err);
+      log.error(`Error checking the sync status of '${path}'. `, err);
     }
     // the window may show another folder by now
     if (path === folderPath.value) {

@@ -17,11 +17,13 @@
 /// <reference path="../../../@types/platform-defs/injected-w3n.d.ts" />
 import { getListFolder } from '../../../shared/utils/fs-utils/index.ts';
 import type { ListingEntry } from '../../../shared/types/index.ts';
+import { makeLogger } from '../../../shared/utils/logger.ts';
+
+const log = makeLogger('FsService');
 
 function handleError(err: unknown) {
   const errorMessage = `Error in 'loadFolderContentList' method. `;
-  console.error(errorMessage, err);
-  w3n.log!('error', errorMessage, err);
+  log.error(errorMessage, err);
   return [];
 }
 

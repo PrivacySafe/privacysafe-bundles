@@ -38,6 +38,9 @@ import type {
   RootFsFolderView,
 } from '@shared/types';
 import UpdateFolderNameDialog from '@/components/dialogs/update-folder-name-dialog.vue';
+import { makeLogger } from '@shared/utils/logger';
+
+const log = makeLogger('Dashboard');
 
 export function useDashboard() {
   const { t } = useI18n();
@@ -117,7 +120,7 @@ export function useDashboard() {
         await makeFolder({ fsId: currentFsId.value!, path: newFolderPath });
         bus.$emitter.emit('create:folder', { fsId: currentFsId.value!, fullPath: newFolderPath });
       } catch (err) {
-        w3n.log('error', 'Error creating a folder. ', err);
+        log.error('Error creating a folder. ', err);
         appStore.$createNotice({
           type: 'error',
           withIcon: true,

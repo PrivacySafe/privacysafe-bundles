@@ -31,6 +31,9 @@ import { formatPath } from '@shared/utils/various';
 import { getFolderEntityNames, joinEntityPath, pickFreeEntityName } from '@shared/utils/fs-utils/entity-name';
 import { writeOsFile } from './write-os-file';
 import { THUMBNAIL_SOURCE_SIZE_LIMIT } from '@/constants/thumbnails';
+import { makeLogger } from '@shared/utils/logger';
+
+const log = makeLogger('FsOperations');
 
 // enough for file-type to recognize the format
 const FILE_TYPE_SAMPLE_SIZE = 4100;
@@ -100,7 +103,7 @@ export async function createFileBaseOnOsFileSystemFile({
       const { ext, mime } = await detectFileType(uploadedFile);
       const img = withThumbnail
         ? await createThumbnailForFileFromOs(uploadedFile, mime).catch(err => {
-            w3n.log('error', `Error creating a thumbnail for the ${name} file. `, err);
+            log.error(`Error creating a thumbnail for the ${name} file. `, err);
             return null;
           })
         : null;
@@ -118,7 +121,7 @@ export async function createFileBaseOnOsFileSystemFile({
     }
   } catch (e) {
     if (!(e as web3n.files.FSSyncException).childNeverUploaded) {
-      await w3n.log!('error', `An error creating of the ${name} file. `, e);
+      log.error(`An error creating of the ${name} file. `, e);
       throw e;
     }
   }

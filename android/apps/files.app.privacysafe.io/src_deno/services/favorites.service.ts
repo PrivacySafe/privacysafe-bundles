@@ -22,6 +22,9 @@ import { checkServerConnection } from './sync-service.utils/check-server-connect
 import { FAVORITES_DATA_FILE } from '../constants.ts';
 import { randomStr } from '../../shared/utils/random.ts';
 import { isIpcConnectionLost } from '../../shared/utils/ipc/ipc-connection-lost.ts';
+import { makeLogger } from '../../shared/utils/logger.ts';
+
+const log = makeLogger('FavoritesService');
 
 type FavoritesData = Record<string, FavoriteFolder>;
 
@@ -143,7 +146,7 @@ export async function favoritesService({
     }
 
     syncRound = syncFavoritesFile()
-      .catch(err => w3n.log('error', 'Error while synchronizing the favorites file. ', err))
+      .catch(err => log.error('Error while synchronizing the favorites file. ', err))
       .finally(() => {
         syncRound = null;
         if (isSyncRequested) {
@@ -167,7 +170,7 @@ export async function favoritesService({
       try {
         await appSyncedFs.writeJSONFile(FAVORITES_DATA_FILE, dataToSave);
       } catch (err) {
-        await w3n.log('error', 'Error while saving the favorites file. ', err);
+        log.error('Error while saving the favorites file. ', err);
       }
     });
     emitFavoritesUpdate();
@@ -242,10 +245,10 @@ export async function favoritesService({
     const watchAgainLater = (err: unknown) => {
       if (isIpcConnectionLost(err)) {
         // nothing can be watched until the app is restarted
-        w3n.log('error', 'Error watching the favorites file: the connection to the platform is lost. ', err);
+        log.error('Error watching the favorites file: the connection to the platform is lost. ', err);
         return;
       }
-      w3n.log('error', 'Error watching the favorites file; it will be watched again. ', err);
+      log.error('Error watching the favorites file; it will be watched again. ', err);
       setTimeout(watchFavoritesFile, FILE_WATCH_RETRY_DELAY);
     };
 
@@ -255,7 +258,7 @@ export async function favoritesService({
           const { type } = val as { type: string };
 
           if (type === 'download-done') {
-            loadFavoritesFileData().catch(err => w3n.log('error', 'Error loading the favorites file. ', err));
+            loadFavoritesFileData().catch(err => log.error('Error loading the favorites file. ', err));
           } else if (!IGNORED_FILE_EVENTS.has(type)) {
             requestFavoritesSync();
           }
@@ -286,7 +289,7 @@ export async function favoritesService({
       }
     } catch (err) {
       if ((err as web3n.ConnectException).type !== 'connect') {
-        w3n.log('error', 'Error synchronizing the app synced storage root. ', err);
+        log.error('Error synchronizing the app synced storage root. ', err);
       }
     }
 

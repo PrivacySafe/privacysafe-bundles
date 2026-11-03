@@ -26,6 +26,9 @@ import type { FileW, FsListItem, ListingEntryExtended, RootFsFolderView } from '
 import { START_OF_SYSTEM_FS_ID, USER_DEVICE_FS, USER_FS, USER_LOCAL_FS } from '@shared/constants';
 import { getListFolder } from '@shared/utils/fs-utils';
 import { formatPath } from '@shared/utils/various';
+import { makeLogger } from '@shared/utils/logger';
+
+const log = makeLogger('FsStore');
 
 // Relative to the mount area provided by the platform, not an OS path.
 const HOME_MOUNT_PATH = ['Home'];
@@ -179,7 +182,7 @@ export const useFsStore = defineStore('fs', () => {
       return;
     }
 
-    console.debug('[Mount FS] mount change requested', { fsId, mounted });
+    log.debug('[Mount FS] mount change requested', { fsId, mounted });
     fsMountRevisions.set(fsId, (fsMountRevisions.get(fsId) || 0) + 1);
 
     try {
@@ -193,19 +196,19 @@ export const useFsStore = defineStore('fs', () => {
             if (!isMountException(err) || !err.notMounted) {
               throw err;
             }
-            console.debug('[Mount FS] platform reports already unmounted', { fsId });
+            log.debug('[Mount FS] platform reports already unmounted', { fsId });
           }
           fsMountStatus.value[fsId] = 'unmounted';
         });
       }
-      console.debug('[Mount FS] mount change completed', { fsId, mounted });
+      log.debug('[Mount FS] mount change completed', { fsId, mounted });
       $createNotice({
         type: 'success',
         withIcon: true,
         content: t(mounted ? 'fs.mount.message.success.mount' : 'fs.mount.message.success.unmount'),
       });
     } catch (err) {
-      console.error('Unable to change filesystem mount', fsId, err);
+      log.error(`Unable to change the mount of the '${fsId}' filesystem. `, err);
       if (!mounted && isUnmountCleanupError(err)) {
         // Keep the last confirmed state: this error does not prove an OS unmount.
         $createNotice({
@@ -329,7 +332,7 @@ export const useFsStore = defineStore('fs', () => {
         });
       } catch (err) {
         failedNames.push(uploadedFile.name);
-        w3n.log('error', `Error uploading the file '${uploadedFile.name}'. `, err);
+        log.error(`Error uploading the file '${uploadedFile.name}'. `, err);
       }
     }
 
@@ -463,12 +466,12 @@ export const useFsStore = defineStore('fs', () => {
         previousRequest.mountRevision === mountRevision &&
         startedAt - previousRequest.startedAt < FILE_OPEN_REPEAT_DELAY_MS
       ) {
-        console.debug('[Mount FS] duplicate open skipped', { fsId, fullPath, requestId: previousRequest.id });
+        log.debug('[Mount FS] duplicate open skipped', { fsId, fullPath, requestId: previousRequest.id });
         return;
       }
       openingRequest = { id: ++fileOpenRequestId, startedAt, mountRevision };
       openingFsFiles.set(fullPath, openingRequest);
-      console.debug('[Mount FS] open requested', { fsId, fullPath, requestId: openingRequest.id });
+      log.debug('[Mount FS] open requested', { fsId, fullPath, requestId: openingRequest.id });
     }
 
     // A pending platform response must not block later user attempts. Only the
@@ -489,16 +492,16 @@ export const useFsStore = defineStore('fs', () => {
         const requestId = openingRequest.id;
         const requestMountedFileOpen = async (attempt: number): Promise<void> => {
           const details = { fsId, fullPath, requestId, attempt };
-          console.debug('[Mount FS] platform open started', details);
+          log.debug('[Mount FS] platform open started', details);
           const pendingLogTimer = setTimeout(() => {
-            console.warn('[Mount FS] platform open still pending after 5 seconds', details);
+            log.warn('[Mount FS] platform open still pending after 5 seconds', details);
           }, FILE_OPEN_PENDING_LOG_DELAY_MS);
 
           try {
             await openInMounted(fs, pathInFS);
-            console.debug('[Mount FS] platform open completed', details);
+            log.debug('[Mount FS] platform open completed', details);
           } catch (err) {
-            console.debug('[Mount FS] platform open failed', details, err);
+            log.debug('[Mount FS] platform open failed', { ...details, err });
             throw err;
           } finally {
             clearTimeout(pendingLogTimer);
@@ -509,7 +512,7 @@ export const useFsStore = defineStore('fs', () => {
         await fsMountOperations.get(fsId);
 
         if (!isCurrentOpeningRequest()) {
-          console.debug('[Mount FS] superseded open skipped', { fsId, fullPath, requestId });
+          log.debug('[Mount FS] superseded open skipped', { fsId, fullPath, requestId });
           return;
         }
         const mountedRevision = fsMountedRevisions.get(fsId) || 0;
@@ -523,7 +526,7 @@ export const useFsStore = defineStore('fs', () => {
           return;
         } catch (err) {
           if (!isCurrentOpeningRequest()) {
-            console.debug('[Mount FS] stale open failure ignored', { fsId, fullPath, requestId });
+            log.debug('[Mount FS] stale open failure ignored', { fsId, fullPath, requestId });
             return;
           }
           if (!isMountException(err) || !err.notMounted) {
@@ -539,7 +542,7 @@ export const useFsStore = defineStore('fs', () => {
         }
 
         if (!isCurrentOpeningRequest()) {
-          console.debug('[Mount FS] superseded open retry skipped', { fsId, fullPath, requestId });
+          log.debug('[Mount FS] superseded open retry skipped', { fsId, fullPath, requestId });
           return;
         }
 
@@ -552,7 +555,7 @@ export const useFsStore = defineStore('fs', () => {
           }
         } catch (err) {
           if (!isCurrentOpeningRequest()) {
-            console.debug('[Mount FS] stale open failure ignored', { fsId, fullPath, requestId });
+            log.debug('[Mount FS] stale open failure ignored', { fsId, fullPath, requestId });
             return;
           }
           if (isMountException(err) && err.notMounted) {
@@ -574,7 +577,7 @@ export const useFsStore = defineStore('fs', () => {
 
       await shell.openFile(file);
     } catch (err) {
-      console.error('Unable to open file', err);
+      log.error('Unable to open file', err);
       $createNotice({
         type: 'error',
         withIcon: true,

@@ -24,6 +24,9 @@ import {
 } from '../../../shared/utils/fs-utils/index.ts';
 import { copyFsEntity } from './copy-fs-entity.ts';
 import type { FsListItem, ListingEntryExtended } from '../../../shared/types/index.ts';
+import { makeLogger } from '../../../shared/utils/logger.ts';
+
+const log = makeLogger('FsService');
 
 export async function moveFsEntity({
   fsListItem,
@@ -77,7 +80,7 @@ export async function moveFsEntity({
 
     return dstPath;
   } catch (e) {
-    await w3n.log!('error', `Error move entity ${entity.fullPath}. `, e);
+    log.error(`Error move entity ${entity.fullPath}. `, e);
     throw e;
   }
 }

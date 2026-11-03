@@ -14,6 +14,10 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
+import { makeLogger } from '../logger.ts';
+
+const log = makeLogger('FsUtils');
+
 export async function adoptRemoteFolderItem({
   fs,
   path,
@@ -30,7 +34,7 @@ export async function adoptRemoteFolderItem({
   try {
     return await fs.v?.sync?.adoptRemoteFolderItem(path, remoteItemName, opts);
   } catch (err) {
-    console.log(
+    log.error(
       `🔥 [adoptRemoteFolderItem] Error in the process for the FS object '${path}'. 'stopErrorPropagate' flag is ${stopErrorPropagate} .`,
       err,
     );

@@ -41,6 +41,9 @@
   import FsTableRow from '@/components/common/fs-table-row/fs-table-row.vue';
   import OsFilesDropArea from '@/components/common/os-files-drop-area/os-files-drop-area.vue';
   import FsEntitiesDropArea from '@/components/common/fs-entities-drop-area/fs-entities-drop-area.vue';
+  import { makeLogger } from '@shared/utils/logger';
+
+  const log = makeLogger('FsTable');
 
   const props = withDefaults(defineProps<FsTableProps>(), {
     basePath: () => ({ fullPath: '', title: 'Home' }),
@@ -159,7 +162,7 @@
         try {
           await renameEntity({ fsId: props.fsId, entity: row, newName });
         } catch (err) {
-          w3n.log('error', `Error renaming '${row.fullPath}'. `, err);
+          log.error(`Error renaming '${row.fullPath}'. `, err);
           revert?.();
           appStore.$createNotice({
             type: 'error',
@@ -210,7 +213,7 @@
 
       case 'go:linked-folder': {
         // XXX TODO
-        console.warn(
+        log.warn(
           `This should read link, and open target folder. The second part requires some dance cause new fs should be added into fs.store`,
         );
         return;
@@ -232,12 +235,18 @@
   function setCustomScrollBar() {
     if (folderData.value?.config) {
       folderData.value.config.scrollbar = {
-        axes: 'vertical',
+        axes: 'both',
         vertical: {
           thumbColor: 'var(--color-bg-control-accent)',
           thumbHoverColor: 'var(--color-bg-control-accent-hover)',
           thumbActiveColor: 'var(--color-bg-control-accent-hover)',
           trackWidth: 8,
+        },
+        horizontal: {
+          thumbColor: 'var(--color-bg-control-accent)',
+          thumbHoverColor: 'var(--color-bg-control-accent-hover)',
+          thumbActiveColor: 'var(--color-bg-control-accent-hover)',
+          trackHeight: 8,
         },
       };
     }
@@ -266,7 +275,7 @@
       setCustomScrollBar();
       tableComponent.value && tableComponent.value!.closeGroupActionsRow();
     } catch (error) {
-      w3n.log('error', `Error loading the folder '${requestedPath}'. `, error);
+      log.error(`Error loading the folder '${requestedPath}'. `, error);
       // Do not leave the previous folder's rows on screen: row actions would target them.
       if (requestedRootFolderId === props.rootFolderId && requestedPath === props.path) {
         taskRunner.cancelTasks();
@@ -341,6 +350,19 @@
       ref="tableComponent"
       :config="{
         ...folderData.config,
+        columnStyle: {
+          ...folderData.config?.columnStyle,
+          name: isInSplitMode
+            ? {
+              width: '360px',
+              position: 'sticky',
+              left: '0',
+              backgroundColor: 'var(--color-bg-table-cell-default)',
+              zIndex: '1',
+            }
+            : { width: isSyncFolderInCurrentWindow ? 'calc(100% - 328px)' : 'calc(100% - 238px)' },
+        },
+        stickyColumns: isInSplitMode ? 1 : undefined,
         sortOrder: currentWindowSortConfig,
         minHeightUnusedPlace: 120,
       }"
@@ -451,42 +473,15 @@
     width: 100%;
     height: 100%;
 
-    & > div:first-child {
-      & > div:last-child {
-        height: calc(100% - 36px);
+    div[data-ui3n='table'] {
+      div[class*='customRow'] {
+        display: block;
       }
-    }
-
-    &.fsTableShort > div:first-child {
-      & > div:last-child {
-        height: calc(100% - 84px);
-      }
-    }
-
-    div[class*='unusedPlace'] {
-      display: flex;
-      flex-direction: column;
-    }
-
-    div[class*='ui3nTableInsideScrollbar'] {
-      width: 100%;
     }
   }
 
   .fsTableInSplitMode {
     padding-bottom: 24px;
-
-    & > div:first-child {
-      & > div:last-child {
-        height: calc(100% - 60px);
-      }
-    }
-
-    &.fsTableShort > div:first-child {
-      & > div:last-child {
-        height: calc(100% - 108px);
-      }
-    }
   }
 
   .fsTableActive {
@@ -496,10 +491,11 @@
   }
 
   .noData {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    flex-grow: 1;
+    width: var(--ui3n-table-scrollport-width);
+    grid-area: 1 / 1 / auto / -1;
+    position: sticky;
+    left: 0;
+    height: 120px;
   }
 
   .trashNoData {

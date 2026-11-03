@@ -32,6 +32,9 @@ import {
   isDropIntoItself,
   shouldResetMoveMode,
 } from '@/utils/drag-and-drop';
+import { makeLogger } from '@shared/utils/logger';
+
+const log = makeLogger('RunModeInfoStore');
 
 export const useRunModeInfoStore = defineStore('run-mode-info', () => {
   const { t } = useI18n();
@@ -280,7 +283,7 @@ export const useRunModeInfoStore = defineStore('run-mode-info', () => {
         content: successMessage,
       });
     } catch (e) {
-      w3n.log('error', `Error ${moveMode ? 'moving' : 'copying'} the dragged objects. `, e);
+      log.error(`Error ${moveMode ? 'moving' : 'copying'} the dragged objects. `, e);
 
       const errorMessage = moveMode
         ? t('fs.entity.message.error.move', { count: size(data) })

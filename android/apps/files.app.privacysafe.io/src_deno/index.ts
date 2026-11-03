@@ -39,9 +39,13 @@ import {
 } from '../shared/utils/fs-utils/index.ts';
 import { filterRpcWritableXAttrs } from './services/fs-service.utils/listing-xattrs.ts';
 import { PartialDeleteError } from './services/fs-service.utils/delete-fs-entities.ts';
+import { initDebugLogging, makeLogger } from '../shared/utils/logger.ts';
+
+const log = makeLogger('StorageService');
 
 async function storageAppDenoService(): Promise<StorageAppDenoService> {
   setupGlobalReportingOfUnhandledErrors(true);
+  initDebugLogging();
 
   const { appLocalFs, trashFolderName, getTrashFolderName, loadConfigFile, saveConfigFile } =
     await appConfigService();
@@ -108,7 +112,7 @@ async function storageAppDenoService(): Promise<StorageAppDenoService> {
     // attributes the GUI may set; the others (favorites, trash data) are set by the service itself
     const { allowed, rejected } = filterRpcWritableXAttrs(attrs);
     if (rejected.length > 0) {
-      await w3n.log('error', `Refused to set the attributes (${rejected.join(', ')}): not allowed or invalid. `);
+      log.error(`Refused to set the attributes (${rejected.join(', ')}): not allowed or invalid. `);
     }
     if (Object.keys(allowed).length === 0) {
       return;
@@ -596,9 +600,10 @@ storageAppDenoService()
     ]);
     srvWrapPicker.startIPC();
 
-    console.log('# DENO SERVICE FOR THE STORAGE APP HAS BEEN LAUNCHED #');
+    log.info('# DENO SERVICE FOR THE STORAGE APP HAS BEEN LAUNCHED #');
   })
   .catch(async err => {
+    // Awaited, unlike the logger's lines: the component closes right after it.
     await w3n.log('error', 'Error in a startup of the storage service component. ', err);
     await sleep(10);
     w3n.closeSelf();

@@ -27,6 +27,9 @@ import { loadFolderContentList } from './load-folder-content-list.ts';
 import { mapWithConcurrency } from '../../../shared/utils/processes/map-with-concurrency.ts';
 import { isListingXAttr, isValidListingXAttrValue } from './listing-xattrs.ts';
 import type { ListingEntry, ListingEntryExtended } from '../../../shared/types/index.ts';
+import { makeLogger } from '../../../shared/utils/logger.ts';
+
+const log = makeLogger('FsService');
 
 // entities prepared in parallel: each one takes several calls to the platform
 const LISTING_CONCURRENCY = 8;
@@ -191,7 +194,7 @@ export async function loadFolderContentListPrepared({
     );
     return await mapWithConcurrency(entriesToShow, LISTING_CONCURRENCY, prepareEntry);
   } catch (e) {
-    await w3n.log!('error', `An error reading of ${path} folder. `, e);
+    log.error(`An error reading of ${path} folder. `, e);
     if (version) {
       // a remote version that cannot be listed is shown as empty in the conflicts dialog
       return [];

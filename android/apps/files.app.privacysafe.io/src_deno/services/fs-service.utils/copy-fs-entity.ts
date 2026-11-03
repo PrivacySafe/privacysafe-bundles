@@ -24,6 +24,9 @@ import {
   saveFolder,
 } from '../../../shared/utils/fs-utils/index.ts';
 import type { ListingEntryExtended } from '../../../shared/types/index.ts';
+import { makeLogger } from '../../../shared/utils/logger.ts';
+
+const log = makeLogger('FsService');
 
 export async function copyFsEntity({
   srcFs,
@@ -84,7 +87,7 @@ export async function copyFsEntity({
     return entityNewPath;
   } catch (err) {
     const errorMessage = `Error while copying the ${entity.fullPath}`;
-    await w3n.log!('error', errorMessage, err);
+    log.error(errorMessage, err);
     throw err;
   }
 }

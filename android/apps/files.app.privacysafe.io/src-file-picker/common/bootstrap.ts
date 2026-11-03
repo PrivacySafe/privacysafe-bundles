@@ -12,6 +12,9 @@ import {
 } from '@picker/common/dialog-capabilities';
 import { initializePickerStorageService } from '@picker/common/services/picker-storage.service';
 import { usePickerFsStore } from '@picker/common/stores/picker-fs.store';
+import { initDebugLogging, makeLogger } from '@shared/utils/logger';
+
+const log = makeLogger('Picker');
 
 interface PickerBootstrapOptions {
   rootComponent: Component;
@@ -38,6 +41,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 }
 
 export function bootstrapPicker({ rootComponent, mountSelector }: PickerBootstrapOptions): void {
+  initDebugLogging();
+
   const dialogRequest = createDialogRequestState();
   registerDialogCapabilities(dialogRequest);
 
@@ -67,7 +72,7 @@ export function bootstrapPicker({ rootComponent, mountSelector }: PickerBootstra
       app.mount(mountSelector);
     })
     .catch(err => {
-      console.error('🔥 ERROR CREATE FILE PICKER. ', err);
+      log.error('🔥 ERROR CREATE FILE PICKER. ', err);
       // a failure, not a cancellation: the caller gets an error, not undefined
       failDialog(dialogRequest, err);
     });
