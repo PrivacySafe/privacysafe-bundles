@@ -38,7 +38,16 @@
     (event: 'close'): void;
   }>();
 
-  const { t, $createNotice, showError, openEntity } = useOpenAttachment(props, emits);
+  const {
+    t,
+    $createNotice,
+    showError,
+    openEntity,
+    openAttachmentsFolder,
+    isReceivedOpenAvailable,
+    isPreparingToOpen,
+    isPreparingFolder,
+  } = useOpenAttachment(props, emits);
 
   const { isMobileMode } = storeToRefs(useAppStore());
 
@@ -46,10 +55,9 @@
 
   /**
    * The file was read and the player still could not make sense of it - a file
-   * renamed to .mp3, or one damaged in transit. Deliberately not showError():
-   * that says the file may have been deleted or moved, which about a file we
-   * have just read from beginning to end is simply untrue.
-   */
+   * renamed to .mp3, or one damaged in transit. Use the playback-specific
+   * notice rather than the general opening error.
+  */
   function onUnplayable() {
     $createNotice({
       type: 'error',
@@ -101,8 +109,25 @@
   <div :class="[$style.chatMessageAttachmentView, isMobileMode && $style.mobile]">
     <div :class="$style.actions">
       <ui3n-tooltip
-        v-if="!incomingMsgId"
+        v-if="!incomingMsgId || isReceivedOpenAvailable"
         :content="item.isFolder ? t('chat.message.btn.open.folder') : t('chat.message.btn.open.file')"
+        position-strategy="fixed"
+        placement="bottom-end"
+      >
+        <ui3n-button
+          type="icon"
+          color="var(--color-bg-block-primary-default)"
+          :icon="item.isFolder ? 'outline-folder-open' : 'round-subject'"
+          icon-size="24"
+          icon-color="var(--color-icon-table-primary-default)"
+          :disabled="isPreparingToOpen"
+          @click.stop.prevent="openEntity"
+        />
+      </ui3n-tooltip>
+
+      <ui3n-tooltip
+        v-if="isReceivedOpenAvailable"
+        :content="t('chat.message.btn.open.attachments_folder')"
         position-strategy="fixed"
         placement="bottom-end"
       >
@@ -112,7 +137,8 @@
           icon="outline-folder-open"
           icon-size="24"
           icon-color="var(--color-icon-table-primary-default)"
-          @click.stop.prevent="openEntity"
+          :disabled="isPreparingFolder"
+          @click.stop.prevent="openAttachmentsFolder"
         />
       </ui3n-tooltip>
 

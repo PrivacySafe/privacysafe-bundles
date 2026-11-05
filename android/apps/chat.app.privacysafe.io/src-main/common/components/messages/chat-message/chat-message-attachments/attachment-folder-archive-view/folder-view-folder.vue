@@ -15,18 +15,25 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 -->
 <script setup lang="ts">
-import { ref } from 'vue';
-import { Ui3nIcon } from '@v1nt1248/3nclient-lib';
-import { EntityListItem } from './types';
-import FolderViewFolder from './folder-view-folder.vue';
-import FolderViewFile from './folder-view-file.vue';
+  import { ref } from 'vue';
+  import { Ui3nIcon } from '@v1nt1248/3nclient-lib';
+  import { EntityListItem } from './types';
+  import FolderViewFolder from './folder-view-folder.vue';
+  import FolderViewFile from './folder-view-file.vue';
 
-defineProps<{
-  name: string;
-  children: EntityListItem[];
-}>();
+  defineProps<{
+    name: string;
+    children: EntityListItem[];
+    path?: string[];
+    canOpen?: boolean;
+    isPreparing?: (path: string[]) => boolean;
+  }>();
 
-const isFolderExpanded = ref(false);
+  const emits = defineEmits<{
+    (event: 'open', path: string[]): void;
+  }>();
+
+  const isFolderExpanded = ref(false);
 </script>
 
 <template>
@@ -63,12 +70,20 @@ const isFolderExpanded = ref(false);
           <folder-view-folder
             v-if="item.isFolder"
             :name="item.name"
+            :path="path ? [...path, item.name] : undefined"
+            :can-open="canOpen"
+            :is-preparing="isPreparing"
             :children="item.children!"
+            @open="emits('open', $event)"
           />
 
           <folder-view-file
             v-else
             :name="item.name"
+            :path="path ? [...path, item.name] : undefined"
+            :can-open="canOpen"
+            :is-preparing="isPreparing"
+            @open="emits('open', $event)"
           />
         </div>
       </div>
@@ -77,32 +92,32 @@ const isFolderExpanded = ref(false);
 </template>
 
 <style lang="scss" module>
-.viewFolder {
-  --view-folder-height: 28px;
+  .viewFolder {
+    --view-folder-height: 28px;
 
-  position: relative;
-  width: fit-content;
-}
+    position: relative;
+    width: fit-content;
+  }
 
-.folderName {
-  height: var(--view-folder-height);
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
-  column-gap: var(--spacing-xs);
-  font-size: var(--font-14);
-  font-weight: 500;
-  color: var(--color-text-table-primary-default);
-  cursor: pointer;
-}
+  .folderName {
+    height: var(--view-folder-height);
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    column-gap: var(--spacing-xs);
+    font-size: var(--font-14);
+    font-weight: 500;
+    color: var(--color-text-table-primary-default);
+    cursor: pointer;
+  }
 
-.folderBody {
-  position: relative;
-  width: fit-content;
-  padding-left: var(--spacing-ml);
-}
+  .folderBody {
+    position: relative;
+    width: fit-content;
+    padding-left: var(--spacing-ml);
+  }
 
-.folderItem {
-  position: relative;
-}
+  .folderItem {
+    position: relative;
+  }
 </style>

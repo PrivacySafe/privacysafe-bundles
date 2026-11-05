@@ -576,9 +576,15 @@ export const en = {
         },
       },
       attachment: {
-        not_available_on_this_device: 'Attachment is only available on the sending device',
-        only_on_sending_device: 'Files are only on the sending device',
+        not_available_on_this_device: 'Attachment is not available on this device',
+        only_on_sending_device: 'Attachments are not available on this device',
         make_preview: 'Show preview',
+        opening: {
+          unavailable: 'Opening attachments in another application is unavailable here.',
+          error: 'Could not open {fileName}.',
+          prepare_timeout: 'Preparing {fileName} took too long. Please try again.',
+          mount_pending: 'The attachment folder is still being prepared. Please try again shortly.',
+        },
       },
       action_message: {
         success: {
@@ -596,6 +602,7 @@ export const en = {
         open: {
           file: 'Open file',
           folder: 'Open folder',
+          attachments_folder: 'Open attachments folder',
         },
       },
       info: {

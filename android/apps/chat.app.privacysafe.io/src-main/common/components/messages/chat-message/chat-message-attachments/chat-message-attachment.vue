@@ -17,13 +17,23 @@
 <script lang="ts" setup>
   import { computed, inject, ref } from 'vue';
   import { isFileAudio, isFileImage, isFileVideo, markSearch } from '@v1nt1248/3nclient-lib/utils';
-  import { Ui3nButton, Ui3nHtml as vUi3nHtml, Ui3nIcon, Ui3nProgressCircular, Ui3nTooltip, type Nullable } from '@v1nt1248/3nclient-lib';
+  import {
+    Ui3nButton,
+    Ui3nHtml as vUi3nHtml,
+    Ui3nIcon,
+    Ui3nProgressCircular,
+    Ui3nTooltip,
+    type Nullable,
+  } from '@v1nt1248/3nclient-lib';
   import type { ChatIdObj, Task } from '~/index';
   import { createThumbnail } from '@main/common/utils/create-thumbnail';
   import { recordingLabelKey, timeInSecondsToString } from '@main/common/utils/chat-ui.helper';
   import { THUMBNAIL_AUTO_PREVIEW_LIMIT } from '@shared/constants/attachment-limits';
   import { THUMBNAIL_CACHE_KEY, type ThumbnailCache } from '@main/common/composables/useThumbnailCache';
-  import { MESSAGE_SEARCH_HIGHLIGHT_KEY, type MessageSearchHighlight } from '@main/common/composables/useMessageSearchHighlight';
+  import {
+    MESSAGE_SEARCH_HIGHLIGHT_KEY,
+    type MessageSearchHighlight,
+  } from '@main/common/composables/useMessageSearchHighlight';
   import { useOpenAttachment } from './useOpenAttachment';
   import {
     isSharedContactsFile,
@@ -56,7 +66,7 @@
   const { addTask } = inject('task-runner') as { addTask: (task: Task) => void };
   const thumbnailCache = inject<ThumbnailCache>(THUMBNAIL_CACHE_KEY)!;
 
-  const { openEntity, $createNotice } = useOpenAttachment(props);
+  const { openEntity, $createNotice, isReceivedOpenAvailable, isPreparingToOpen } = useOpenAttachment(props);
   const { importSharedContacts } = useImportSharedContacts();
 
   /** A file with contacts shared by the contacts app. */
@@ -66,7 +76,9 @@
    * holds contacts the sender already has.
    */
   const isImportAvailable = computed(() => isSharedContacts.value && !!props.incomingMsgId);
-  const sharedContactsCount = computed(() => (isSharedContacts.value ? sharedContactsCountOf(props.item.name) : undefined));
+  const sharedContactsCount = computed(() =>
+    isSharedContacts.value ? sharedContactsCountOf(props.item.name) : undefined,
+  );
 
   /**
    * The sender's own copy of shared contacts: a click saves it, under its own
@@ -113,9 +125,7 @@
     props.item.recording ? t(recordingLabelKey(props.item.recording.kind)) : '',
   );
   const recordingDuration = computed(() =>
-    props.item.recording
-      ? timeInSecondsToString(Math.round(props.item.recording.durationMs / 1000))
-      : '',
+    props.item.recording ? timeInSecondsToString(Math.round(props.item.recording.durationMs / 1000)) : '',
   );
 
   // Absent in views that have no message search (the mobile one, for now).
@@ -126,7 +136,7 @@
   );
 
   const displayedName = computed(() =>
-    props.item.recording ? recordingLabel.value : (props.item.isFolder ? props.item.name : props.item.filename),
+    props.item.recording ? recordingLabel.value : props.item.isFolder ? props.item.name : props.item.filename,
   );
 
   /**
@@ -140,9 +150,7 @@
   });
   const extHtml = computed(() => {
     const query = searchHighlight?.query.value.trim();
-    return isSearchHighlighted.value && query && props.item.ext
-      ? markSearch(`.${props.item.ext}`, query)
-      : null;
+    return isSearchHighlighted.value && query && props.item.ext ? markSearch(`.${props.item.ext}`, query) : null;
   });
 
   const isThumbnailAvailable = computed(
@@ -182,9 +190,15 @@
       return;
     }
 
-    if (!props.incomingMsgId) {
+    await openEntity();
+  }
+
+  async function onAttachmentNameClick() {
+    if (props.incomingMsgId && !isSharedContacts.value && !props.item.isFolder) {
       await openEntity();
+      return;
     }
+    await onAttachmentElementClick();
   }
 
   /**
@@ -272,8 +286,11 @@
       blocked && $style.chatMessageAttachmentBlocked,
       item.recording && $style.chatMessageAttachmentRecording,
     ]"
-    :title="unavailableTooltip || (isImportAvailable ? t('chat.attachment.import_contacts.tooltip') : '')
-      || (isSharedContacts ? t('chat.attachment.import_contacts.save_tooltip') : '')"
+    :title="
+      unavailableTooltip ||
+        (isImportAvailable ? t('chat.attachment.import_contacts.tooltip') : '') ||
+        (isSharedContacts ? t('chat.attachment.import_contacts.save_tooltip') : '')
+    "
     @click.stop.prevent="onAttachmentElementClick"
   >
     <div
@@ -372,7 +389,10 @@
       />
     </div>
 
-    <div :class="$style.chatMessageAttachmentName">
+    <div
+      :class="$style.chatMessageAttachmentName"
+      @click.stop.prevent="onAttachmentNameClick"
+    >
       <template v-if="isSharedContacts">
         {{ t('chat.attachment.import_contacts.title') }}
       </template>
@@ -381,7 +401,7 @@
         v-ui3n-html="nameHtml"
       />
       <template v-else>
-        {{ item.recording ? recordingLabel : (item.isFolder ? item.name : item.filename) }}
+        {{ item.recording ? recordingLabel : item.isFolder ? item.name : item.filename }}
       </template>
     </div>
 
@@ -391,7 +411,9 @@
       v-if="isSharedContacts"
       :class="$style.chatMessageAttachmentDuration"
     >
-      {{ sharedContactsCount === undefined ? '' : t('chat.attachment.import_contacts.count', sharedContactsCount) }}
+      {{
+        sharedContactsCount === undefined ? '' : t('chat.attachment.import_contacts.count', sharedContactsCount)
+      }}
     </div>
 
     <!-- Duration where an ordinary attachment shows its extension: seconds are
@@ -416,6 +438,22 @@
         .{{ item.ext }}
       </template>
     </div>
+
+    <ui3n-tooltip
+      v-if="isReceivedOpenAvailable && !isSharedContacts && !item.isActionAvailable"
+      :content="item.isFolder ? t('chat.message.btn.open.folder') : t('chat.message.btn.open.file')"
+      placement="top"
+      position-strategy="fixed"
+    >
+      <ui3n-button
+        type="icon"
+        color="transparent"
+        :icon="item.isFolder ? 'outline-folder-open' : 'round-subject'"
+        icon-size="20"
+        :disabled="isPreparingToOpen"
+        @click.stop.prevent="openEntity"
+      />
+    </ui3n-tooltip>
 
     <teleport to="body">
       <chat-message-attachment-view

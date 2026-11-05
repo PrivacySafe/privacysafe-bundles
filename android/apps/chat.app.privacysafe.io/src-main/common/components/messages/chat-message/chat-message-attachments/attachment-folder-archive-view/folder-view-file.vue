@@ -15,15 +15,34 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 -->
 <script setup lang="ts">
-import { Ui3nIcon } from '@v1nt1248/3nclient-lib';
+  import { Ui3nIcon } from '@v1nt1248/3nclient-lib';
 
-defineProps<{
-  name: string;
-}>();
+  const props = defineProps<{
+    name: string;
+    path?: string[];
+    canOpen?: boolean;
+    isPreparing?: (path: string[]) => boolean;
+  }>();
+  const emits = defineEmits<{
+    (event: 'open', path: string[]): void;
+  }>();
+
+  function openFile() {
+    if (!props.canOpen || !props.path || props.isPreparing?.(props.path)) {
+      return;
+    }
+    emits('open', props.path);
+  }
 </script>
 
 <template>
-  <div :class="$style.viewFile">
+  <component
+    :is="canOpen ? 'button' : 'div'"
+    :type="canOpen ? 'button' : undefined"
+    :class="[$style.viewFile, canOpen && $style.openable]"
+    :disabled="canOpen && path && isPreparing?.(path)"
+    @click.stop="openFile"
+  >
     <ui3n-icon
       icon="round-subject"
       size="16"
@@ -31,23 +50,40 @@ defineProps<{
     />
 
     {{ name }}
-  </div>
+  </component>
 </template>
 
 <style lang="scss" module>
-.viewFile {
-  --view-file-height: 28px;
+  .viewFile {
+    --view-file-height: 28px;
 
-  position: relative;
-  padding-left: var(--spacing-ml);
-  width: fit-content;
-  height: var(--view-file-height);
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
-  column-gap: var(--spacing-xs);
-  font-size: var(--font-14);
-  font-weight: 500;
-  color: var(--color-text-table-primary-default);
-}
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    text-align: left;
+    position: relative;
+    padding: 0 0 0 var(--spacing-ml);
+    width: fit-content;
+    height: var(--view-file-height);
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    column-gap: var(--spacing-xs);
+    font-size: var(--font-14);
+    font-weight: 500;
+    color: var(--color-text-table-primary-default);
+  }
+
+  .openable {
+    cursor: pointer;
+
+    &:hover {
+      text-decoration: underline;
+    }
+
+    &:disabled {
+      cursor: wait;
+      opacity: 0.5;
+    }
+  }
 </style>

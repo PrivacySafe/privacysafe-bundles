@@ -15,77 +15,79 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 -->
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
-import isEmpty from 'lodash/isEmpty';
-import { Ui3nProgressCircular } from '@v1nt1248/3nclient-lib';
-import { getFileByInfoFromMsg } from '@main/common/utils/files.helper';
-import type { AttachmentViewInfo } from '@main/common/components/messages/chat-message/chat-message-attachments/types';
-import type { EntityListItem } from './types';
-import FolderViewFolder from './folder-view-folder.vue';
-import FolderViewFile from './folder-view-file.vue';
-import ListingEntry = web3n.files.ListingEntry;
-import CustomScrollbarBoth from '@main/common/components/ui/custom-scrollbar-both.vue';
+  import { onMounted, ref } from 'vue';
+  import isEmpty from 'lodash/isEmpty';
+  import { Ui3nProgressCircular } from '@v1nt1248/3nclient-lib';
+  import { getFileByInfoFromMsg } from '@main/common/utils/files.helper';
+  import type { AttachmentViewInfo } from '@main/common/components/messages/chat-message/chat-message-attachments/types';
+  import type { EntityListItem } from './types';
+  import { useOpenAttachment } from '../useOpenAttachment';
+  import FolderViewFolder from './folder-view-folder.vue';
+  import FolderViewFile from './folder-view-file.vue';
+  import ListingEntry = web3n.files.ListingEntry;
+  import CustomScrollbarBoth from '@main/common/components/ui/custom-scrollbar-both.vue';
 
-const props = defineProps<{
-  item: AttachmentViewInfo;
-  incomingMsgId?: string;
-  isMobileMode?: boolean;
-}>();
-const emits = defineEmits<{
-  (event: 'error'): void;
-}>();
+  const props = defineProps<{
+    item: AttachmentViewInfo;
+    incomingMsgId?: string;
+    isMobileMode?: boolean;
+  }>();
+  const emits = defineEmits<{
+    (event: 'error'): void;
+  }>();
 
-const isProcessing = ref(true);
-const entityList = ref<EntityListItem[]>([]);
-const cancelGettingFolderList = ref(false);
+  const { openReceivedPath, isReceivedOpenAvailable, isPreparingPath } = useOpenAttachment(props);
+  const isProcessing = ref(true);
+  const entityList = ref<EntityListItem[]>([]);
+  const cancelGettingFolderList = ref(false);
 
-async function getFolderList(folder: web3n.files.ReadonlyFS) {
-  const list: EntityListItem[] = [];
-  let entries: ListingEntry[];
-  try {
-    entries = await folder.listFolder('');
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  } catch (e) {
-    entries = [];
-  }
-
-  for (const entity of entries) {
-    if (cancelGettingFolderList.value) {
-      break;
+  async function getFolderList(folder: web3n.files.ReadonlyFS) {
+    const list: EntityListItem[] = [];
+    let entries: ListingEntry[];
+    try {
+      entries = await folder.listFolder('');
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (e) {
+      entries = [];
     }
 
-    const { isFolder } = entity;
-    if (isFolder) {
-      const newFolder = await folder.readonlySubRoot(entity.name);
-      const item = {
-        ...entity,
-        children: await getFolderList(newFolder),
-      };
-      list.push(item);
-    } else {
-      list.push(entity);
+    for (const entity of entries) {
+      if (cancelGettingFolderList.value) {
+        break;
+      }
+
+      const { isFolder } = entity;
+      if (isFolder) {
+        const newFolder = await folder.readonlySubRoot(entity.name);
+        const item = {
+          ...entity,
+          children: await getFolderList(newFolder),
+        };
+        list.push(item);
+      } else {
+        list.push(entity);
+      }
     }
+
+    return list;
   }
 
-  return list;
-}
+  onMounted(async () => {
+    isProcessing.value = true;
 
-onMounted(async () => {
-  isProcessing.value = true;
+    try {
+      const entity = await getFileByInfoFromMsg(props.item.id!, props.incomingMsgId);
+      if (!entity) {
+        isProcessing.value = false;
+        emits('error');
+        return;
+      }
 
-  try {
-    const entity = await getFileByInfoFromMsg(props.item.id!, props.incomingMsgId);
-    if (!entity) {
+      entityList.value = await getFolderList(entity as web3n.files.ReadonlyFS);
+    } finally {
       isProcessing.value = false;
-      emits('error');
-      return;
     }
-
-    entityList.value = await getFolderList(entity as web3n.files.ReadonlyFS);
-  } finally {
-    isProcessing.value = false;
-  }
-});
+  });
 </script>
 
 <template>
@@ -103,12 +105,20 @@ onMounted(async () => {
             <folder-view-folder
               v-if="entity.isFolder"
               :name="entity.name"
+              :path="[item.id || item.name, entity.name]"
+              :can-open="isReceivedOpenAvailable"
+              :is-preparing="isPreparingPath"
               :children="entity.children!"
+              @open="openReceivedPath"
             />
 
             <folder-view-file
               v-else
               :name="entity.name"
+              :path="[item.id || item.name, entity.name]"
+              :can-open="isReceivedOpenAvailable"
+              :is-preparing="isPreparingPath"
+              @open="openReceivedPath"
             />
           </template>
         </div>
@@ -125,35 +135,35 @@ onMounted(async () => {
 </template>
 
 <style lang="scss" module>
-.folderView {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  padding: var(--spacing-xxl) var(--spacing-m);
-  overflow: hidden;
+  .folderView {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    padding: var(--spacing-xxl) var(--spacing-m);
+    overflow: hidden;
 
-  &.mobile {
-    padding: var(--spacing-xl) var(--spacing-s);
+    &.mobile {
+      padding: var(--spacing-xl) var(--spacing-s);
+    }
   }
-}
 
-.body {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-}
+  .body {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
 
-.list {
-  position: relative;
-  width: fit-content;
-}
+  .list {
+    position: relative;
+    width: fit-content;
+  }
 
-.loader {
-  position: absolute;
-  z-index: 5500;
-  left: calc(50% - 54px);
-  top: 50%;
-  transform: translateY(-50%);
-}
+  .loader {
+    position: absolute;
+    z-index: 5500;
+    left: calc(50% - 54px);
+    top: 50%;
+    transform: translateY(-50%);
+  }
 </style>

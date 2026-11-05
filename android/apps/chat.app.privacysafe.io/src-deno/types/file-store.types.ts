@@ -38,7 +38,11 @@ export interface FileStoreService {
    */
   saveFolderOfBytes(entries: { path: string; bytes: Uint8Array }[], folderName?: string): Promise<string>;
   getLink(entityId: string): Promise<web3n.files.SymLink | null | undefined>;
-  getFile(entityId: string): Promise<web3n.files.File | web3n.files.FS | null | undefined>;
+  /** Open requests need the failure reason; other callers keep the nullable result. */
+  getFile(
+    entityId: string,
+    options?: { throwOnError?: boolean },
+  ): Promise<web3n.files.File | web3n.files.FS | null | undefined>;
   /**
    * What lies under an id, WITHOUT following a link - which is what tells an
    * attachment stored as a copy from one stored as a reference to the user's own

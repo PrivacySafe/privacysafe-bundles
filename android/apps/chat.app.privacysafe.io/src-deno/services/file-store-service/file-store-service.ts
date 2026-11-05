@@ -110,12 +110,12 @@ export async function fileStoreService(): Promise<FileStoreService> {
     }
   };
 
-  const getFile = async (entityId: string): Promise<web3n.files.File | web3n.files.FS | null | undefined> => {
+  const getFile: FileStoreService['getFile'] = async (entityId, options) => {
     try {
       await checkFs();
       const stat = await fs!.stat(entityId);
       if (stat.isLink) {
-        const link = await getLink(entityId);
+        const link = await fileProc.startOrChain(() => fs!.readLink(entityId));
         if (link && link.isFile) {
           return (await link.target()) as web3n.files.File;
         }
@@ -132,6 +132,9 @@ export async function fileStoreService(): Promise<FileStoreService> {
       return await fileProc.startOrChain(() => fs!.readonlySubRoot(entityId));
     } catch (e) {
       w3n.log('error', `Error getting file ${entityId}.`, e);
+      if (options?.throwOnError) {
+        throw e;
+      }
     }
   };
 

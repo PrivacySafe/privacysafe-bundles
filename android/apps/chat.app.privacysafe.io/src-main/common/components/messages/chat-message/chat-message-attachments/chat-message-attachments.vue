@@ -17,6 +17,8 @@
 
 <script lang="ts" setup>
   import { computed } from 'vue';
+  import { Ui3nButton, Ui3nTooltip } from '@v1nt1248/3nclient-lib';
+  import { useOpenAttachment } from './useOpenAttachment';
   import isEmpty from 'lodash/isEmpty';
   import { useI18n } from 'vue-i18n';
   import { getFileExtension, isFileImage, isFileVideo, isFileAudio } from '@v1nt1248/3nclient-lib/utils';
@@ -85,6 +87,23 @@
     () => !!recording.value && !areAttachmentsUnavailable.value && !!attachments.value[0]?.id,
   );
 
+  const showOpenActions = computed(
+    () => asMediaBubble.value || attachments.value.some(item => !item.isActionAvailable),
+  );
+
+  const { openEntity, openAttachmentsFolder, isReceivedOpenAvailable, isPreparingToOpen, isPreparingFolder } =
+    useOpenAttachment({
+      get item() {
+        return attachments.value[0];
+      },
+      get incomingMsgId() {
+        return props.message.incomingMsgId;
+      },
+      get blocked() {
+        return areAttachmentsUnavailable.value;
+      },
+    });
+
   function isActionAvailableForFile(item: ChatMessageAttachmentsInfo) {
     const { name } = item;
     return isFileImage({ fullName: name }) || isFileVideo({ fullName: name }) || isFileAudio({ fullName: name });
@@ -134,6 +153,41 @@
         {{ t('chat.message.attachment.only_on_sending_device') }}
       </div>
     </template>
+    <div
+      v-if="showOpenActions && isReceivedOpenAvailable"
+      :class="$style.openActions"
+    >
+      <ui3n-tooltip
+        v-if="asMediaBubble"
+        :content="t('chat.message.btn.open.file')"
+        placement="top"
+        position-strategy="fixed"
+      >
+        <ui3n-button
+          type="icon"
+          color="transparent"
+          icon="round-subject"
+          icon-size="20"
+          :disabled="isPreparingToOpen"
+          @click.stop.prevent="openEntity"
+        />
+      </ui3n-tooltip>
+
+      <ui3n-tooltip
+        :content="t('chat.message.btn.open.attachments_folder')"
+        placement="top"
+        position-strategy="fixed"
+      >
+        <ui3n-button
+          type="icon"
+          color="transparent"
+          icon="outline-folder-open"
+          icon-size="20"
+          :disabled="isPreparingFolder"
+          @click.stop.prevent="openAttachmentsFolder"
+        />
+      </ui3n-tooltip>
+    </div>
   </div>
 </template>
 
@@ -149,6 +203,13 @@
     &.disabled {
       opacity: 0.5;
     }
+  }
+
+  .openActions {
+    display: flex;
+    align-items: center;
+    column-gap: var(--spacing-xs);
+    pointer-events: all;
   }
 
   /* One caption for the whole block: the container is a stretch flex column, so
