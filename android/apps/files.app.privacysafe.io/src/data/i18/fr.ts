@@ -28,6 +28,7 @@ export const fr = {
     exit: 'Quitter',
     create: 'Créer',
     create_folder: 'Créer un dossier',
+    create_link: 'Créer un SymLink',
     selected: 'Sélectionné',
     favorites_title: 'Favoris',
     settings: {
@@ -70,7 +71,6 @@ export const fr = {
   validation: {
     text: {
       required: 'Ce champ est obligatoire. ',
-      equality: 'Les anciennes et nouvelles valeurs ne doivent pas être identiques. ',
       length: 'Pas plus de {length} caractères ',
     },
   },
@@ -96,6 +96,42 @@ export const fr = {
         confirm: 'Créer',
       },
     },
+    create_link: {
+      title: 'Créer un SymLink',
+      field: {
+        name: 'Nom du SymLink',
+        type: 'Type de cible',
+        target: 'Cible',
+      },
+      type: {
+        folder: 'Dossier',
+        file: 'Fichier',
+      },
+      no_target: 'Non sélectionné',
+      button: {
+        select: 'Sélectionner…',
+        confirm: 'Créer',
+      },
+      picker: {
+        folder_title: 'Sélectionnez le dossier pour le SymLink',
+        file_title: 'Sélectionnez le fichier pour le SymLink',
+        button: 'Sélectionner',
+      },
+    },
+    entity_icon: {
+      title: 'Icône de l’élément',
+      no_image: 'Chargez une image pour l’utiliser comme icône',
+      load_error: 'Le fichier n’a pas pu être lu comme une image',
+      button: {
+        load: 'Charger une image…',
+        rotate_left: 'Pivoter à gauche',
+        rotate_right: 'Pivoter à droite',
+        flip_horizontal: 'Retourner horizontalement',
+        flip_vertical: 'Retourner verticalement',
+        delete: 'Supprimer et fermer',
+        save: 'Enregistrer',
+      },
+    },
     rename_folder: {
       title: 'Renommer le dossier',
       field: {
@@ -118,10 +154,14 @@ export const fr = {
         merge: 'Fusionner',
         absorb: 'Intégrer les modifications distantes',
         absorb_tooltip: 'Cliquez sur ce bouton pour intégrer les modifications distantes dans le dossier local.',
+        keep_local_same:
+          'Les versions locale et cloud sont identiques : choisissez « Conserver la version cloud ».',
       },
       cloud_text: 'Cloud',
       local_text: 'Local',
       checkbox_text: 'Appliquer cette option à tous les éléments en conflit',
+      error_upload:
+        "Impossible d'envoyer la version locale de '{name}'. Si les versions sont identiques, choisissez « Conserver la version cloud ».",
     },
     restore: {
       text: 'Un élément nommé "{name}" existe déjà dans ce dossier | Des éléments nommés "{name}" existent déjà dans ce dossier',
@@ -158,6 +198,11 @@ export const fr = {
   },
 
   fs: {
+    create_link_error: "Impossible de créer le SymLink '{name}'.",
+    name_taken: "Le nom '{name}' est déjà utilisé dans ce dossier.",
+    create_link_error_not_allowed:
+      "Impossible de créer ici un lien vers cette cible : le stockage synchronisé ne se lie qu'aux stockages synchronisés et partagés, un dossier de l'appareil qu'aux fichiers et dossiers de l'appareil.",
+    create_link_error_readonly: 'Ce dossier est disponible en lecture seule.',
     folder_name: {
       user_synced_home: 'Accueil',
       user_local_home: 'Accueil (local)',
@@ -190,6 +235,9 @@ export const fr = {
         type: 'Type',
         type_folder: 'Dossier',
         type_file: 'Fichier',
+        'type_link-folder': 'Lien vers un dossier',
+        'type_link-file': 'Lien vers un fichier',
+        'type_link-broken': 'Lien rompu',
         type_link: 'Lien',
         path: 'Chemin',
         size: 'Taille',
@@ -198,6 +246,7 @@ export const fr = {
         tags: 'Étiquettes',
         status: 'État de synchronisation',
         calculate_hash: 'Calculer le hachage',
+        change_icon: 'Modifier l’icône de l’élément',
       },
       button: {
         restore_replace: 'Remplacer',
@@ -212,6 +261,10 @@ export const fr = {
             'L’élément sélectionné a été téléchargé avec succès. | Les éléments sélectionnés ({count}) ont été téléchargés avec succès.',
           copy: 'L’élément sélectionné a été copié avec succès. | Les éléments sélectionnés ({count}) ont été copiés avec succès.',
           move: 'L’élément sélectionné a été déplacé avec succès. | Les éléments sélectionnés ({count}) ont été déplacés avec succès.',
+          copy_except_broken:
+            'L’élément sélectionné a été copié, à l’exception d’un lien rompu. | Les éléments sélectionnés ont été copiés, à l’exception de {count} liens rompus.',
+          move_except_broken:
+            'L’élément sélectionné a été déplacé, à l’exception d’un lien rompu. | Les éléments sélectionnés ont été déplacés, à l’exception de {count} liens rompus.',
         },
         error: {
           delete:
@@ -222,6 +275,8 @@ export const fr = {
           copy: 'Erreur lors de la copie de l’élément sélectionné. | Erreur lors de la copie des éléments sélectionnés ({count}).',
           move: 'Erreur lors du déplacement de l’élément sélectionné. | Erreur lors du déplacement des éléments sélectionnés ({count}).',
           open: 'Impossible d’ouvrir « {name} »',
+          icon: 'Impossible de modifier l’icône de « {name} »',
+          broken_link: 'Le lien « {name} » est rompu et ne peut pas être ouvert.',
         },
       },
     },

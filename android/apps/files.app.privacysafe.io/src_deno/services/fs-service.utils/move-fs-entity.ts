@@ -40,7 +40,7 @@ export async function moveFsEntity({
   targetFsListItem: FsListItem;
   targetFolder: string;
   targetEntityName?: string;
-}): Promise<string> {
+}): Promise<string | 'skipped-broken'> {
   const { name, type, fullPath } = entity;
   try {
     const { entity: fs, fsId } = fsListItem;
@@ -53,13 +53,17 @@ export async function moveFsEntity({
       return dstPath;
     }
 
-    await copyFsEntity({
+    const copyResult = await copyFsEntity({
       srcFs: fs,
       entity,
       targetFs,
       targetFolder,
       targetEntityName: targetEntityName || name,
     });
+
+    if (copyResult === undefined) {
+      return 'skipped-broken';
+    }
 
     switch (type) {
       case 'folder': {
@@ -72,7 +76,9 @@ export async function moveFsEntity({
         break;
       }
 
-      case 'link': {
+      case 'link-folder':
+      case 'link-file':
+      case 'link-broken': {
         await deleteLink({ fs, path: fullPath });
         break;
       }

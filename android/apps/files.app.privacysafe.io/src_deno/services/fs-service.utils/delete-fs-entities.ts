@@ -40,7 +40,7 @@ async function completeRemoval({
 }: {
   fs: web3n.files.WritableFS;
   path: string;
-  type: 'folder' | 'file' | 'link';
+  type: ListingEntryExtended['type'];
 }): Promise<void> {
   switch (type) {
     case 'folder': {
@@ -51,7 +51,9 @@ async function completeRemoval({
       return deleteFile({ fs, path });
     }
 
-    case 'link': {
+    case 'link-folder':
+    case 'link-file':
+    case 'link-broken': {
       return deleteLink({ fs, path });
     }
 

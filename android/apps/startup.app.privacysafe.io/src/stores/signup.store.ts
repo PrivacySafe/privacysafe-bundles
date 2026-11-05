@@ -106,14 +106,6 @@ export const useSignupStore = defineStore('signup', () => {
     return false;
   }
 
-  async function initStandard(): Promise<void> {
-    isStandardService.value = true;
-    signupLink.value = '';
-    srvToken.value = '';
-    const { domains } = await getDomainsFor({ signupUrl: '', isStandardService: true, token: undefined });
-    availableDomains.value = domains ?? [];
-  }
-
   function setStoreFieldValue(field: keyof SignupState, value: SignupState[keyof SignupState]): void {
     // eslint-disable-next-line default-case
     switch (field) {
@@ -159,7 +151,6 @@ export const useSignupStore = defineStore('signup', () => {
     signupLink,
     setStoreFieldValue,
     getDomainsFor,
-    checkSignupParamsAndSetDomains,
-    initStandard,
+    checkSignupParamsAndSetDomains
   };
 });

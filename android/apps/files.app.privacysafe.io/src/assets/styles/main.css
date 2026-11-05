@@ -177,7 +177,7 @@ div {
   from {
     transform: rotate(0deg)
   }
-  
+
   to {
     transform: rotate(360deg)
   }
@@ -187,8 +187,16 @@ div {
   from {
     transform: rotate(0deg)
   }
-  
+
   to {
     transform: rotate(-360deg)
   }
+}
+
+[data-icon='arrow-top-right'] {
+    --svg: url('../images/mdi-arrow-top-right.svg');
+}
+
+[data-icon='data-alert'] {
+    --svg: url('../images/data-alert.svg');
 }

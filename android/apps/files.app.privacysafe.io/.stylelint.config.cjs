@@ -21,7 +21,8 @@ module.exports = {
         ignoreMediaFeatureNames: ['/^prefers-/'],
       },
     ],
-    'at-rule-no-unknown': [
+    'at-rule-no-unknown': null,
+    'scss/at-rule-no-unknown': [
       true,
       {
         ignoreAtRules: [
@@ -39,6 +40,11 @@ module.exports = {
           'font-feature-values',
           'character-variant',
           'styleset',
+          '@use',
+          '@include',
+          '@mixin',
+          '@if',
+          '@else',
         ],
       },
     ],
@@ -49,7 +55,7 @@ module.exports = {
         ignoreAtRules: ['font-feature-values', 'character-variant', 'styleset'],
       },
     ],
+    'declaration-property-value-no-unknown': null,
     'declaration-property-value-keyword-no-deprecated': [true, { ignoreKeywords: ['break-word'] }],
-    'scss/load-no-partial-leading-underscore': null,
   },
 };

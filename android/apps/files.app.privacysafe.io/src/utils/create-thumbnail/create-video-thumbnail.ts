@@ -21,10 +21,7 @@ import {
 } from '@v1nt1248/3nclient-lib/utils';
 import type { Nullable } from '@v1nt1248/3nclient-lib';
 
-export async function createVideoThumbnail(fs: web3n.files.FS, path: string): Promise<Nullable<string>> {
-  const file3n = await fs.readonlyFile(path);
-  await schedulerYield();
-
+export async function createVideoThumbnail(file3n: web3n.files.ReadonlyFile): Promise<Nullable<string>> {
   const file = await transformWeb3nFileToFile(file3n);
   if (!file) {
     throw new Error('web3n.files.ReadonlyFile to File transformation error.');

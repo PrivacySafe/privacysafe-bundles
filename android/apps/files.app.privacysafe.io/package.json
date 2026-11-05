@@ -1,6 +1,6 @@
 {
   "name": "files.app.privacysafe.io",
-  "version": "0.8.18",
+  "version": "0.8.20",
   "description": "Apps Storage",
   "author": "3NSoft, Inc.",
   "license": "GPL-3.0",
@@ -29,6 +29,7 @@
     "pdfjs-dist": "6.5.438",
     "pinia": "3.0.4",
     "vue": "3.5.44",
+    "vue-advanced-cropper": "2.8.9",
     "vue-i18n": "11.4.17",
     "vue-router": "5.4.0"
   },

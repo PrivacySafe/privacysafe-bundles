@@ -285,7 +285,7 @@
           path =>
             path === null
               ? openFsEntityInfoBlock(null)
-              : openFsEntityInfoBlock({ fsId: tableFsId, path, windowIndex: `${windowIndex}` })
+              : openFsEntityInfoBlock({ fsId: tableFsId, path, rootFolderId: tableRootFolderId, windowIndex: `${windowIndex}` })
         "
       >
         <template #group-actions="{ selectedRows }">

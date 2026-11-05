@@ -26,6 +26,19 @@ describe('fsService.restoreEntities, mode "keep"', () => {
     expect(fs.xattrsOf('docs/a.txt')).toEqual({});
   });
 
+  // Live test, round 2, item 19: on another device the trash was listed before the version
+  // with the trash marks was adopted, and the file went to the root.
+  it('takes the original location from the entity xattrs, not from an older listing', async () => {
+    const fs = new MemoryFS().addFolder(TRASH).addFile('Dst/a.txt', 'A');
+    const entity = await trashed(fs, 'Dst/a.txt');
+    const { srv, fsId } = createFsService({ fs });
+
+    await srv.restoreEntities({ fsId, entities: [{ ...entity, parentFolder: '', originalName: '' }] });
+
+    expect(fs.has('Dst/a.txt')).toBe(true);
+    expect(fs.has('a.txt')).toBe(false);
+  });
+
   it('restores next to a same-name file under a "_copy" name', async () => {
     const fs = new MemoryFS().addFolder(TRASH).addFile('docs/a.txt', 'old');
     const entity = await trashed(fs, 'docs/a.txt');
@@ -135,7 +148,6 @@ describe('fsService.restoreEntities with untrusted xattrs', () => {
     expect(res).toEqual({ [entity.fullPath]: 'a_1.txt' });
   });
 });
-
 
 // Live testing item 7: the trash marks may fail to be removed after the move back
 // (the platform fails to write xattrs of some files); the restored entity must still

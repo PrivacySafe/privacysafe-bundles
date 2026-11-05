@@ -4,6 +4,7 @@ import { pickerStorageSrv } from '@picker/common/services/picker-storage.service
 import { usePickerFsStore } from '@picker/common/stores/picker-fs.store';
 import { groupPickerFsRoots, isRootAvailableInMode, isSystemRoot } from '@picker/common/utils/picker-fs-grouping';
 import { getOperatingSystem } from '@shared/utils/operating-system';
+import { makeLinkAwareFs, type LinkAwareFS } from '@shared/utils/fs-utils/link-aware-fs';
 import type { ListingEntryExtended, RootFsFolderView } from '@shared/types';
 import type { PickerState, PickerWindowState, PickerFile, PickerRootId } from '@picker/common/types';
 import type { DialogRequestState } from '@picker/common/types/dialog-types';
@@ -91,13 +92,24 @@ function createPickerState(dialogRequest: DialogRequestState) {
 
   const activeFsId = computed(() => findRoot(state.activeRootId)?.fsId ?? '');
 
+  const linkAwareFsList = new WeakMap<web3n.files.WritableFS, LinkAwareFS>();
+
+  /**
+   * The FS takes logical paths, which may go through links to folders. What it
+   * returns (files, sub-roots) are the platform's objects, given to the caller app.
+   */
   async function getFs(rootId: PickerRootId): Promise<web3n.files.FS> {
     const root = findRoot(rootId);
     const item = root ? fsList.value[root.fsId] : undefined;
     if (!item?.entity) {
       throw new Error(`No FS entity resolved for root '${rootId}' (fsId '${root?.fsId ?? '?'}').`);
     }
-    return item.entity;
+    let fs = linkAwareFsList.get(item.entity);
+    if (!fs) {
+      fs = makeLinkAwareFs(item.entity);
+      linkAwareFsList.set(item.entity, fs);
+    }
+    return fs;
   }
 
   async function getWritableFs(rootId: PickerRootId): Promise<web3n.files.WritableFS> {
@@ -119,7 +131,7 @@ function createPickerState(dialogRequest: DialogRequestState) {
       // also returns fullPath/basePath-aware values.
       id: path ? `${path}/${entry.name}` : entry.name,
       name: entry.name,
-      isFolder: entry.type === 'folder',
+      isFolder: entry.type === 'folder' || entry.type === 'link-folder',
       size: entry.size,
       ctime: entry.ctime ?? entry.mtime,
     };
@@ -148,7 +160,7 @@ function createPickerState(dialogRequest: DialogRequestState) {
         return;
       }
       // links can be neither opened nor replaced through the dialog API
-      win.entries = data.filter(entry => entry.type !== 'link').map(entry => mapListingEntry(entry, path));
+      win.entries = data.filter(entry => !entry.type.startsWith('link')).map(entry => mapListingEntry(entry, path));
       win.currentPath = path;
       win.status = 'ready';
     } catch (err) {

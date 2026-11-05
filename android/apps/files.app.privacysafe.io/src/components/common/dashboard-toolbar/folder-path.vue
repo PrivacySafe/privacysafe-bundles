@@ -27,6 +27,7 @@
   import { useNavigation } from '@/composables/useNavigation';
   import { useFsStore } from '@/store';
   import type { AppGlobalEvents } from '@shared/types';
+  import LinkBadge from '@/components/common/link-badge/link-badge.vue';
 
   const vUi3nResize = Ui3nResize;
   const vUi3nRipple = Ui3nRipple;
@@ -41,7 +42,7 @@
 
   const { isSplittedMode, activeWindow, navigateToRouteSingle, navigateToRouteDouble } = useNavigation();
 
-  const { fsFolderList } = storeToRefs(useFsStore());
+  const { fsFolderList, folderLocations } = storeToRefs(useFsStore());
 
   const wrapElement = ref<Nullable<HTMLDivElement>>(null);
   const pathElement = ref<Nullable<HTMLDivElement>>(null);
@@ -66,14 +67,28 @@
     return splittedFolderName[0].trim() || 'Root';
   });
 
+  /*
+   The breadcrumbs show the path the user went through, links included; a link
+   is marked. The location's segments include the root folder's base path, so
+   the last ones belong to the shown path.
+  */
+  const linkFlags = computed(() => {
+    const location = folderLocations.value[isSplittedMode.value ? activeWindow.value : '1'];
+    if (!location || location.rootFolderId !== props.currentFsFolder) {
+      return [] as boolean[];
+    }
+    const count = props.path ? props.path.split('/').length : 0;
+    return location.segments.slice(-count || location.segments.length).map(s => s.isLink);
+  });
+
   const pathItems = computed(() => {
     if (props.path) {
-      return props.path
-        .split('/')
-        .map((item, index) => ({
-          id: index,
-          name: item,
-        }));
+      const parts = props.path.split('/');
+      return parts.map((item, index) => ({
+        id: index,
+        name: item,
+        isLink: linkFlags.value.length === parts.length ? linkFlags.value[index] : false,
+      }));
     }
 
     return [];
@@ -190,7 +205,12 @@
       >
         <span :class="$style.itemDelimiter">/</span>
 
-        <span>{{ item.name }}</span>
+        <link-badge
+          :is-link="item.isLink"
+          placement="inline"
+        >
+          <span>{{ item.name }}</span>
+        </link-badge>
       </span>
     </div>
 

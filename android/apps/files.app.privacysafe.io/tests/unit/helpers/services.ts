@@ -4,6 +4,7 @@ import type { FavoritesService } from '../../../src_deno/types.ts';
 import { fsService } from '../../../src_deno/services/fs.service.ts';
 import { USER_FS } from '../../../shared/constants/index.ts';
 import { MemoryFS } from './memory-fs.ts';
+import { makeLinkAwareFs } from '../../../shared/utils/fs-utils/link-aware-fs.ts';
 
 export const TRASH = '.trash-folder-test';
 
@@ -39,13 +40,17 @@ export function createFsService({
   fsId = USER_FS,
   favorites = createFavorites(),
   trashFolderName = TRASH,
+  linkAware = false,
 }: {
   fs?: MemoryFS;
   fsId?: string;
   favorites?: ReturnType<typeof createFavorites>;
   trashFolderName?: string;
+  /** Gives the service a link-aware FS, as src_deno/index.ts does. */
+  linkAware?: boolean;
 } = {}) {
-  const fsList = { [fsId]: fs.asFsListItem(fsId) };
+  const item = fs.asFsListItem(fsId);
+  const fsList = { [fsId]: linkAware ? { ...item, entity: makeLinkAwareFs(item.entity) } : item };
   const srv = fsService({
     getFsItem: async (id: string) => {
       const item = fsList[id];

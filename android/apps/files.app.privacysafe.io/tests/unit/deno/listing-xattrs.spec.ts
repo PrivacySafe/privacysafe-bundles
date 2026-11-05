@@ -1,9 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import { MemoryFS } from '../helpers/memory-fs.ts';
 import { loadFolderContentListPrepared } from '../../../src_deno/services/fs-service.utils/load-folder-content-list-prepared.ts';
-import { filterRpcWritableXAttrs } from '../../../src_deno/services/fs-service.utils/listing-xattrs.ts';
+import { ENTITY_ICON_MAX_LENGTH } from '../../../shared/constants/index.ts';
+import {
+  filterRpcRemovableXAttrs,
+  filterRpcWritableXAttrs,
+} from '../../../src_deno/services/fs-service.utils/listing-xattrs.ts';
 
 const PNG = 'data:image/png;base64,iVBORw0KGgo=';
+const WEBP = 'data:image/webp;base64,UklGRhIAAABXRUJQ';
+const OVERSIZED_ICON = `data:image/webp;base64,${'A'.repeat(ENTITY_ICON_MAX_LENGTH)}`;
 
 function list(fs: MemoryFS, path = '') {
   return loadFolderContentListPrepared({
@@ -58,6 +64,40 @@ describe('listing entries and xattrs', () => {
     const [entry] = await list(fs);
 
     expect(entry).not.toHaveProperty('some-other-app');
+  });
+});
+
+describe('custom icons of entities', () => {
+  it('keeps the icon of a file, a folder and a link', async () => {
+    const fs = new MemoryFS().addFile('a.txt', '', { icon: WEBP }).addFolder('b', { icon: WEBP }).addLink('c');
+    fs.xattrsOf('c')!.icon = WEBP;
+
+    const entries = await list(fs);
+
+    expect(entries.map(e => [e.name, e.icon])).toEqual([
+      ['a.txt', WEBP],
+      ['b', WEBP],
+      ['c', WEBP],
+    ]);
+  });
+
+  it('drops an icon that is not an image or is too large', async () => {
+    const fs = new MemoryFS()
+      .addFile('a.txt', '', { icon: 'https://example.com/x.png' })
+      .addFile('b.txt', '', { icon: OVERSIZED_ICON });
+
+    const entries = await list(fs);
+
+    expect(entries.map(e => e.icon)).toEqual([undefined, undefined]);
+  });
+
+  it('lets the GUI set and remove the icon, but not the service attributes', () => {
+    expect(filterRpcWritableXAttrs({ icon: WEBP }).allowed).toEqual({ icon: WEBP });
+    expect(filterRpcWritableXAttrs({ icon: OVERSIZED_ICON }).allowed).toEqual({});
+
+    const { allowed, rejected } = filterRpcRemovableXAttrs(['icon', 'favoriteId', 'parentFolder']);
+    expect(allowed).toEqual(['icon']);
+    expect(rejected).toEqual(['favoriteId', 'parentFolder']);
   });
 });
 

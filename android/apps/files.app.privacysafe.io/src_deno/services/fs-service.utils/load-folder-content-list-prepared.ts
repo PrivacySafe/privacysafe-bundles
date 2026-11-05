@@ -21,7 +21,7 @@ import {
   prepareFolderPath,
   prepareFsEntityId,
 } from '../../../shared/utils/various.ts';
-import { getFsStat } from '../../../shared/utils/fs-utils/index.ts';
+import { getFsStat, readLink } from '../../../shared/utils/fs-utils/index.ts';
 import { getXAttrs, listXAttrs } from './actions-on-x-attrs.ts';
 import { loadFolderContentList } from './load-folder-content-list.ts';
 import { mapWithConcurrency } from '../../../shared/utils/processes/map-with-concurrency.ts';
@@ -133,13 +133,14 @@ export async function loadFolderContentListPrepared({
 
       const fields: Pick<
         ListingEntryExtended,
-        'id' | 'ext' | 'parentFolder' | 'originalName' | 'thumbnail' | 'favoriteId' | 'tags' | 'sync' | 'hidden'
+        'id' | 'ext' | 'parentFolder' | 'originalName' | 'thumbnail' | 'icon' | 'favoriteId' | 'tags' | 'sync' | 'hidden'
       > = {
         id: prepareFsEntityId(fs, compoundPath),
         ext: item.isFile ? getFileExtension(item.name) : `@${item.isFolder ? 'folder' : 'link'}-${item.name}`,
         parentFolder: '',
         originalName: '',
         thumbnail: undefined,
+        icon: undefined,
         favoriteId: undefined,
         tags: [],
         sync: undefined,
@@ -173,12 +174,22 @@ export async function loadFolderContentListPrepared({
         }),
       );
 
+      let type: ListingEntryExtended['type'] = item.isFile ? 'file' : item.isFolder ? 'folder' : 'link-broken';
+      if (type === 'link-broken') {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const symLink = await readLink({ fs, path: compoundPath, stopErrorPropagate: true }).catch(err => {});
+
+        if (symLink) {
+          type = symLink.isFolder ? 'link-folder' : 'link-file';
+        }
+      }
+
       // fields from the FS itself go last: nothing read from xattrs may replace them
       return {
         ...fields,
         name: item.name,
         fullPath: compoundPath,
-        type: item.isFile ? 'file' : item.isFolder ? 'folder' : 'link',
+        type,
         ...(!item.isFolder && stats?.size && { size: stats.size }),
         ...(stats?.mtime && { mtime: stats.mtime }),
         ...(stats?.ctime && { ctime: stats.ctime }),

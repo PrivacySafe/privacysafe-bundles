@@ -28,10 +28,20 @@ export async function copyFsEntities({
   entities: ListingEntryExtended[];
   targetFs: web3n.files.WritableFS;
   targetFolder: string;
-}): Promise<PromiseSettledResult<string | undefined>[]> {
-  const promisesRes = [];
-  for (const entity of entities) {
-    promisesRes.push(copyFsEntity({ srcFs, entity, targetFs, targetFolder }));
-  }
-  return Promise.allSettled(promisesRes);
+}): Promise<{
+  results: PromiseSettledResult<string | undefined>[];
+  skippedBroken: string[];
+}> {
+  const results = await Promise.allSettled(
+    entities.map(entity => copyFsEntity({ srcFs, entity, targetFs, targetFolder })),
+  );
+
+  const skippedBroken: string[] = [];
+  results.forEach((result, i) => {
+    if (result.status === 'fulfilled' && result.value === undefined) {
+      skippedBroken.push(entities[i].name);
+    }
+  });
+
+  return { results, skippedBroken };
 }

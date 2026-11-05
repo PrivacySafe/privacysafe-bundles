@@ -35,7 +35,8 @@ export async function renameFsEntity({
 }): Promise<string | undefined> {
   try {
     const targetFolder = getParentFolderPathFromEntityFullPath(entity.fullPath);
-    return await moveFsEntity({ fsListItem, entity, targetFsListItem, targetFolder, targetEntityName: newName });
+    const res = await moveFsEntity({ fsListItem, entity, targetFsListItem, targetFolder, targetEntityName: newName });
+    return res === 'skipped-broken' ? undefined : res;
   } catch (e) {
     const errorMessage = `Error renaming the entity ${entity.fullPath}. `;
     log.error(errorMessage, e);

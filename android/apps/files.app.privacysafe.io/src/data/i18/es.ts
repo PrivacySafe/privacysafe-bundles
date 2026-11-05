@@ -28,6 +28,7 @@ export const es = {
     exit: 'Salir',
     create: 'Crear',
     create_folder: 'Crear carpeta',
+    create_link: 'Crear SymLink',
     selected: 'Seleccionado',
     favorites_title: 'Favoritos',
     settings: {
@@ -70,7 +71,6 @@ export const es = {
   validation: {
     text: {
       required: 'Este campo es obligatorio. ',
-      equality: 'El valor anterior y el nuevo no deben ser iguales. ',
       length: 'No más de {length} caracteres ',
     },
   },
@@ -96,6 +96,42 @@ export const es = {
         confirm: 'Crear',
       },
     },
+    create_link: {
+      title: 'Crear SymLink',
+      field: {
+        name: 'Nombre del SymLink',
+        type: 'Tipo de destino',
+        target: 'Destino',
+      },
+      type: {
+        folder: 'Carpeta',
+        file: 'Archivo',
+      },
+      no_target: 'No seleccionado',
+      button: {
+        select: 'Seleccionar…',
+        confirm: 'Crear',
+      },
+      picker: {
+        folder_title: 'Seleccione la carpeta para el SymLink',
+        file_title: 'Seleccione el archivo para el SymLink',
+        button: 'Seleccionar',
+      },
+    },
+    entity_icon: {
+      title: 'Icono del elemento',
+      no_image: 'Cargue una imagen para usarla como icono',
+      load_error: 'El archivo no se pudo leer como imagen',
+      button: {
+        load: 'Cargar imagen…',
+        rotate_left: 'Girar a la izquierda',
+        rotate_right: 'Girar a la derecha',
+        flip_horizontal: 'Voltear horizontalmente',
+        flip_vertical: 'Voltear verticalmente',
+        delete: 'Eliminar y cerrar',
+        save: 'Guardar',
+      },
+    },
     rename_folder: {
       title: 'Renombrar carpeta',
       field: {
@@ -118,10 +154,13 @@ export const es = {
         merge: 'Combinar',
         absorb: 'Incorporar cambios remotos',
         absorb_tooltip: 'Al hacer clic en este botón, incorporas los cambios remotos a la carpeta local.',
+        keep_local_same: 'Las versiones local y en la nube son iguales: elija «Conservar en la nube».',
       },
       cloud_text: 'Nube',
       local_text: 'Local',
       checkbox_text: 'Mantener esta opción para todos los elementos en conflicto',
+      error_upload:
+        "No se pudo subir la versión local de '{name}'. Si las versiones son iguales, elija «Conservar en la nube».",
     },
     restore: {
       text: 'Ya existe un objeto llamado "{name}" en esta carpeta | Ya existen objetos llamados "{name}" en esta carpeta',
@@ -158,6 +197,11 @@ export const es = {
   },
 
   fs: {
+    create_link_error: "No se pudo crear el SymLink '{name}'.",
+    name_taken: "El nombre '{name}' ya existe en esta carpeta.",
+    create_link_error_not_allowed:
+      'No se puede crear aquí un enlace a este destino: el almacenamiento sincronizado enlaza solo con almacenamientos sincronizados y compartidos, una carpeta del dispositivo solo con archivos y carpetas del dispositivo.',
+    create_link_error_readonly: 'Esta carpeta solo está disponible para lectura.',
     folder_name: {
       user_synced_home: 'Inicio',
       user_local_home: 'Inicio (local)',
@@ -190,6 +234,9 @@ export const es = {
         type: 'Tipo',
         type_folder: 'Carpeta',
         type_file: 'Archivo',
+        'type_link-folder': 'Enlace a una carpeta',
+        'type_link-file': 'Enlace a un archivo',
+        'type_link-broken': 'Enlace roto',
         type_link: 'Enlace',
         path: 'Ruta',
         size: 'Tamaño',
@@ -198,6 +245,7 @@ export const es = {
         tags: 'Etiquetas',
         status: 'Estado de sincronización',
         calculate_hash: 'Calcular hash',
+        change_icon: 'Cambiar el icono del elemento',
       },
       button: {
         restore_replace: 'Reemplazar',
@@ -212,6 +260,10 @@ export const es = {
             'El elemento seleccionado se ha descargado correctamente. | Los elementos seleccionados ({count}) se han descargado correctamente.',
           copy: 'El elemento seleccionado se ha copiado correctamente. | Los elementos seleccionados ({count}) se han copiado correctamente.',
           move: 'El elemento seleccionado se ha movido correctamente. | Los elementos seleccionados ({count}) se han movido correctamente.',
+          copy_except_broken:
+            'El elemento seleccionado se ha copiado, excepto un enlace roto. | Los elementos seleccionados se han copiado, excepto {count} enlaces rotos.',
+          move_except_broken:
+            'El elemento seleccionado se ha movido, excepto un enlace roto. | Los elementos seleccionados se han movido, excepto {count} enlaces rotos.',
         },
         error: {
           delete:
@@ -222,6 +274,8 @@ export const es = {
           copy: 'Error al copiar el elemento seleccionado. | Error al copiar los elementos seleccionados ({count}).',
           move: 'Error al mover el elemento seleccionado. | Error al mover los elementos seleccionados ({count}).',
           open: 'No se pudo abrir "{name}"',
+          icon: 'No se pudo cambiar el icono de "{name}"',
+          broken_link: 'El enlace "{name}" está roto y no se puede abrir.',
         },
       },
     },

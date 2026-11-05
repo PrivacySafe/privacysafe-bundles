@@ -15,12 +15,7 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
 /// <reference path="../../../@types/platform-defs/injected-w3n.d.ts" />
-import {
-  getFolderEntityNames,
-  joinEntityPath,
-  pickFreeEntityName,
-  readLink,
-} from '../../../shared/utils/fs-utils/index.ts';
+import { getFolderEntityNames, joinEntityPath, pickFreeEntityName } from '../../../shared/utils/fs-utils/index.ts';
 import type { ListingEntryExtended } from '../../../shared/types/index.ts';
 
 /**
@@ -29,25 +24,20 @@ import type { ListingEntryExtended } from '../../../shared/types/index.ts';
  */
 export async function getEntityTargetPath({
   fs,
-  srcFs = fs,
   entity,
   targetFolder,
   targetEntityName,
   namePostfix = 'copy',
 }: {
   fs: web3n.files.WritableFS;
-  srcFs?: web3n.files.WritableFS;
   entity: ListingEntryExtended;
   targetFolder: string;
   targetEntityName?: string;
   namePostfix?: string;
 }): Promise<string> {
-  const { type, name, fullPath } = entity;
+  const { type, name } = entity;
 
-  const isFolder =
-    type === 'folder' ||
-    (type === 'link' && !!(await readLink({ fs: srcFs, path: fullPath, stopErrorPropagate: true }))?.isFolder);
-
+  const isFolder = type === 'folder' || type === 'link-folder';
   const takenNames = await getFolderEntityNames(fs, targetFolder);
   const freeName = await pickFreeEntityName({
     name: targetEntityName || name,

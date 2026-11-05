@@ -20,20 +20,9 @@ import type { Nullable } from '@v1nt1248/3nclient-lib';
 import type { ListingEntryExtended } from '@shared/types';
 import { useFsStore } from '@/store';
 
-const HASHES_XATTR_NAME = 'cached-hashes';
-const SHA256_ALG = 'SHA-256';
-const SHA512_ALG = 'SHA-512';
-
 const bufferLen = 512 * 1024;
 
-interface CachedFileContentHashes {
-  contentMTime: number;
-  contentLen: number;
-  hashes: { [alg: string]: string };
-}
-
 type ReadonlyFile = web3n.files.ReadonlyFile;
-type WritableFile = web3n.files.WritableFile;
 type FileByteSource = web3n.files.FileByteSource;
 
 export function useFileHashing(
@@ -51,58 +40,24 @@ export function useFileHashing(
   const calculating512 = ref(false);
   const sha512progress = ref(0);
 
-  const file = shallowRef<Nullable<WritableFile | undefined>>(null);
-  const fileSize = computed(() => fileStats.value?.size ?? 0);
-  const fileMTime = computed(() => fileStats.value?.mtime?.valueOf() ?? 0);
+  /*
+   The file whose content is hashed: the entity itself, or the target of a link
+   to a file. Its size comes from the opened file, not from the entity: the
+   stats of a link are not the stats of its target.
 
-  async function readCachedHashes(file: ReadonlyFile): Promise<CachedFileContentHashes | undefined> {
-    try {
-      const hashes = !fsId.value.includes('device')
-        ? ((await file.getXAttr(HASHES_XATTR_NAME).catch(() => undefined)) as CachedFileContentHashes | undefined)
-        : undefined;
+   Hashes are not kept in xattrs: in a synced storage a write of xattrs is a new
+   version of the file and its upload. Through the target of a file link such a
+   write even breaks the upload of the file (П20, core 0.53.11: the target is a
+   separate node). The file is opened only for reading.
+  */
+  const file = shallowRef<Nullable<ReadonlyFile>>(null);
+  const contentSize = ref<Nullable<number>>(null);
 
-      if (!hashes || typeof hashes !== 'object') {
-        return;
-      }
-      const { mtime, size } = await file.stat();
-      if (hashes.contentMTime === mtime?.valueOf() && hashes.contentLen === size) {
-        return hashes;
-      }
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (err) {
-      /* empty */
-    }
-  }
-
-  async function cacheHashInXAttrOf(
-    file: WritableFile,
-    contentMTime: number,
-    contentLen: number,
-    alg: string,
-    hashInHex: string,
-  ): Promise<void> {
-    try {
-      const { mtime, size } = await file.stat();
-      if (contentMTime !== mtime?.valueOf() || contentLen !== size) {
-        throw new Error(`Given content mtime and size don't correspond to current file's values.`);
-      }
-      let hashes = await readCachedHashes(file);
-      if (hashes && hashes.contentMTime === mtime.valueOf() && hashes.contentLen === size) {
-        hashes.hashes[alg] = hashInHex;
-      } else {
-        hashes = { contentMTime, contentLen, hashes: { [alg]: hashInHex } };
-      }
-      await file.updateXAttrs({ set: { [HASHES_XATTR_NAME]: hashes } });
-
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (err) {
-      /* empty */
-    }
-  }
+  const canHash = computed(() => typeof contentSize.value === 'number');
 
   /**
    * Feeds the whole content to the hasher. Returns false when stopped before
-   * the end: a digest of partial content must never be shown or cached.
+   * the end: a digest of partial content must never be shown.
    */
   async function readAndHashProcess(
     content: FileByteSource,
@@ -155,42 +110,51 @@ export function useFileHashing(
 
   /**
    * Every hashing run gets an id; stopHashingProcess() and a new run make the
-   * previous id stale. A stale run neither updates the UI nor writes the cache.
+   * previous id stale. A stale run does not update the UI.
    */
   let currentRunId = 0;
 
-  async function loadFile(): Promise<Nullable<WritableFile | undefined>> {
+  async function openFile(fsIdValue: string, pathValue: string): Promise<Nullable<ReadonlyFile>> {
+    const fs = getFs(fsIdValue);
+    if (fileStats.value?.type !== 'link-file') {
+      return fs.readonlyFile(pathValue);
+    }
+
+    const link = await fs.readLink(pathValue);
+    // target() resolves the link to either a file or a folder
+    const target = await link.target();
+    return link.isFile ? (target as ReadonlyFile) : null;
+  }
+
+  async function loadFile(): Promise<Nullable<ReadonlyFile>> {
     if (!file.value) {
       const requestedFsId = fsId.value;
       const requestedPath = path.value;
-      const fs = getFs(requestedFsId);
-      const loadedFile = await fs.writableFile(requestedPath);
+      const loadedFile = await openFile(requestedFsId, requestedPath);
+      const stats = loadedFile ? await loadedFile.stat() : undefined;
       // the panel may have switched to another entity while the file was opening
-      if (requestedFsId === fsId.value && requestedPath === path.value) {
+      if (requestedFsId === fsId.value && requestedPath === path.value && loadedFile && stats) {
         file.value = loadedFile;
+        contentSize.value = stats.size ?? null;
       }
     }
     return file.value;
   }
 
   async function runHash({
-    alg,
     createHasher,
     hex,
     calculating,
     progress,
     targetFile,
-    contentMTime,
     contentLen,
     isCurrentRun,
   }: {
-    alg: string;
     createHasher: typeof createSHA256;
     hex: Ref<Nullable<string>>;
     calculating: Ref<boolean>;
     progress: Ref<number>;
-    targetFile: WritableFile;
-    contentMTime: number;
+    targetFile: ReadonlyFile;
     contentLen: number;
     isCurrentRun: () => boolean;
   }): Promise<boolean> {
@@ -215,10 +179,7 @@ export function useFileHashing(
         return false;
       }
 
-      const hashInHex = hasher.digest('hex');
-      hex.value = hashInHex;
-      // cache into the file that was hashed, with its own mtime and size
-      await cacheHashInXAttrOf(targetFile, contentMTime, contentLen, alg, hashInHex);
+      hex.value = hasher.digest('hex');
       return true;
     } finally {
       if (isCurrentRun()) {
@@ -232,19 +193,13 @@ export function useFileHashing(
     const isCurrentRun = () => runId === currentRunId;
 
     const targetFile = await loadFile();
-    if (!targetFile || !isCurrentRun()) {
+    if (!targetFile || !canHash.value || !isCurrentRun()) {
       return;
     }
 
-    const common = {
-      targetFile,
-      contentMTime: fileMTime.value,
-      contentLen: fileSize.value,
-      isCurrentRun,
-    };
+    const common = { targetFile, contentLen: contentSize.value!, isCurrentRun };
 
     const sha256done = await runHash({
-      alg: SHA256_ALG,
       createHasher: createSHA256,
       hex: sha256hex,
       calculating: calculating256,
@@ -256,7 +211,6 @@ export function useFileHashing(
     }
 
     await runHash({
-      alg: SHA512_ALG,
       createHasher: createSHA512,
       hex: sha512hex,
       calculating: calculating512,
@@ -274,36 +228,16 @@ export function useFileHashing(
     sha256progress.value = 0;
     sha512progress.value = 0;
     file.value = null;
+    contentSize.value = null;
   }
 
-  async function loadCachedHashes(targetFile: WritableFile, isCurrentRun: () => boolean) {
-    try {
-      const cached = await readCachedHashes(targetFile);
-      if (!cached || !isCurrentRun()) {
-        return;
-      }
-      if (cached.hashes[SHA256_ALG]) {
-        sha256hex.value = cached.hashes[SHA256_ALG];
-      }
-      if (cached.hashes[SHA512_ALG]) {
-        sha512hex.value = cached.hashes[SHA512_ALG];
-      }
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (err) {
-      /* empty */
-    }
-  }
-
+  /** Opens the file to hash: the button is shown when the file can be read. */
   async function loadHashing() {
-    const runId = currentRunId;
-    const targetFile = await loadFile();
-    if (!targetFile || runId !== currentRunId) {
-      return;
-    }
-    await loadCachedHashes(targetFile, () => runId === currentRunId);
+    await loadFile();
   }
 
   return {
+    canHash,
     sha256hex,
     calculating256,
     sha256progress,

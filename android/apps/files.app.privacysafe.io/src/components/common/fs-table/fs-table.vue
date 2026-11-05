@@ -71,7 +71,8 @@
 
   const appStore = useAppStore();
 
-  const { getFolderContentFilledList, setFolderAsFavorite, unsetFolderAsFavorite, renameEntity } = useFsStore();
+  const fsStore = useFsStore();
+  const { getFolderContentFilledList, setFolderAsFavorite, unsetFolderAsFavorite, renameEntity } = fsStore;
 
   const { setFavoriteFolderListValue } = useFavoriteStore();
 
@@ -227,7 +228,9 @@
         ? `${props.basePath.fullPath}/${props.path}`
         : props.basePath.fullPath || props.path;
 
-    if (path === currentFolderFullPath || withoutVerify) {
+    // events come with paths in the synced FS: a folder behind a link is not matched by them
+    const isBehindLinks = !!fsStore.folderLocations[currentTableWindow.value]?.hasHops;
+    if (path === currentFolderFullPath || withoutVerify || isBehindLinks) {
       await loadFolderData();
     }
   }

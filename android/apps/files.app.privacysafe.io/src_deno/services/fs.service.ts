@@ -330,7 +330,13 @@ export function fsService({
   }): Promise<PromiseSettledResult<string | undefined>[]> {
     const fsListItem = await getFsItem(fsId);
     const targetFsListItem = await getFsItem(targetFsId);
-    return copyFsEntities({ srcFs: fsListItem.entity, entities, targetFs: targetFsListItem.entity, targetFolder });
+    const { results } = await copyFsEntities({
+      srcFs: fsListItem.entity,
+      entities,
+      targetFs: targetFsListItem.entity,
+      targetFolder,
+    });
+    return results;
   }
 
   async function moveEntity({
@@ -350,7 +356,8 @@ export function fsService({
     const parsedNewPath = newPath.split('/');
     const targetFolder = parsedNewPath.slice(0, -1).join('/');
 
-    return moveFsEntity({ fsListItem, entity, targetFsListItem, targetFolder });
+    const res = await moveFsEntity({ fsListItem, entity, targetFsListItem, targetFolder });
+    return res === 'skipped-broken' ? entity.fullPath : res;
   }
 
   async function moveEntities({
@@ -367,7 +374,8 @@ export function fsService({
     const fsListItem = await getFsItem(fsId);
     const targetFsListItem = await getFsItem(targetFsId);
 
-    return moveFsEntities({ fsListItem, entities, targetFsListItem, targetFolder, favoritesSrv });
+    const { moved } = await moveFsEntities({ fsListItem, entities, targetFsListItem, targetFolder, favoritesSrv });
+    return moved;
   }
 
   async function copyMoveEntities({
@@ -382,20 +390,29 @@ export function fsService({
     targetFsId: string;
     target: ListingEntryExtended;
     moveMode?: boolean;
-  }): Promise<void> {
+  }): Promise<{ skippedBroken: string[] }> {
     const { fullPath: targetPath = '' } = target;
+    const sourceFsListItem = await getFsItem(sourceFsId);
+    const targetFsListItem = await getFsItem(targetFsId);
 
     if (moveMode) {
-      await moveEntities({
-        fsId: sourceFsId,
+      const { skippedBroken } = await moveFsEntities({
+        fsListItem: sourceFsListItem,
         entities,
-        targetFsId,
+        targetFsListItem,
         targetFolder: targetPath,
+        favoritesSrv,
       });
-      return;
+      return { skippedBroken };
     }
 
-    await copyEntities({ fsId: sourceFsId, entities, targetFsId, targetFolder: targetPath });
+    const { skippedBroken } = await copyFsEntities({
+      srcFs: sourceFsListItem.entity,
+      entities,
+      targetFs: targetFsListItem.entity,
+      targetFolder: targetPath,
+    });
+    return { skippedBroken };
   }
 
   async function renameEntity({

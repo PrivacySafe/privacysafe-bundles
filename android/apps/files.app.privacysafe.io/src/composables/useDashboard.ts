@@ -20,6 +20,9 @@ import { storeToRefs } from 'pinia';
 import { DIALOGS_KEY, type DialogsPlugin, VUEBUS_KEY, type VueBusPlugin } from '@v1nt1248/3nclient-lib/plugins';
 import type { Nullable } from '@v1nt1248/3nclient-lib';
 import { formatPath } from '@shared/utils/various';
+import { joinEntityPath } from '@shared/utils/fs-utils/entity-name';
+import { appStorageSrv } from '@/services/services-provider';
+import { type CreateLinkDialogData, getCreateLinkErrorKey } from '@/utils/create-link';
 import { useNavigation } from '@/composables/useNavigation';
 import { useAppStore, useFsStore, useFavoriteStore, useRunModeInfoStore } from '@/store';
 import {
@@ -53,7 +56,7 @@ export function useDashboard() {
 
   const fsStore = useFsStore();
   const { fsAvailableFolderList } = storeToRefs(fsStore);
-  const { isEntityPresent, makeFolder, uploadOsFiles, removeFavoriteFolderFromList } = fsStore;
+  const { isEntityPresent, makeFolder, uploadOsFiles, removeFavoriteFolderFromList, getFs } = fsStore;
 
   const favoriteStore = useFavoriteStore();
   const { processedFavoriteFolders } = storeToRefs(favoriteStore);
@@ -91,9 +94,23 @@ export function useDashboard() {
     bus.$emitter.emit('click:breadcrumb', void 0);
   }
 
+  /** Any entity (a folder, a file, a link) at the path; a failed check counts as free. */
+  async function isNameTaken(fs: web3n.files.FS, path: string): Promise<boolean> {
+    const presence = await Promise.all([
+      fs.checkFolderPresence(path).catch(() => false),
+      fs.checkFilePresence(path).catch(() => false),
+      fs.checkLinkPresence(path).catch(() => false),
+    ]);
+    return presence.some(Boolean);
+  }
+
   async function createFolder() {
+    // the target folder is fixed when the dialog opens, as the name is checked in it
+    const fsId = currentFsId.value!;
+    const parentPath = processedPath.value;
     const res = await dialogs.$openDialog<{ oldName: string; newName: string }>(UpdateFolderNameDialog, {
       name: '',
+      checkNameTaken: (name: string) => isNameTaken(getFs(fsId), joinEntityPath(formatPath(parentPath), name)),
       dialogProps: {
         title: t('dialog.create_folder.title'),
         confirmButtonText: t('dialog.create_folder.button.confirm'),
@@ -103,12 +120,11 @@ export function useDashboard() {
     const { event, data = {} } = res || {};
     const { newName } = data as { oldName: string; newName: string };
     if (event === 'confirm' && newName) {
-      const parentPath = processedPath.value;
       const newFolderPath = `${parentPath}/${newName}`;
       try {
         // the shown folder may have been renamed or removed: a folder must not be created by its
         // old path, as that would also create a new parent folder with the old name
-        if (formatPath(parentPath) && !(await isEntityPresent({ fsId: currentFsId.value!, path: parentPath }))) {
+        if (formatPath(parentPath) && !(await isEntityPresent({ fsId, path: parentPath }))) {
           appStore.$createNotice({
             type: 'error',
             withIcon: true,
@@ -117,8 +133,17 @@ export function useDashboard() {
           return;
         }
 
-        await makeFolder({ fsId: currentFsId.value!, path: newFolderPath });
-        bus.$emitter.emit('create:folder', { fsId: currentFsId.value!, fullPath: newFolderPath });
+        if (await isNameTaken(getFs(fsId), newFolderPath)) {
+          appStore.$createNotice({
+            type: 'error',
+            withIcon: true,
+            content: t('fs.name_taken', { name: newName }),
+          });
+          return;
+        }
+
+        await makeFolder({ fsId, path: newFolderPath });
+        bus.$emitter.emit('create:folder', { fsId, fullPath: newFolderPath });
       } catch (err) {
         log.error('Error creating a folder. ', err);
         appStore.$createNotice({
@@ -127,6 +152,72 @@ export function useDashboard() {
           content: t('fs.create_folder_error', { name: newName }),
         });
       }
+    }
+  }
+
+  /**
+   * Creates a SymLink in the folder shown in the active window; the folder may
+   * itself be behind a link. The target is picked in the dialog with the
+   * platform's file dialogs; which targets fit is decided by the platform.
+   */
+  async function createLink() {
+    const component = defineAsyncComponent(() => import('@/components/dialogs/create-link-dialog.vue'));
+
+    // the target folder is fixed when the dialog opens: the user may navigate meanwhile
+    const fsId = currentFsId.value!;
+    const parentPath = formatPath(processedPath.value);
+    const res = await dialogs.$openDialog<CreateLinkDialogData>(component, {
+      checkNameTaken: (name: string) => isNameTaken(getFs(fsId), joinEntityPath(parentPath, name)),
+      dialogProps: {
+        title: t('dialog.create_link.title'),
+        confirmButtonText: t('dialog.create_link.button.confirm'),
+      },
+    });
+
+    const { event, data } = res || {};
+    if (event !== 'confirm' || !data?.name || !data.target) {
+      return;
+    }
+
+    const { name, target } = data;
+    const linkPath = joinEntityPath(parentPath, name);
+    const notifyError = (key: string) =>
+      appStore.$createNotice({ type: 'error', withIcon: true, content: t(key, { name }) });
+
+    try {
+      const fs = getFs(fsId);
+      if (parentPath && !(await fs.checkFolderPresence(parentPath))) {
+        appStore.$createNotice({
+          type: 'error',
+          withIcon: true,
+          content: t('fs.target_folder_missing', { path: parentPath }),
+        });
+        return;
+      }
+
+      // checked in the dialog too; the name may have been taken since
+      if (await isNameTaken(fs, linkPath)) {
+        notifyError('fs.name_taken');
+        return;
+      }
+
+      await fs.link(linkPath, target);
+
+      if (fsId === USER_FS) {
+        // the new link node and its folder are uploaded by the queue (the path may go through links)
+        await appStorageSrv.addSyncQueueItem({
+          path: linkPath,
+          status: 'pending',
+          attempts: 0,
+          lastError: '',
+          lastChanged: Date.now(),
+        });
+      }
+
+      bus.$emitter.emit('create:folder', { fsId, fullPath: linkPath });
+    } catch (err) {
+      log.error(`Error creating the SymLink '${linkPath}'. `, err);
+      notifyError(getCreateLinkErrorKey(err));
     }
   }
 
@@ -215,6 +306,7 @@ export function useDashboard() {
     isFolderSelected,
     selectFolder,
     createFolder,
+    createLink,
     uploadFile,
     goToFavoriteFolder,
     openFsEntityInfoBlock,

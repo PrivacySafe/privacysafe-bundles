@@ -108,7 +108,9 @@ export function useFsFolder(fsFolderWindow: ComputedRef<'1' | '2'>) {
   }
 
   async function refreshData({ path, withoutVerify }: { path: string; withoutVerify?: boolean }): Promise<void> {
-    if (path === currentWindowFolderPath.value || withoutVerify) {
+    // events come with paths in the synced FS: a folder behind a link is not matched by them
+    const isBehindLinks = !!fsStore.folderLocations[fsFolderWindow.value]?.hasHops;
+    if (path === currentWindowFolderPath.value || withoutVerify || isBehindLinks) {
       await loadFolderData();
     }
   }

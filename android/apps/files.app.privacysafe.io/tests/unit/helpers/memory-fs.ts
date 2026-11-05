@@ -5,17 +5,26 @@
    point to the same entity;
  - move() creates missing destination folders, throws `alreadyExists` when the
    destination name is taken and `notFound` when the source is missing;
- - deleteFolder() throws `notEmpty` unless removeContent is set.
+ - deleteFolder() throws `notEmpty` unless removeContent is set;
+ - a link (or a file) in the middle of a path gives `notDirectory`: links are
+   not followed, a folder link's target is a separate MemoryFS.
 */
 import { posix } from 'node:path';
 import type { FsListItem, ListingEntryExtended, WritableFS } from '../../../shared/types/index.ts';
 
-type NodeType = 'folder' | 'file' | 'link';
+type NodeType = 'folder' | 'file' | 'link-folder' | 'link-file' | 'link-broken';
+
+function isLinkType(type: NodeType): boolean {
+  return type !== 'folder' && type !== 'file';
+}
 
 interface MemoryNode {
   type: NodeType;
   xattrs: Record<string, unknown>;
   bytes?: Uint8Array;
+  /** The target of a link made with a target; such a link can be read. */
+  linkTarget?: MemoryFS | MemoryNode;
+  readonly?: boolean;
 }
 
 type FileExceptionFlag = 'notFound' | 'alreadyExists' | 'notDirectory' | 'notFile' | 'notEmpty' | 'notLink';
@@ -84,10 +93,19 @@ export class MemoryFS {
     return this;
   }
 
-  addLink(path: string): this {
+  /**
+   * Adds a link. Without a target the link cannot be read (readLink throws).
+   * A folder link's target is another MemoryFS: the platform gives a separate
+   * FS object for the target folder.
+   */
+  addLink(
+    path: string,
+    type: ListingEntryExtended['type'] = 'link-file',
+    { target, readonly = false }: { target?: MemoryFS; readonly?: boolean } = {},
+  ): this {
     const p = normalize(path);
     this.ensureFolder(parentOf(p));
-    this.nodes.set(p, { type: 'link', xattrs: {} });
+    this.nodes.set(p, { type, xattrs: {}, linkTarget: target, readonly });
     return this;
   }
 
@@ -138,8 +156,16 @@ export class MemoryFS {
   }
 
   private getNode(path: string): MemoryNode {
-    const node = this.nodes.get(normalize(path));
+    const p = normalize(path);
+    const node = this.nodes.get(p);
     if (!node) {
+      // as in xsp-fs: a link or a file on the way gives notDirectory
+      for (let parent = parentOf(p); parent !== ''; parent = parentOf(parent)) {
+        const ancestor = this.nodes.get(parent);
+        if (ancestor && ancestor.type !== 'folder') {
+          throw fileException('notDirectory', path);
+        }
+      }
       throw fileException('notFound', path);
     }
     return node;
@@ -170,7 +196,7 @@ export class MemoryFS {
         name: nameOf(child),
         isFolder: type === 'folder' || undefined,
         isFile: type === 'file' || undefined,
-        isLink: type === 'link' || undefined,
+        isLink: isLinkType(type) || undefined,
       };
     });
   }
@@ -184,7 +210,8 @@ export class MemoryFS {
   }
 
   async checkLinkPresence(path: string): Promise<boolean> {
-    return this.nodes.get(normalize(path))?.type === 'link';
+    const node = this.nodes.get(normalize(path));
+    return !!node && isLinkType(node.type);
   }
 
   async stat(path: string): Promise<web3n.files.Stats> {
@@ -192,7 +219,7 @@ export class MemoryFS {
     return {
       isFolder: node.type === 'folder' || undefined,
       isFile: node.type === 'file' || undefined,
-      isLink: node.type === 'link' || undefined,
+      isLink: isLinkType(node.type) || undefined,
       writable: true,
       size: node.bytes?.length,
     } as web3n.files.Stats;
@@ -212,9 +239,8 @@ export class MemoryFS {
     if (src === '' || dst === '') {
       throw new Error('Bad path: it points to filesystem root');
     }
-    if (!this.nodes.has(src)) {
-      throw fileException('notFound', initPath);
-    }
+    // a missing source, or a link on its way, throws as getNode does
+    this.getNode(src);
     if (this.nodes.has(dst)) {
       throw fileException('alreadyExists', newPath);
     }
@@ -239,7 +265,7 @@ export class MemoryFS {
 
   async deleteLink(path: string): Promise<void> {
     const node = this.getNode(path);
-    if (node.type !== 'link') {
+    if (!isLinkType(node.type)) {
       throw fileException('notLink', path);
     }
     this.nodes.delete(normalize(path));
@@ -319,10 +345,76 @@ export class MemoryFS {
 
   async readLink(path: string): Promise<web3n.files.SymLink> {
     const node = this.getNode(path);
-    if (node.type !== 'link') {
+    if (!isLinkType(node.type)) {
       throw fileException('notLink', path);
     }
-    throw new Error('Links are not supported by MemoryFS');
+    const { linkTarget } = node;
+    if (!linkTarget) {
+      throw new Error('Links without a target are not supported by MemoryFS');
+    }
+    return {
+      readonly: !!node.readonly,
+      isFolder: node.type === 'link-folder' || undefined,
+      isFile: node.type === 'link-file' || undefined,
+      target: async () => {
+        if (linkTarget instanceof MemoryFS) {
+          return (node.readonly ? linkTarget.asReadonly() : linkTarget.asWritableFS()) as web3n.files.FS;
+        }
+        return { name: 'file', bytes: linkTarget.bytes } as unknown as web3n.files.File;
+      },
+    };
+  }
+
+  async link(path: string, target: web3n.files.File | web3n.files.FS): Promise<void> {
+    const p = normalize(path);
+    if (this.nodes.has(p)) {
+      throw fileException('alreadyExists', path);
+    }
+    this.ensureFolder(parentOf(p));
+    if (target instanceof MemoryFS) {
+      this.nodes.set(p, { type: 'link-folder', xattrs: {}, linkTarget: target });
+    } else {
+      const bytes = (target as unknown as { bytes?: Uint8Array }).bytes;
+      this.nodes.set(p, { type: 'link-file', xattrs: {}, linkTarget: { type: 'file', xattrs: {}, bytes } });
+    }
+  }
+
+  async readonlyFile(path: string): Promise<web3n.files.ReadonlyFile> {
+    const node = this.getNode(path);
+    if (node.type !== 'file') {
+      throw fileException('notFile', path);
+    }
+    const bytes = node.bytes ?? new Uint8Array();
+    return { name: nameOf(normalize(path)), readBytes: async () => bytes } as unknown as web3n.files.ReadonlyFile;
+  }
+
+  async saveFile(file: web3n.files.File, dst: string, overwrite = false): Promise<void> {
+    const p = normalize(dst);
+    if (this.nodes.has(p) && !overwrite) {
+      throw fileException('alreadyExists', dst);
+    }
+    const bytes = (await (file as web3n.files.ReadonlyFile).readBytes()) ?? new Uint8Array();
+    this.ensureFolder(parentOf(p));
+    this.nodes.set(p, { type: 'file', xattrs: {}, bytes });
+  }
+
+  /** The same FS without write methods, as the target of a readonly link. */
+  asReadonly(): web3n.files.ReadonlyFS {
+    return {
+      type: this.type,
+      name: this.name,
+      writable: false,
+      checkFolderPresence: (p: string) => this.checkFolderPresence(p),
+      checkFilePresence: (p: string) => this.checkFilePresence(p),
+      checkLinkPresence: (p: string) => this.checkLinkPresence(p),
+      stat: (p: string) => this.stat(p),
+      listFolder: (p: string) => this.listFolder(p),
+      readBytes: (p: string) => this.readBytes(p),
+      readLink: (p: string) => this.readLink(p),
+      readonlyFile: (p: string) => this.readonlyFile(p),
+      listXAttrs: (p: string) => this.listXAttrs(p),
+      getXAttr: (p: string, n: string) => this.getXAttr(p, n),
+    } as unknown as web3n.files.ReadonlyFS;
   }
 
   async readonlySubRoot(folder: string): Promise<web3n.files.ReadonlyFS> {

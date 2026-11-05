@@ -44,19 +44,31 @@ vi.mock('../../../src_deno/utils/pre-initial-clean-procedure.ts', () => ({
   preInitialCleanProcedure: async () => ({ userSyncedFs: {}, appSyncedFs: {} }),
 }));
 
-vi.mock('../../../src_deno/utils/fs-and-folders.ts', () => ({
-  prepareFsListAndFsRootFolderList: async () => ({
-    getFsItem: async (fsId: string) => {
-      if (fsId !== USER_FS) {
-        throw new Error(`Unknown fsId '${fsId}' in test`);
-      }
-      return env.fs.asFsListItem(USER_FS);
-    },
-    getFsList: async () => ({}),
-    getFsRootFolderList: async () => [],
-    initializeFsItems: async () => {},
-  }),
-}));
+vi.mock('../../../src_deno/utils/fs-and-folders.ts', async () => {
+  const { makeLinkAwareFs } = await import('../../../shared/utils/fs-utils/link-aware-fs.ts');
+  const linkAware = new WeakMap<object, ReturnType<typeof makeLinkAwareFs>>();
+  const getFsItem = async (fsId: string) => {
+    if (fsId !== USER_FS) {
+      throw new Error(`Unknown fsId '${fsId}' in test`);
+    }
+    return env.fs.asFsListItem(USER_FS);
+  };
+  return {
+    prepareFsListAndFsRootFolderList: async () => ({
+      getFsItem,
+      getLinkAwareFsItem: async (fsId: string) => {
+        const item = await getFsItem(fsId);
+        if (!linkAware.has(item.entity)) {
+          linkAware.set(item.entity, makeLinkAwareFs(item.entity));
+        }
+        return { ...item, entity: linkAware.get(item.entity)! };
+      },
+      getFsList: async () => ({}),
+      getFsRootFolderList: async () => [],
+      initializeFsItems: async () => {},
+    }),
+  };
+});
 
 vi.mock('../../../src_deno/services/favorites.service.ts', () => ({
   favoritesService: async () => ({
@@ -358,6 +370,45 @@ describe('RPC deleteEntities with failures', () => {
     );
 
     expect(env.fs.has('docs/a.txt')).toBe(true);
+    expect(env.syncQueue).toContain('docs');
+    expect(env.syncQueue).toContain(TRASH);
+  });
+});
+
+describe('RPC sync queue for paths through links to folders', () => {
+  // Live test, round 2, item 15: a change behind a link was not queued and never synced.
+  it('queues paths through links as they are: the sync service resolves them', async () => {
+    const work = new MemoryFS('work', 'synced').addFolder('Project1');
+    env.fs.addFolder('Docs').addLink('Links/ToWork', 'link-folder', { target: work });
+
+    await srv.makeFolder({ fsId: USER_FS, path: 'Docs/New' });
+    await srv.makeFolder({ fsId: USER_FS, path: 'Links/ToWork/Project1/New' });
+
+    expect(work.has('Project1/New')).toBe(true);
+    expect(env.syncQueue).toEqual(['Docs/New', 'Links/ToWork/Project1/New']);
+  });
+});
+
+describe('RPC restoreEntities: sync queue', () => {
+  // Live test, round 2, item 21: a restored copy behind a link was never queued
+  it('queues the restored entity itself, its folder and the trash', async () => {
+    env.fs.addFile('docs/a.txt');
+    await srv.deleteEntities({ fsId: USER_FS, entities: [env.fs.entry('docs/a.txt')] });
+    const xattrs = env.fs.xattrsOf(`${TRASH}/a.txt`)!;
+    env.syncQueue = [];
+
+    await srv.restoreEntities({
+      fsId: USER_FS,
+      entities: [
+        {
+          ...env.fs.entry(`${TRASH}/a.txt`),
+          parentFolder: xattrs.parentFolder as string,
+          originalName: xattrs.originalName as string,
+        },
+      ],
+    });
+
+    expect(env.syncQueue).toContain('docs/a.txt');
     expect(env.syncQueue).toContain('docs');
     expect(env.syncQueue).toContain(TRASH);
   });

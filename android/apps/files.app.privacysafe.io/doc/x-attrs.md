@@ -8,11 +8,12 @@ Extended attributes (xattrs) of files and folders that the app writes and reads.
 | `ext` | file | GUI on upload | file extension detected from the content |
 | `mime` | file | GUI on upload | MIME type detected from the content |
 | `thumbnail` | file | GUI on upload | thumbnail as a `data:image/…;base64,…` URL |
+| `icon` | folder / file / link | GUI, the icon editor (info panel, tile) | custom icon chosen by the user: a 128×128 WebP (PNG if WebP cannot be encoded) `data:` URL, at most 64 KB; shown instead of the thumbnail and the type icon. For a link it is kept in the link itself, not in its target |
 | `favoriteId` | folder | Deno when a folder is marked as favorite | ID of the favorite in `favorites.data` |
 | `parentFolder` | folder / file in the trash | Deno on deletion to the trash | the folder to restore the entity into; set only on entities directly in the trash, removed on restore |
 | `originalName` | folder / file in the trash | Deno on deletion to the trash | the name to restore the entity with; removed on restore |
 | `tags` | folder / file | — (read only) | tags of the entity |
-| `cached-hashes` | file | GUI after computing a hash | SHA-256 / SHA-512 of the content with its `mtime` and size; ignored when they no longer match the file |
+| `cached-hashes` | file | — (no longer written or read since 05.11.2026) | SHA-256 / SHA-512 of the content; may remain on files hashed before. A write of xattrs is a new version of the file and its upload, so hashes are computed on request only |
 
 ## Validation
 

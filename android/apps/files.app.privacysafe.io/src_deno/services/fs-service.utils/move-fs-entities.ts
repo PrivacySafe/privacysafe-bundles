@@ -37,29 +37,42 @@ export async function moveFsEntities({
   targetFsListItem: FsListItem;
   targetFolder: string;
   favoritesSrv: FavoritesService;
-}): Promise<Record<string, string>> {
+}): Promise<{
+  moved: Record<string, string>;
+  skippedBroken: string[];
+}> {
   const { fsId: targetFsId } = targetFsListItem;
 
-  const pathsMap: Record<string, string> = {};
+  const moved = {} as Record<string, string>;
+  const skippedBroken: string[] = [];
 
   try {
     for (const entity of entities) {
+      if (entity.type === 'link-broken') {
+        skippedBroken.push(entity.name);
+        continue;
+      }
+
       const entityTargetPath = await getEntityTargetPath({
         fs: targetFsListItem.entity,
-        srcFs: fsListItem.entity,
         entity,
         targetFolder,
       });
       const { entityName: targetEntityName } = getEntityNameAndParent(entityTargetPath);
 
-      await moveFsEntity({
+      const res = await moveFsEntity({
         fsListItem,
         entity,
         targetFsListItem,
         targetFolder,
         targetEntityName,
       });
-      pathsMap[entity.fullPath] = entityTargetPath;
+      if (res === 'skipped-broken') {
+        skippedBroken.push(entity.name);
+        continue;
+      }
+
+      moved[entity.fullPath] = entityTargetPath;
 
       if (entity.type === 'folder') {
         await relocateFavorites({
@@ -72,7 +85,7 @@ export async function moveFsEntities({
       }
     }
 
-    return pathsMap;
+    return { moved, skippedBroken };
   } catch (err) {
     const errorMessage = `Error while moving the ${entities}`;
     log.error(errorMessage, err);

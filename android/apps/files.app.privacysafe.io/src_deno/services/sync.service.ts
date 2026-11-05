@@ -20,6 +20,12 @@ import type { SyncService } from '../types.ts';
 import { SYNC_QUEUE_DATA_FILE } from '../constants.ts';
 import { debounce } from '../utils/debounce.ts';
 import { getParentPath } from '../../shared/utils/fs-utils/get-parent-path.ts';
+import { joinEntityPath } from '../../shared/utils/fs-utils/entity-name.ts';
+import {
+  isLinkAwareFs,
+  parseFolderItselfPath,
+  toFolderItselfPath,
+} from '../../shared/utils/fs-utils/link-aware-fs.ts';
 import { round } from '../../shared/utils/round.ts';
 import { formatPath } from '../../shared/utils/various.ts';
 import { SingleProc } from '../../shared/utils/processes/single.ts';
@@ -33,6 +39,11 @@ import { makeLogger } from '../../shared/utils/logger.ts';
 
 const log = makeLogger('SyncService');
 
+/*
+ TEMPORARY (debugging of sync through links, live test round 2, items 15-16): the
+ lines tagged 🔗 trace the queue at the info level. Remove them after the debugging.
+*/
+
 const MAX_ATTEMPTS = 3;
 // An item that used up its attempts blocks its parents; it gets a new series of
 // attempts after this delay, as there is no manual "retry" in the GUI.
@@ -40,6 +51,11 @@ const FAILED_ITEM_RETRY_DELAY = 10 * 60 * 1000;
 // The platform reports only a successful end of an upload ('upload-done'); a failed upload
 // gives no event (platform report 4, P14). Running uploads are checked by status this often.
 const RUNNING_UPLOADS_CHECK_INTERVAL = 15 * 1000;
+/**
+ * Checks of the uploads behind links after an 'upload-done' event: the event
+ * comes slightly before the completion is recorded in the status.
+ */
+const UPLOADS_BEHIND_LINKS_CHECK_DELAYS = [0, 1000, 3000];
 
 export async function syncService({
   appLocalFs,
@@ -163,9 +179,14 @@ export async function syncService({
   async function addSyncQueueItem(item: SyncQueueItem) {
     const path = formatPath(item.path);
     const existing = syncQueue.get(path);
+    log.info(`🔗 queue: add '${path}'${existing ? ` (already queued, ${existing.status})` : ''}`);
     syncQueue.set(path, {
       ...item,
       ...(existing?.status === 'inProgress' ? { status: 'inProgress', attempts: existing.attempts } : {}),
+      // Queuing again does not reset the attempts of a failing item: the GUI queues an
+      // entity each time it sees it unsynced or behind, i.e. right after each failure, and the
+      // attempts limit would never be reached. A new series is given by scheduleFailedItemRetry.
+      ...(existing && existing.attempts > 0 ? { attempts: existing.attempts, lastError: existing.lastError } : {}),
       path,
       lastChanged: Date.now(),
     });
@@ -336,7 +357,74 @@ export async function syncService({
    * can count the attempt; on success the queue item is removed by startSyncAdopt.
    * The adoptRemote:start/end events are emitted by syncAdopt.
    */
-  async function handleBehindSyncState(status: web3n.files.SyncStatus, formattedPath: string) {
+  /** The folder itself, with links followed: for a folder link it is the root of its target. */
+  function folderItselfPathOf(path: string): string {
+    return isLinkAwareFs(userSyncedFs) ? toFolderItselfPath(path) : path;
+  }
+
+  /**
+   * Adopts the folder of an entity first when the folder is behind: its new version tells
+   * whether the entity is still there. Otherwise the entity is adopted by a path that may be
+   * stale (moved or trashed on another device), which also runs a second operation on the
+   * same object while the adopted folder downloads its files: the platform does not order
+   * them (EEXIST in createNewV1File, then a broken entity). The folder of a folder link's
+   * target root is not known, so '<link>/.' is not handled here.
+   * Returns the entity's status after the folder adoption, null when the entity is gone,
+   * or undefined when the folder is not behind.
+   */
+  async function adoptFolderFirst(formattedPath: string): Promise<web3n.files.SyncStatus | null | undefined> {
+    const { path, isFolderItself } = parseFolderItselfPath(formattedPath);
+    const parentPath = isFolderItself ? null : getParentPath(path);
+    if (parentPath === null) {
+      return undefined;
+    }
+
+    const folderPath = folderItselfPathOf(parentPath);
+    const folderStatus = await userSyncedFs.v?.sync?.status(folderPath).catch(() => undefined);
+    if (folderStatus?.state !== 'behind' || !folderStatus.remote?.latest) {
+      return undefined;
+    }
+
+    log.info(`🔗 '${formattedPath}' is behind with its folder: '${folderPath}' is adopted first`);
+    await handleBehindSyncState(folderStatus, folderPath);
+    try {
+      return (await userSyncedFs.v?.sync?.status(formattedPath)) ?? null;
+    } catch (err) {
+      if ((err as web3n.files.FileException).notFound) {
+        return null;
+      }
+      throw err;
+    }
+  }
+
+  async function handleBehindSyncState(initialStatus: web3n.files.SyncStatus, formattedPath: string) {
+    let status = initialStatus;
+    const statusAfterFolder = await adoptFolderFirst(formattedPath);
+    if (statusAfterFolder === null) {
+      log.info(`🔗 '${formattedPath}' is gone with the adopted version of its folder`);
+      await deleteSyncQueueItem(formattedPath);
+      planSync(100);
+      return;
+    }
+    if (statusAfterFolder) {
+      if (statusAfterFolder.state !== 'behind') {
+        // the item is handled anew, by its current state
+        const item = syncQueue.get(formattedPath);
+        if (item) {
+          await updateSyncQueueItem({ ...item, status: 'pending' });
+        }
+        planSync(100);
+        return;
+      }
+      status = statusAfterFolder;
+    }
+
+    if (!status.remote?.latest) {
+      // removed on the server: its removal comes with a new version of its folder, which is
+      // not known here yet; there is nothing to adopt for the object itself
+      throw new Error(`'${formattedPath}' is removed on the server; its folder has no new version yet.`);
+    }
+
     try {
       await startSyncAdopt({
         path: formattedPath,
@@ -363,7 +451,8 @@ export async function syncService({
       // only files are downloaded automatically; every access to a node may hit a platform
       // inconsistency (see the platform report, P2), so folders and links are not touched
       for (const item of folderList.filter(i => i.isFile)) {
-        const itemPath = `${formattedPath}/${item.name}`;
+        // children of '<link>/.' (the target root of a folder link) are queued under '<link>/<name>'
+        const itemPath = joinEntityPath(parseFolderItselfPath(formattedPath).path, item.name);
         try {
           const itemStats = await userSyncedFs.stat(itemPath);
           await actionAfterAdopt(itemPath, itemStats);
@@ -390,9 +479,23 @@ export async function syncService({
 
     switch (status.state) {
       case 'unsynced': {
-        const upload = await startSyncUpload({ path: formattedPath, stopErrorPropagate: false });
+        let upload: Awaited<ReturnType<typeof startSyncUpload>>;
+        try {
+          upload = await startSyncUpload({ path: formattedPath, stopErrorPropagate: false });
+        } catch (err) {
+          if (await queueChildNeverUploaded(formattedPath, err)) {
+            return;
+          }
+          throw err;
+        }
         if (upload) {
           trackRunningUpload(formattedPath);
+          if (await isBehindLink(formattedPath)) {
+            // the platform's upload events come with the path in the synced FS, which the GUI
+            // does not show for this entity: the start is reported by the path it shows
+            log.info(`🔗 Upload of '${formattedPath}' (behind a link) has started.`);
+            emitStorageEvent({ event: 'upload:start', payload: { path: guiPathOf(formattedPath) } });
+          }
         } else {
           // nothing to upload, e.g. the version has been uploaded meanwhile
           await onSyncDone(formattedPath);
@@ -425,6 +528,85 @@ export async function syncService({
     }
   }
 
+  /**
+   * True when the path is a link to a folder whose target root is to upload or to adopt
+   * (unsynced or behind) and is not queued yet. Paths in the queue may go through links: the sync FS is link-aware.
+   */
+  async function isLinkTargetRootToSync(path: string): Promise<boolean> {
+    if (!path || parseFolderItselfPath(path).isFolderItself) {
+      return false;
+    }
+    const targetRootPath = toFolderItselfPath(path);
+    if (syncQueue.has(targetRootPath)) {
+      return false;
+    }
+    try {
+      if (!(await userSyncedFs.checkLinkPresence(path))) {
+        return false;
+      }
+      const link = await userSyncedFs.readLink(path);
+      if (!link.isFolder) {
+        return false;
+      }
+      const status = await userSyncedFs.v?.sync?.status(targetRootPath);
+      // only an action of the queue counts: a conflict waits for the user, and queuing the
+      // target root again would be dropped as conflicting and queued again, endlessly
+      return status?.state === 'unsynced' || status?.state === 'behind';
+    } catch (err) {
+      // a broken link: nothing to sync behind it; the link itself is handled as usual
+      log.error(`Error checking the target of the link '${path}'. `, err);
+      return false;
+    }
+  }
+
+  /**
+   * A folder can be uploaded only when its entries are uploaded: a new entry that is not in
+   * the queue (e.g. a copy made between a link target and another folder, or an entry of a
+   * copied folder) makes the platform refuse with childNeverUploaded. The entry is queued, and
+   * the folder waits for it without a counted attempt.
+   */
+  async function queueChildNeverUploaded(folderPath: string, err: unknown): Promise<boolean> {
+    const cause = ((err as { cause?: unknown })?.cause ?? err) as {
+      childNeverUploaded?: boolean;
+      childName?: string;
+    };
+    if (!cause?.childNeverUploaded || !cause.childName) {
+      return false;
+    }
+
+    const childPath = joinEntityPath(guiPathOf(folderPath), cause.childName);
+    log.info(`🔗 '${folderPath}' waits for its entry '${childPath}', which was never uploaded`);
+    await addSyncQueueItem({
+      path: childPath,
+      status: 'pending',
+      attempts: 0,
+      lastError: '',
+      lastChanged: Date.now(),
+    });
+    const item = syncQueue.get(formatPath(folderPath));
+    if (item) {
+      await updateSyncQueueItem({ ...item, status: 'pending' });
+    }
+    planSync(100);
+    return true;
+  }
+
+  /** The path the GUI shows for a queue path: '<link>/.' (the target root) is shown as the link. */
+  function guiPathOf(path: string): string {
+    return parseFolderItselfPath(path).path;
+  }
+
+  /** True when the queue path is not a path in the synced FS: it goes through a link. */
+  async function isBehindLink(path: string): Promise<boolean> {
+    if (parseFolderItselfPath(path).isFolderItself) {
+      return true;
+    }
+    if (!isLinkAwareFs(userSyncedFs)) {
+      return false;
+    }
+    return userSyncedFs.isReachedThroughLinks(path).catch(() => false);
+  }
+
   function errorMessageOf(err: unknown): string {
     return (err as Error)?.message || JSON.stringify(err);
   }
@@ -442,6 +624,11 @@ export async function syncService({
     let fsEntitySyncStatus: web3n.files.SyncStatus | undefined;
     try {
       fsEntitySyncStatus = await userSyncedFs.v?.sync?.status(formattedPath);
+      log.info(
+        `🔗 step '${formattedPath}': ${fsEntitySyncStatus?.state}${
+          isUploadingNewVersion(fsEntitySyncStatus) ? ' (uploading)' : ''
+        }`,
+      );
     } catch (err) {
       if ((err as web3n.files.FileException).notFound) {
         log.warn(`The FS entity '${formattedPath}' may have been removed`);
@@ -460,6 +647,21 @@ export async function syncService({
       onSyncFailed(formattedPath, errorMessageOf(err));
       // a status request fails mostly because of the server, so the pass stops
       return 'break';
+    }
+
+    // A link to a folder is two nodes: the link (this item) and the root of its target, which
+    // is not a child of any folder in the queue: it is queued as '<link>/.' and goes first.
+    if (await isLinkTargetRootToSync(formattedPath)) {
+      log.info(`🔗 The target root of the link '${formattedPath}' is queued to sync first.`);
+      await addSyncQueueItem({
+        path: toFolderItselfPath(formattedPath),
+        status: 'pending',
+        attempts: 0,
+        lastError: '',
+        lastChanged: Date.now(),
+      });
+      await updateSyncQueueItem({ ...item, status: 'pending' });
+      return 'continue';
     }
 
     // An upload is reported before its server transaction starts (`uploadStarted` is false
@@ -481,6 +683,7 @@ export async function syncService({
     }
 
     try {
+      log.info(`🔗 step '${formattedPath}': action for ${fsEntitySyncStatus.state}`);
       await startSyncAction(fsEntitySyncStatus, formattedPath);
     } catch (err) {
       log.error(`🔥 Sync action error (${item.attempts}/${MAX_ATTEMPTS}) for '${path}' . `, err);
@@ -539,6 +742,7 @@ export async function syncService({
   }
 
   async function onSyncDone(path: string) {
+    log.info(`🔗 done '${formatPath(path)}'`);
     await deleteSyncQueueItem(path);
     planSync(100);
   }
@@ -550,6 +754,22 @@ export async function syncService({
    */
   async function onUploadDone(path: string) {
     const item = syncQueue.get(path);
+    log.info(
+      `🔗 upload-done '${path}': ${item ? `queued (${item.status})` : 'not queued'}, running uploads: ${[
+        ...runningUploads.keys(),
+      ].join(', ')}`,
+    );
+    if (!item && runningUploads.size > 0) {
+      // Events come with paths in the synced FS, while an upload started by a path through a
+      // link is queued under that path: its end is found by checking the running uploads now.
+      for (const delay of UPLOADS_BEHIND_LINKS_CHECK_DELAYS) {
+        setTimeout(() => {
+          checkRunningUploads(0, { finishOnly: true }).catch(err =>
+            log.error('Error while checking the running uploads. ', err),
+          );
+        }, delay);
+      }
+    }
     if (item) {
       try {
         const status = await userSyncedFs.v?.sync?.status(path);
@@ -572,6 +792,7 @@ export async function syncService({
 
   function onSyncFailed(path: string, error?: string) {
     const formattedPath = formatPath(path);
+    log.info(`🔗 failed '${formattedPath}': ${error}`);
     untrackRunningUpload(formattedPath);
     const item = syncQueue.get(formattedPath);
     if (item) {
@@ -628,14 +849,18 @@ export async function syncService({
    * sends no event for a failed upload (platform report 4, P14), and without this check the
    * item would stay 'inProgress' until the app is restarted.
    */
-  async function checkRunningUploads() {
+  /**
+   * With `finishOnly` an upload that still looks unsynced is left to the regular checks,
+   * which tell a failure from a completion that is not recorded yet.
+   */
+  async function checkRunningUploads(minAge = RUNNING_UPLOADS_CHECK_INTERVAL, { finishOnly = false } = {}) {
     if (!isServerConnectionAvailable) {
       // a running upload waits for the connection; a lost one is reset by abortProcessing
       return;
     }
 
     for (const [path, seenAt] of Array.from(runningUploads.entries())) {
-      if (Date.now() - seenAt < RUNNING_UPLOADS_CHECK_INTERVAL) {
+      if (Date.now() - seenAt < minAge) {
         continue;
       }
       if (syncQueue.get(path)?.status !== 'inProgress') {
@@ -659,6 +884,10 @@ export async function syncService({
         uploadsSeenEnded.delete(path);
         continue;
       }
+      if (finishOnly && status?.state === 'unsynced') {
+        log.info(`🔗 check after upload-done: '${path}' still unsynced`);
+        continue;
+      }
       if (status?.state === 'unsynced' && !uploadsSeenEnded.has(path)) {
         // A successful upload is marked as done shortly before its completion is recorded,
         // so a single check can catch it in between. A failure is decided by the next check.
@@ -667,15 +896,16 @@ export async function syncService({
       }
 
       untrackRunningUpload(path);
+      log.info(`🔗 The upload of '${path}' has ended without the event: ${status?.state}.`);
       emitStorageEvent({
         event: 'upload:end',
-        payload: { path },
+        payload: { path: guiPathOf(path) },
       });
       switch (status?.state) {
         case 'conflicting': {
           emitStorageEvent({
             event: 'arose:conflict',
-            payload: { path },
+            payload: { path: guiPathOf(path) },
           });
           await deleteSyncQueueItem(path);
           break;
@@ -876,6 +1106,9 @@ export async function syncService({
   function handleSyncedTreeEvent(val: web3n.files.FSEvent & { type: string }) {
     const { type, path: pathFromEvent } = val;
     const path = formatPath(pathFromEvent);
+    if (type !== 'upload-progress' && type !== 'download-progress') {
+      log.info(`🔗 tree event ${type} '${path}'`);
+    }
 
     switch (type) {
       case 'upload-started': {

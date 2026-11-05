@@ -45,6 +45,7 @@
   import EntityDataBlock from '@/components/dialogs/resolve-conflicts-dialog/entity-data-block.vue';
   import FolderCompareBlock from '@/components/dialogs/resolve-conflicts-dialog/folder-compare-block.vue';
   import { EntitySyncStatus } from '@deno/types.ts';
+  import { areConflictVersionsSame, ResolveActionError } from '@/utils/conflict-versions';
   import { makeLogger } from '@shared/utils/logger';
 
   const log = makeLogger('ResolveConflicts');
@@ -80,6 +81,30 @@
   const parentFolder = ref<Nullable<string>>(null);
 
   const isProcessOngoing = ref(false);
+  /** The local and the cloud versions hold the same: an upload of the local one is pointless. */
+  const areVersionsSame = ref(false);
+
+  async function checkVersionsSame(
+    path: string,
+    type: string | undefined,
+    remoteVersion: number,
+  ): Promise<boolean> {
+    if (type !== 'folder' && type !== 'file') {
+      return false;
+    }
+    try {
+      const sync = getFs(USER_FS).v!.sync!;
+      const diff =
+        type === 'folder'
+          ? await sync.diffCurrentAndRemoteFolderVersions(path, remoteVersion)
+          : await sync.diffCurrentAndRemoteFileVersions(path, { remoteVersion, compareContentIfSameMTime: true });
+      return areConflictVersionsSame(diff, type);
+    } catch (err) {
+      // unknown: the choice stays with the user
+      log.error(`Error comparing the versions of '${path}'. `, err);
+      return false;
+    }
+  }
 
   /**
    * Shows the first path, starting from `index`, that is still conflicting.
@@ -99,6 +124,7 @@
       syncStatus.value = status;
       statsLocal.value = await getEntityStats({ fsId: USER_FS, fullPath: path });
       statsRemote.value = await getEntityStats({ fsId: USER_FS, fullPath: path, version: remoteVersion });
+      areVersionsSame.value = await checkVersionsSame(path, statsLocal.value?.type, remoteVersion);
       showCompareFolderTable.value = false;
 
       const home = t('fs.folder_name.user_synced_home');
@@ -123,6 +149,9 @@
   }
 
   function isActionApplicable(action: ResolveAction): boolean {
+    if ((action === 'keepLocal' || action === 'absorb') && areVersionsSame.value) {
+      return false;
+    }
     if (action === 'keepBoth') {
       return statsLocal.value?.type === 'file';
     }
@@ -132,7 +161,27 @@
     return true;
   }
 
+  /**
+   * Uploads a folder version and waits for the end. A started upload that fails
+   * gives neither an event nor an error to the app (platform report П14), so the
+   * dialog would report success while the conflict stays; a folder version is
+   * small, so the upload is awaited and its error is shown.
+   */
+  async function uploadFolderAndWait(path: string, remoteVersion: number) {
+    try {
+      await getFs(USER_FS).v!.sync!.upload(path, { uploadVersion: remoteVersion + 1 });
+    } catch (err) {
+      throw new ResolveActionError('dialog.resolve.error_upload', err);
+    }
+    await appStorageSrv.deleteSyncQueueItem(path).catch(() => {});
+  }
+
   async function keepLocal(path: string, remoteVersion: number) {
+    if (statsLocal.value?.type === 'folder') {
+      await uploadFolderAndWait(path, remoteVersion);
+      return;
+    }
+    // a file may be big: its upload goes on in the background, through the queue
     await appStorageSrv.startSyncUpload({
       path,
       opts: { uploadVersion: remoteVersion + 1 },
@@ -204,11 +253,7 @@
       opts: { postfixForNameOverlaps: '_[ keep ]' },
     });
 
-    await appStorageSrv.startSyncUpload({
-      path,
-      opts: { uploadVersion: remoteVersion + 1 },
-      stopErrorPropagate: false,
-    });
+    await uploadFolderAndWait(path, remoteVersion);
   }
 
   async function performAction(action: ResolveAction) {
@@ -255,10 +300,11 @@
       }
     } catch (err) {
       log.error(`Error resolving the conflict of '${currentResolvingPath.value}'. `, err);
+      const noticeKey = err instanceof ResolveActionError ? err.noticeKey : 'dialog.resolve.error';
       notifications.$createNotice({
         type: 'error',
         withIcon: true,
-        content: t('dialog.resolve.error', { name: currentResolvingPath.value || '/' }),
+        content: t(noticeKey, { name: currentResolvingPath.value || '/' }),
       });
     } finally {
       isProcessOngoing.value = false;
@@ -358,12 +404,20 @@
             {{ t('dialog.resolve.btn.keep_cloud') }}
           </ui3n-button>
 
-          <ui3n-button
-            type="secondary"
-            @click.stop.prevent="resolve('keepLocal')"
+          <ui3n-tooltip
+            :content="areVersionsSame ? t('dialog.resolve.btn.keep_local_same') : ''"
+            :disabled="!areVersionsSame"
+            position-strategy="fixed"
+            placement="top"
           >
-            {{ t('dialog.resolve.btn.keep_local') }}
-          </ui3n-button>
+            <ui3n-button
+              type="secondary"
+              :disabled="areVersionsSame"
+              @click.stop.prevent="resolve('keepLocal')"
+            >
+              {{ t('dialog.resolve.btn.keep_local') }}
+            </ui3n-button>
+          </ui3n-tooltip>
 
           <ui3n-button
             v-if="statsLocal?.type === 'file'"
@@ -378,11 +432,16 @@
             </ui3n-button>
 
             <ui3n-tooltip
-              :content="t('dialog.resolve.btn.absorb_tooltip')"
+              :content="
+                areVersionsSame ? t('dialog.resolve.btn.keep_local_same') : t('dialog.resolve.btn.absorb_tooltip')
+              "
               position-strategy="fixed"
               placement="top-end"
             >
-              <ui3n-button @click.stop.prevent="resolve('absorb')">
+              <ui3n-button
+                :disabled="areVersionsSame"
+                @click.stop.prevent="resolve('absorb')"
+              >
                 {{ t('dialog.resolve.btn.absorb') }}
               </ui3n-button>
             </ui3n-tooltip>

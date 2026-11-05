@@ -47,7 +47,8 @@ export async function downloadEntities({
           file && (await saveFile({ fs: targetFs, file, dst: name }));
           break;
         }
-        case 'link': {
+        case 'link-folder':
+        case 'link-file': {
           const link = await readLink({ fs, path: fullPath, stopErrorPropagate: true });
           if (!link) {
             throw new Error(`Error while link reading ${fullPath}`);
@@ -63,6 +64,11 @@ export async function downloadEntities({
           if (link.isFile) {
             await saveFile({ fs: targetFs, file: data as web3n.files.ReadonlyFile, dst: name });
           }
+          break;
+        }
+
+        case 'link-broken': {
+          break;
         }
       }
     }

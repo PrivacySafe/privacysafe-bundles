@@ -14,6 +14,7 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
+import { ENTITY_ICON_MAX_LENGTH } from '../../../shared/constants/index.ts';
 import { isSafeRelativePath, isValidEntityName } from '../../../shared/utils/fs-utils/entity-name.ts';
 
 /*
@@ -26,6 +27,7 @@ const LISTING_XATTR_VALIDATORS = {
   parentFolder: (v: unknown) => isSafeRelativePath(v),
   originalName: (v: unknown) => isValidEntityName(v),
   thumbnail: (v: unknown) => isImageDataUrl(v),
+  icon: (v: unknown) => isEntityIconDataUrl(v),
   favoriteId: (v: unknown) => typeof v === 'string' && v.length > 0 && v.length <= 64,
   sync: (v: unknown) => typeof v === 'string',
   hidden: (v: unknown) => typeof v === 'string',
@@ -49,6 +51,11 @@ export function isImageDataUrl(value: unknown): value is string {
   );
 }
 
+/** A custom icon of an entity (xattr `icon`): an image data URL of a limited size. */
+export function isEntityIconDataUrl(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= ENTITY_ICON_MAX_LENGTH && isImageDataUrl(value);
+}
+
 /*
  Attributes that the GUI may set through the RPC, with their value checks.
  The others are set only by the service itself (favorites, trash, ids of folders).
@@ -58,6 +65,7 @@ const RPC_WRITABLE_XATTR_VALIDATORS: Record<string, (v: unknown) => boolean> = {
   ext: v => typeof v === 'string' && v.length <= 64,
   mime: v => typeof v === 'string' && v.length <= 255,
   thumbnail: v => isImageDataUrl(v),
+  icon: v => isEntityIconDataUrl(v),
 };
 
 /** Keeps only the attributes the GUI is allowed to set, with valid values. */
@@ -76,6 +84,16 @@ export function filterRpcWritableXAttrs(attrs: Record<string, unknown>): {
     } else {
       rejected.push(name);
     }
+  }
+  return { allowed, rejected };
+}
+
+/** Keeps only the attributes the GUI is allowed to remove: the ones it may set. */
+export function filterRpcRemovableXAttrs(names: string[]): { allowed: string[]; rejected: string[] } {
+  const allowed: string[] = [];
+  const rejected: string[] = [];
+  for (const name of names) {
+    (Object.hasOwn(RPC_WRITABLE_XATTR_VALIDATORS, name) ? allowed : rejected).push(name);
   }
   return { allowed, rejected };
 }

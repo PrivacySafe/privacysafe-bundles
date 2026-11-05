@@ -22,6 +22,7 @@ import {
   USER_LOCAL_FS,
 } from '../../shared/constants/index.ts';
 import type { FsListItem, RootFsFolderView, StorageType, WritableFS } from '../../shared/types/index.ts';
+import { makeLinkAwareFs, type LinkAwareFS } from '../../shared/utils/fs-utils/link-aware-fs.ts';
 import type { FsStore } from '../types.ts';
 
 export async function prepareFsListAndFsRootFolderList(): Promise<FsStore> {
@@ -35,6 +36,18 @@ export async function prepareFsListAndFsRootFolderList(): Promise<FsStore> {
     }
 
     return fs;
+  }
+
+  const linkAwareFsItems = new Map<string, FsListItem & { entity: LinkAwareFS }>();
+
+  async function getLinkAwareFsItem(fsId: string): Promise<FsListItem & { entity: LinkAwareFS }> {
+    const fsItem = await getFsItem(fsId);
+    let item = linkAwareFsItems.get(fsId);
+    if (!item || item.entity.raw !== fsItem.entity) {
+      item = { ...fsItem, entity: makeLinkAwareFs(fsItem.entity) };
+      linkAwareFsItems.set(fsId, item);
+    }
+    return item;
   }
 
   async function getFsList(): Promise<Record<string, FsListItem>> {
@@ -103,6 +116,7 @@ export async function prepareFsListAndFsRootFolderList(): Promise<FsStore> {
     fsList,
     fsRootFolderList,
     getFsItem,
+    getLinkAwareFsItem,
     getFsList,
     getFsRootFolderList,
     initializeFsItems,

@@ -20,16 +20,30 @@
   import { storeToRefs } from 'pinia';
   import dayjs from 'dayjs';
   import size from 'lodash/size';
-  import { type Nullable, type TaskRunnerInstance, Ui3nEditable, Ui3nIcon, Ui3nProgressLinear } from '@v1nt1248/3nclient-lib';
+  import {
+    type Nullable,
+    type TaskRunnerInstance,
+    Ui3nButton,
+    Ui3nEditable,
+    Ui3nIcon,
+    Ui3nProgressLinear,
+    Ui3nTooltip,
+  } from '@v1nt1248/3nclient-lib';
   import { getFileExtension, isFileImage, isFileVideo } from '@v1nt1248/3nclient-lib/utils';
   import { useDblClickHandler } from '@/composables/useDblClickHandler';
   import { useAbilities } from '@/composables/useAbilities';
   import { useEntityNameEditing } from '@/composables/useEntityNameEditing';
+  import { useOpenFsEntity } from '@/composables/useOpenFsEntity';
+  import { useEntityIcon } from '@/composables/useEntityIcon';
   import { useAppStore, useFsStore, useSyncQueueStore } from '@/store';
-  import { createThumbnail as _createThumbnail } from '@/utils';
+  import { createThumbnail as _createThumbnail, getFsEntityTypeIcon, isLinkEntityType } from '@/utils';
   import type { FsFolderEntityEvent, ListingEntryExtended } from '@shared/types';
   import FileType from '@/components/common/file-type/file-type.vue';
   import FsEntitySyncStatus from '@/components/common/fs-entity-sync-status/fs-entity-sync-status.vue';
+  import LinkBadge from '@/components/common/link-badge/link-badge.vue';
+  import { makeLogger } from '@shared/utils/logger';
+
+  const log = makeLogger('TileViewItem');
 
   const props = defineProps<{
     windowIndex: 1 | 2;
@@ -51,8 +65,10 @@
 
   const appStore = useAppStore();
   const { uploadProcesses, downloadProcesses, adoptProcesses } = storeToRefs(useSyncQueueStore());
-  const { canRename, canSetUnsetFavorite, canCopyMove } = useAbilities();
+  const { canRename, canSetUnsetFavorite, canCopyMove, canEditEntityIcon } = useAbilities();
+  const { editEntityIcon } = useEntityIcon();
   const { openFile } = useFsStore();
+  const { openLinkedEntity } = useOpenFsEntity();
 
   const { handleDblClick } = useDblClickHandler(onClick, onDblClick);
 
@@ -73,12 +89,30 @@
     return size(value) > 5 ? '' : value;
   });
 
+  const entityTypeIcon = computed(() => getFsEntityTypeIcon(props.item.type));
+  const isLink = computed(() => isLinkEntityType(props.item.type));
+
   const displayingCTime = computed(() => props.item.ctime ? dayjs(props.item.ctime).format('YYYY-MM-DD') : '');
 
-  const iconStyle = computed(() => !(props.item?.thumbnail || thumbnail.value)
+  /*
+   The body: only a thumbnail fills it; otherwise an icon is shown in its center,
+   the custom one or the type one (the same goes for the header).
+  */
+  const thumbnailImage = computed(() => props.item.thumbnail || thumbnail.value);
+
+  const iconStyle = computed(() => !thumbnailImage.value
     ? { backgroundColor: 'var(--color-bg-control-secondary-default)' }
-    : { backgroundImage: `url(${props.item.thumbnail || thumbnail.value})` },
+    : { backgroundImage: `url(${thumbnailImage.value})` },
   );
+
+  const canChangeIcon = computed(
+    () => !editNameMode.value && !props.disabled && canEditEntityIcon(props.fsId, props.rootFolderId, props.item),
+  );
+
+  function changeIcon() {
+    // the folder is reread after a change, the tile gets the new item
+    editEntityIcon({ fsId: props.fsId, entity: props.item });
+  }
 
   function onClick(ev: MouseEvent) {
     ev.preventDefault();
@@ -98,13 +132,12 @@
         return;
       }
 
-      case 'link': {
-        // TODO How can I correctly determine that a link is a link to a file?
-        if (props.item.ext) {
-          await openFile(props.fsId, props.item.fullPath, true);
-        } else {
-          emits('action', { event: 'go:linked-folder', payload: props.item.fullPath });
-        }
+      case 'link-folder':
+      case 'link-file':
+      case 'link-broken': {
+        await openLinkedEntity(props.fsId, props.item, {
+          onFolder: path => emits('action', { event: 'go', payload: path }),
+        });
         return;
       }
     }
@@ -136,21 +169,31 @@
   async function createThumbnail() {
     const { type, thumbnail: itemThumbnail, ext = '', fullPath } = props.item;
 
-    if (
-      type === 'file' && !itemThumbnail && (
+    const isFileWithThumbnail =
+      type === 'file' && (
         isFileImage({ fullName: fullPath.toLowerCase() })
         || isFileVideo({ fullName: fullPath.toLowerCase() })
         || ext.toLowerCase() === 'pdf'
-      )
-    ) {
+      );
+    // the group of a link's target is known only from the target's name
+    const isLinkToFile = type === 'link-file';
+
+    if (!itemThumbnail && (isFileWithThumbnail || isLinkToFile)) {
       isThumbnailCreationProcessGoingOn.value = true;
 
       props.taskRunner.addTask(
         async () => {
-          await _createThumbnail(props.fsId, fullPath, props.item.version ?? props.item.mtime?.valueOf()).then((val) => {
+          await _createThumbnail(
+            props.fsId,
+            fullPath,
+            props.item.version ?? props.item.mtime?.valueOf(),
+            { isLink: isLinkToFile },
+          ).then((val) => {
             if (val) {
               thumbnail.value = val;
             }
+          }).catch((err) => {
+            log.error(`Error creating a thumbnail for '${fullPath}'. `, err);
           }).finally(() => {
             isThumbnailCreationProcessGoingOn.value = false;
           });
@@ -222,13 +265,25 @@
               color="var(--color-icon-control-accent-default)"
             />
 
-            <ui3n-icon
+            <link-badge
+              :is-link="isLink"
               :class="$style.iconType"
-              :icon="item.type === 'folder' ? 'round-folder' : 'round-subject'"
-              :width="20"
-              :height="20"
-              color="var(--color-icon-table-secondary-default)"
-            />
+            >
+              <img
+                v-if="item.icon"
+                :src="item.icon"
+                alt=""
+                draggable="false"
+                :class="$style.customIcon"
+              >
+              <ui3n-icon
+                v-else
+                :icon="entityTypeIcon"
+                :width="20"
+                :height="20"
+                color="var(--color-icon-table-secondary-default)"
+              />
+            </link-badge>
           </template>
         </template>
       </div>
@@ -244,6 +299,28 @@
         @invalid="onInvalidName"
       />
 
+      <div
+        v-if="canChangeIcon"
+        :class="$style.changeIcon"
+      >
+        <ui3n-tooltip
+          :content="t('fs.entity.info.change_icon')"
+          position-strategy="fixed"
+          placement="top-end"
+        >
+          <ui3n-button
+            type="icon"
+            size="small"
+            color="transparent"
+            icon="outline-image"
+            icon-size="20"
+            icon-color="var(--color-icon-control-accent-default)"
+            @click.stop.prevent="changeIcon"
+            @dblclick.stop.prevent
+          />
+        </ui3n-tooltip>
+      </div>
+
       <ui3n-icon
         v-if="item.brokeReason"
         icon="round-crisis-alert"
@@ -257,13 +334,26 @@
       :class="$style.body"
       :style="iconStyle"
     >
-      <ui3n-icon
-        v-if="!(item?.thumbnail || thumbnail)"
-        :icon="item?.type === 'folder' ? 'round-folder' : 'round-subject'"
-        width="100"
-        height="100"
-        color="var(--color-icon-table-secondary-default)"
-      />
+      <link-badge
+        v-if="!thumbnailImage"
+        :is-link="isLink"
+        size="large"
+      >
+        <img
+          v-if="item.icon"
+          :src="item.icon"
+          alt=""
+          draggable="false"
+          :class="$style.customIconLarge"
+        >
+        <ui3n-icon
+          v-else
+          :icon="entityTypeIcon"
+          width="100"
+          height="100"
+          color="var(--color-icon-table-secondary-default)"
+        />
+      </link-badge>
 
       <ui3n-progress-linear
         v-if="isThumbnailCreationProcessGoingOn"
@@ -365,7 +455,7 @@
   .favoriteIcon {
     position: absolute;
     left: -14px;
-    top: 6px;
+    top: 7px;
     z-index: 2;
 
     &:not(.favoriteIconSelected) {
@@ -383,7 +473,7 @@
     width: 20px;
     height: 20px;
     left: 0;
-    top: 2px;
+    top: 3px;
     cursor: pointer;
   }
 
@@ -392,8 +482,25 @@
     display: none !important;
   }
 
-  .iconType {
-    position: relative;
+  .customIconLarge {
+    display: block;
+    width: 100px;
+    height: 100px;
+    border-radius: var(--spacing-s);
+    object-fit: cover;
+  }
+
+  .customIcon {
+    display: block;
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    object-fit: cover;
+  }
+
+  .changeIcon {
+    flex-shrink: 0;
+    margin-left: auto;
   }
 
   .iconDamaged {

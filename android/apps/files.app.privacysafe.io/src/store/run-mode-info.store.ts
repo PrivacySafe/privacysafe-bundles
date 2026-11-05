@@ -256,7 +256,7 @@ export const useRunModeInfoStore = defineStore('run-mode-info', () => {
     try {
       setCommonLoading(true);
 
-      await copyMoveEntities({
+      const { skippedBroken } = await copyMoveEntities({
         sourceFsId: sourceFsId!,
         entities: data!,
         targetFsId: targetFsId!,
@@ -273,9 +273,14 @@ export const useRunModeInfoStore = defineStore('run-mode-info', () => {
         $emitter.emit('refresh:data', { path: sourceFolder });
       }
 
-      const successMessage = moveMode
-        ? t('fs.entity.message.success.move', { count: size(data) })
-        : t('fs.entity.message.success.copy', { count: size(data) });
+      const successMessage =
+        skippedBroken.length > 0
+          ? moveMode
+            ? t('fs.entity.message.success.move_except_broken', { count: skippedBroken.length })
+            : t('fs.entity.message.success.copy_except_broken', { count: skippedBroken.length })
+          : moveMode
+            ? t('fs.entity.message.success.move', { count: size(data) })
+            : t('fs.entity.message.success.copy', { count: size(data) });
 
       $createNotice({
         type: 'success',

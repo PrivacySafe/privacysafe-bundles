@@ -4,10 +4,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ListingEntryExtended } from '../../../shared/types/index.ts';
 
 const files = vi.hoisted(() => new Map<string, unknown>());
+const links = vi.hoisted(() => new Map<string, { isFile?: boolean; isFolder?: boolean; target: unknown }>());
 
 vi.mock('@/store', () => ({
   useFsStore: () => ({
-    getFs: () => ({ writableFile: async (path: string) => files.get(path) }),
+    getFs: () => ({
+      readonlyFile: async (path: string) => files.get(path),
+      readLink: async (path: string) => {
+        const link = links.get(path)!;
+        return { isFile: link.isFile, isFolder: link.isFolder, target: async () => link.target };
+      },
+    }),
   }),
 }));
 
@@ -16,7 +23,7 @@ const { useFileHashing } = await import('../../../src/components/common/fs-entit
 const MTIME = new Date('2026-01-01T00:00:00Z');
 
 /**
- * A writable file. With `gated`, its byte source hands out chunks only when the
+ * A file. With `gated`, its byte source hands out chunks only when the
  * test calls `release()`, so a hashing run can be interrupted at a chosen point.
  */
 function createFile(content: Uint8Array, { gated = false } = {}) {
@@ -61,11 +68,16 @@ function createFile(content: Uint8Array, { gated = false } = {}) {
   return file;
 }
 
-function setup(initialPath: string) {
+function setup(initialPath: string, type: ListingEntryExtended['type'] = 'file') {
   const path = ref(initialPath);
   const stats = ref<ListingEntryExtended | null>(null);
   const setStats = (p: string) => {
-    stats.value = { id: p, name: p, fullPath: p, type: 'file', size: 3, mtime: MTIME } as ListingEntryExtended;
+    // a link has stats of its own, not those of its target
+    stats.value = (
+      type === 'file'
+        ? { id: p, name: p, fullPath: p, type, size: 3, mtime: MTIME }
+        : { id: p, name: p, fullPath: p, type }
+    ) as ListingEntryExtended;
   };
   setStats(initialPath);
   const hashing = useFileHashing(
@@ -79,10 +91,15 @@ function setup(initialPath: string) {
 const sha = (alg: string, data: Uint8Array) => createHash(alg).update(data).digest('hex');
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
-beforeEach(() => files.clear());
+beforeEach(() => {
+  files.clear();
+  links.clear();
+});
 
 describe('useFileHashing', () => {
-  it('computes and caches SHA-256 and SHA-512 of the whole file', async () => {
+  // Hashes are not kept in xattrs: in a synced storage such a write is a new
+  // version of the file and its upload (and through a file link — П20).
+  it('computes SHA-256 and SHA-512 of the whole file and writes nothing into it', async () => {
     const data = new TextEncoder().encode('abc');
     const a = createFile(data);
     files.set('a.txt', a);
@@ -92,15 +109,12 @@ describe('useFileHashing', () => {
 
     expect(hashing.sha256hex.value).toBe(sha('sha256', data));
     expect(hashing.sha512hex.value).toBe(sha('sha512', data));
-    expect(a.xattrs['cached-hashes']).toMatchObject({
-      contentLen: 3,
-      hashes: { 'SHA-256': sha('sha256', data), 'SHA-512': sha('sha512', data) },
-    });
+    expect(a.updateXAttrs).not.toHaveBeenCalled();
   });
 
   // Regression for plan 1.10: a stopped run used to digest partial data, show
   // it and cache it into the xattrs of the file that was opened next.
-  it('does not show or cache anything after being stopped and switched to another file', async () => {
+  it('does not show anything after being stopped and switched to another file', async () => {
     const a = createFile(new Uint8Array(1024 * 1024).fill(1), { gated: true });
     const b = createFile(new TextEncoder().encode('xyz'));
     files.set('a.bin', a);
@@ -123,7 +137,32 @@ describe('useFileHashing', () => {
 
     expect(hashing.sha256hex.value).toBeNull();
     expect(hashing.sha512hex.value).toBeNull();
-    expect(a.updateXAttrs).not.toHaveBeenCalled();
-    expect(b.updateXAttrs).not.toHaveBeenCalled();
+  });
+});
+
+describe('useFileHashing of a link to a file', () => {
+  it('hashes the target and writes nothing into it', async () => {
+    const data = new TextEncoder().encode('target content');
+    const target = createFile(data);
+    links.set('link', { isFile: true, target });
+    const { hashing } = setup('link', 'link-file');
+
+    await hashing.loadHashing();
+    expect(hashing.canHash.value).toBe(true);
+
+    await hashing.calculateHash();
+
+    expect(hashing.sha256hex.value).toBe(sha('sha256', data));
+    expect(hashing.sha512hex.value).toBe(sha('sha512', data));
+    expect(target.updateXAttrs).not.toHaveBeenCalled();
+  });
+
+  it('cannot hash a link whose target is not a file', async () => {
+    links.set('link', { isFolder: true, target: {} });
+    const { hashing } = setup('link', 'link-file');
+
+    await hashing.loadHashing();
+
+    expect(hashing.canHash.value).toBe(false);
   });
 });

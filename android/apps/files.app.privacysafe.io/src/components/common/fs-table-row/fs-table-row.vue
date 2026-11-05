@@ -25,11 +25,14 @@
   import { useDblClickHandler } from '@/composables/useDblClickHandler';
   import { useAbilities } from '@/composables/useAbilities';
   import { useEntityNameEditing } from '@/composables/useEntityNameEditing';
+  import { useOpenFsEntity } from '@/composables/useOpenFsEntity';
   import { useAppStore, useFsStore, useSyncQueueStore } from '@/store';
   import type { FsEntityInfoProvideProps, ListingEntryExtended } from '@shared/types';
   import type { FsTableRowProps, FsTableRowEmits } from './types';
   import FileType from '@/components/common/file-type/file-type.vue';
   import FsEntitySyncStatus from '@/components/common/fs-entity-sync-status/fs-entity-sync-status.vue';
+  import LinkBadge from '@/components/common/link-badge/link-badge.vue';
+  import { getFsEntityTypeIcon, isLinkEntityType } from '@/utils';
   import { USER_FS } from '@shared/constants';
 
   const props = defineProps<FsTableRowProps<keyof ListingEntryExtended>>();
@@ -70,7 +73,10 @@
     () => props.row.type === 'folder' && !props.disabled && canSetUnsetFavorite(props.fsId, props.rootFolderId),
   );
 
+  const entityTypeIcon = computed(() => getFsEntityTypeIcon(props.row.type));
+
   const { openFile } = useFsStore();
+  const { openLinkedEntity } = useOpenFsEntity();
 
   async function onDblClick() {
     if (props.row.brokeReason) {
@@ -88,13 +94,12 @@
         return;
       }
 
-      case 'link': {
-        // TODO How can I correctly determine that a link is a link to a file?
-        if (props.row.ext) {
-          await openFile(props.fsId, props.row.fullPath, true);
-        } else {
-          emits('action', { event: 'go:linked-folder', payload: props.row.fullPath });
-        }
+      case 'link-folder':
+      case 'link-file':
+      case 'link-broken': {
+        await openLinkedEntity(props.fsId, props.row, {
+          onFolder: path => emits('action', { event: 'go', payload: path }),
+        });
         return;
       }
     }
@@ -191,12 +196,24 @@
               color="var(--color-icon-control-accent-default)"
             />
 
-            <ui3n-icon
+            <link-badge
+              :is-link="isLinkEntityType(row.type)"
               :class="$style.iconType"
-              :icon="row.type === 'folder' ? 'round-folder' : 'round-subject'"
-              :size="20"
-              color="var(--color-icon-table-secondary-default)"
-            />
+            >
+              <img
+                v-if="row.icon"
+                :src="row.icon"
+                alt=""
+                draggable="false"
+                :class="$style.customIcon"
+              >
+              <ui3n-icon
+                v-else
+                :icon="entityTypeIcon"
+                :size="20"
+                color="var(--color-icon-table-secondary-default)"
+              />
+            </link-badge>
           </template>
         </template>
       </div>
@@ -383,8 +400,12 @@
     display: none !important;
   }
 
-  .iconType {
-    position: relative;
+  .customIcon {
+    display: block;
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    object-fit: cover;
   }
 
   .iconDamaged {

@@ -33,12 +33,11 @@ bootEventsStore.startWatchBoot();
 const loggedInUserStore = useLoggedInUserStore();
 
 const signupStore = useSignupStore();
-const { initStandard, checkSignupParamsAndSetDomains } = signupStore;
+const { checkSignupParamsAndSetDomains } = signupStore;
 const { availableDomains } = storeToRefs(signupStore);
 
 onBeforeMount(async () => {
   await loggedInUserStore.loadUsersFromDisk();
-  await initStandard();
 
   // push route and values with signup params from url, but only once, hence, calling here
   if (signupParamsFromURL) {

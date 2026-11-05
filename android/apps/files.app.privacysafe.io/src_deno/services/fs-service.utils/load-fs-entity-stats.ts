@@ -17,6 +17,7 @@
 /// <reference path="../../../@types/platform-defs/injected-w3n.d.ts" />
 import { prepareFsEntityId, getFileExtension } from '../../../shared/utils/various.ts';
 import { getFsStat } from '../../../shared/utils/fs-utils/get-fs-stat.ts';
+import { readLink } from '../../../shared/utils/fs-utils/read-link.ts';
 import { getXAttrs, listXAttrs } from './actions-on-x-attrs.ts';
 import type { ListingEntryExtended } from '../../../shared/types/index.ts';
 import { isValidListingXAttrValue } from './listing-xattrs.ts';
@@ -60,14 +61,16 @@ export async function loadFsEntityStats({
       tags: string[] | undefined;
       favoriteId: string | undefined;
       thumbnail: string | undefined;
+      icon: string | undefined;
     } = {
       tags: undefined,
       favoriteId: undefined,
       thumbnail: undefined,
+      icon: undefined,
     };
 
     if (!isThisFsDevice) {
-      const targetAttrs = ['tags', 'favoriteId', 'thumbnail'] as const;
+      const targetAttrs = ['tags', 'favoriteId', 'thumbnail', 'icon'] as const;
       for (const attr of targetAttrs) {
         const isAttrPresent = attrs.includes(attr);
         if (isAttrPresent) {
@@ -83,15 +86,28 @@ export async function loadFsEntityStats({
       }
     }
 
+    let type: ListingEntryExtended['type'];
+    if (stats?.isFile) {
+      type = 'file';
+    } else if (stats?.isFolder) {
+      type = 'folder';
+    } else if (stats) {
+      const link = await readLink({ fs, path: fullPath, stopErrorPropagate: true });
+      type = !link ? 'link-broken' : link.isFolder ? 'link-folder' : 'link-file';
+    } else {
+      type = 'link-broken';
+    }
+
     return {
       id,
       name,
       fullPath,
       tags: value.tags || [],
-      type: stats?.isFile ? 'file' : stats?.isFolder ? 'folder' : 'link',
+      type,
       ...(isValidListingXAttrValue('favoriteId', value.favoriteId) && { favoriteId: value.favoriteId }),
       ...(stats?.isFile && { ext: getFileExtension(name) }),
       ...(isValidListingXAttrValue('thumbnail', value.thumbnail) && { thumbnail: value.thumbnail }),
+      ...(isValidListingXAttrValue('icon', value.icon) && { icon: value.icon }),
       ...(stats && { ...stats }),
     };
   } catch (err) {

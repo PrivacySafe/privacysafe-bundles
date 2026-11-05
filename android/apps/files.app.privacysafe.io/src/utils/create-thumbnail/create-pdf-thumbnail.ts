@@ -18,10 +18,7 @@ import { schedulerYield } from '@v1nt1248/3nclient-lib/utils';
 import type { Nullable } from '@v1nt1248/3nclient-lib';
 import { createPdfThumbnail as makePdfThumbnail } from '@/utils';
 
-export async function createPdfThumbnail(fs: web3n.files.FS, path: string): Promise<Nullable<string>> {
-  const file3n = await fs.readonlyFile(path);
-  await schedulerYield();
-
+export async function createPdfThumbnail(file3n: web3n.files.ReadonlyFile): Promise<Nullable<string>> {
   const byteArray = await file3n.readBytes();
   if (!byteArray) {
     return null;

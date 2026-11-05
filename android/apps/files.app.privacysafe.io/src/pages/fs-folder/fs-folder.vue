@@ -36,9 +36,32 @@
   const currentWindowIndex = computed(() => (!props.windowIndex || props.windowIndex === 1 ? 1 : 2));
 
   const { $emitter } = inject<VueBusPlugin<AppGlobalEvents>>(VUEBUS_KEY)!;
-  const { getSyncedStatus } = useFsStore();
-  const { currentWindowFsId, currentWindowRootFolderId, currentWindowFolderPath } = useFsWindowState(
-    computed(() => `${currentWindowIndex.value}` as '1' | '2'),
+  const { getSyncedStatus, updateFolderLocation } = useFsStore();
+  const windowNumber = computed(() => `${currentWindowIndex.value}` as '1' | '2');
+  const {
+    currentWindowFsId,
+    currentWindowRootFolderId,
+    currentWindowRootFolderBasePath,
+    currentWindowFolderPath,
+  } = useFsWindowState(windowNumber);
+
+  // links on the way to the shown folder: for the breadcrumbs and the write access
+  watch(
+    [
+      windowNumber,
+      currentWindowFsId,
+      currentWindowRootFolderId,
+      currentWindowRootFolderBasePath,
+      currentWindowFolderPath,
+    ],
+    ([win, fsId, rootFolderId, basePath, path]) =>
+      updateFolderLocation(win, {
+        fsId: fsId || '',
+        rootFolderId: rootFolderId || '',
+        basePath,
+        path: path || '',
+      }),
+    { immediate: true },
   );
 
   /*

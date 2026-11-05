@@ -46,12 +46,18 @@
     isFolderSelected,
     selectFolder,
     createFolder,
+    createLink,
     uploadFile,
     goToFavoriteFolder,
     openFsEntityInfoBlock,
   } = useDashboard();
 
   const { canCreateFolder, canUpload } = useAbilities();
+
+  // the target of a link is picked with the platform's file dialogs
+  const isLinkCreationAvailable = !!(
+    w3n.shell?.fileDialogs?.openFolderDialog || w3n.shell?.fileDialogs?.openFileDialog
+  );
 
   const runModeInfoStore = useRunModeInfoStore();
   const { isDragging, effectiveMoveMode } = storeToRefs(runModeInfoStore);
@@ -111,6 +117,20 @@
                   color="var(--color-icon-control-primary-default)"
                 />
                 {{ t('app.upload_file') }}
+              </div>
+
+              <div
+                v-if="isLinkCreationAvailable"
+                :class="$style.createContentItem"
+                @click="createLink"
+              >
+                <ui3n-icon
+                  icon="arrow-top-right"
+                  :width="16"
+                  :height="16"
+                  color="var(--color-icon-control-primary-default)"
+                />
+                {{ t('app.create_link') }}
               </div>
             </div>
           </template>
@@ -251,6 +271,7 @@
             <fs-entity-info
               :fs-id="displayedFsEntityInfo.fsId"
               :path="displayedFsEntityInfo.path"
+              :root-folder-id="displayedFsEntityInfo.rootFolderId"
               @close="() => openFsEntityInfoBlock(null)"
             />
           </div>

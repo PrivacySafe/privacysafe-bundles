@@ -15,9 +15,11 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
 import { computed } from 'vue';
+import { storeToRefs } from 'pinia';
 import isEmpty from 'lodash/isEmpty';
 import { type Nullable } from '@v1nt1248/3nclient-lib';
 import { useNavigation } from '@/composables/useNavigation';
+import { useFsStore } from '@/store/fs.store';
 import {
   USER_FS,
   USER_DEVICE_FS,
@@ -31,8 +33,35 @@ import type { ListingEntryExtended } from '@shared/types';
 
 export function useAbilities() {
   const { isSplittedMode, activeWindow, window1RootFolderId, window2RootFolderId } = useNavigation();
+  const { folderLocations } = storeToRefs(useFsStore());
+
+  function isWindowFolderReadonly(windowNumber: '1' | '2'): boolean {
+    return folderLocations.value[windowNumber]?.writable === false;
+  }
+
+  /**
+   * True when a window shows this root in a folder behind a readonly link. The
+   * checks below know the root only, so either window with it counts.
+   */
+  function isInReadonlyLinkTarget(currentFsId: Nullable<string>, currentRootFolderId: string): boolean {
+    const windows: ('1' | '2')[] = isSplittedMode.value ? ['1', '2'] : ['1'];
+    return windows.some(w => {
+      const location = folderLocations.value[w];
+      return (
+        !!location &&
+        location.writable === false &&
+        location.fsId === currentFsId &&
+        location.rootFolderId === currentRootFolderId
+      );
+    });
+  }
 
   const canCreateFolder = computed(() => {
+    const windowNumber = isSplittedMode.value ? activeWindow.value : '1';
+    if (isWindowFolderReadonly(windowNumber as '1' | '2')) {
+      return false;
+    }
+
     if ((isSplittedMode.value && activeWindow.value === '1') || !isSplittedMode.value) {
       if ([USER_TRASH_FOLDER, USER_TRASH_LOCAL_FOLDER].includes(window1RootFolderId.value)) {
         return false;
@@ -84,7 +113,7 @@ export function useAbilities() {
   }
 
   function canDelete(currentFsId: Nullable<string>, currentRootFolderId: string): boolean {
-    if (!currentFsId) {
+    if (!currentFsId || isInReadonlyLinkTarget(currentFsId, currentRootFolderId)) {
       return false;
     }
 
@@ -109,7 +138,10 @@ export function useAbilities() {
   }
 
   function canUpload(currentFsId: Nullable<string>, currentRootFolderId: string): boolean {
-    if (!currentFsId || [USER_TRASH_FOLDER, USER_TRASH_LOCAL_FOLDER].includes(currentRootFolderId)) {
+    if (!currentFsId || isInReadonlyLinkTarget(currentFsId, currentRootFolderId)) {
+      return false;
+    }
+    if ([USER_TRASH_FOLDER, USER_TRASH_LOCAL_FOLDER].includes(currentRootFolderId)) {
       return false;
     }
 
@@ -120,7 +152,10 @@ export function useAbilities() {
   }
 
   function canRename(currentFsId: Nullable<string>, currentRootFolderId: string): boolean {
-    if (!currentFsId || [USER_TRASH_FOLDER, USER_TRASH_LOCAL_FOLDER].includes(currentRootFolderId)) {
+    if (!currentFsId || isInReadonlyLinkTarget(currentFsId, currentRootFolderId)) {
+      return false;
+    }
+    if ([USER_TRASH_FOLDER, USER_TRASH_LOCAL_FOLDER].includes(currentRootFolderId)) {
       return false;
     }
 
@@ -130,12 +165,37 @@ export function useAbilities() {
     );
   }
 
+  /**
+   * A custom icon is kept in the xattrs of the entity itself (of a link — in the
+   * link, not in its target), so only 3N storages, which have xattrs, can keep it.
+   */
+  function canEditEntityIcon(
+    currentFsId: Nullable<string>,
+    currentRootFolderId: Nullable<string>,
+    entity?: Nullable<Pick<ListingEntryExtended, 'brokeReason'>>,
+  ): boolean {
+    if (!currentFsId || !currentRootFolderId || entity?.brokeReason) {
+      return false;
+    }
+    if (isInReadonlyLinkTarget(currentFsId, currentRootFolderId)) {
+      return false;
+    }
+    if ([USER_TRASH_FOLDER, USER_TRASH_LOCAL_FOLDER].includes(currentRootFolderId)) {
+      return false;
+    }
+
+    return [USER_FS, USER_LOCAL_FS].includes(currentFsId) && currentRootFolderId.includes(END_OF_ROOT_FOLDER_ID);
+  }
+
   function canCopyMove(currentRootFolderId: string): boolean {
     return ![USER_TRASH_FOLDER, USER_TRASH_LOCAL_FOLDER].includes(currentRootFolderId);
   }
 
   function canDrop(currentFsId: Nullable<string>, currentRootFolderId: string): boolean {
-    if (!currentFsId || [USER_TRASH_FOLDER, USER_TRASH_LOCAL_FOLDER].includes(currentRootFolderId)) {
+    if (!currentFsId || isInReadonlyLinkTarget(currentFsId, currentRootFolderId)) {
+      return false;
+    }
+    if ([USER_TRASH_FOLDER, USER_TRASH_LOCAL_FOLDER].includes(currentRootFolderId)) {
       return false;
     }
 
@@ -159,6 +219,7 @@ export function useAbilities() {
     canDeleteCompletely,
     canUpload,
     canRename,
+    canEditEntityIcon,
     canCopyMove,
     canDrop,
     canResolve,

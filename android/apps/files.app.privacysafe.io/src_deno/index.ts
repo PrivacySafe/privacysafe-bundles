@@ -37,7 +37,8 @@ import {
   isSameOrInside,
   isValidEntityName,
 } from '../shared/utils/fs-utils/index.ts';
-import { filterRpcWritableXAttrs } from './services/fs-service.utils/listing-xattrs.ts';
+import { makeLinkAwareFs } from '../shared/utils/fs-utils/link-aware-fs.ts';
+import { filterRpcRemovableXAttrs, filterRpcWritableXAttrs } from './services/fs-service.utils/listing-xattrs.ts';
 import { PartialDeleteError } from './services/fs-service.utils/delete-fs-entities.ts';
 import { initDebugLogging, makeLogger } from '../shared/utils/logger.ts';
 
@@ -62,16 +63,27 @@ async function storageAppDenoService(): Promise<StorageAppDenoService> {
     return () => updateEventsObservers.delete(obs);
   }
 
-  const { getFsItem, getFsList, getFsRootFolderList, initializeFsItems } =
+  const { getFsItem, getLinkAwareFsItem, getFsList, getFsRootFolderList, initializeFsItems } =
     await prepareFsListAndFsRootFolderList();
 
   const favoritesSrv = await favoritesService({ appSyncedFs, emitStorageEvent });
 
-  const fsSyncSrv = await syncService({ appLocalFs, userSyncedFs, emitStorageEvent });
+  // queue paths come from the GUI as they are shown, i.e. they may go through links to folders
+  const fsSyncSrv = await syncService({
+    appLocalFs,
+    userSyncedFs: makeLinkAwareFs(userSyncedFs),
+    emitStorageEvent,
+  });
 
-  const fsSrv = fsService({ getFsItem, favoritesSrv, trashFolderName, emitStorageEvent });
+  // the FS service works with logical paths, which may go through links to folders
+  const fsSrv = fsService({ getFsItem: getLinkAwareFsItem, favoritesSrv, trashFolderName, emitStorageEvent });
 
-  /** Puts a changed entity of the user synced storage into the sync queue. */
+  /**
+   * Puts a changed entity of the user synced storage into the sync queue. The
+   * path may go through links to folders: the sync service works with such
+   * paths through the link-aware FS (a local change gets into the queue only
+   * this way, the tree watching does not queue it).
+   */
   function enqueueForSync(path: string) {
     return fsSyncSrv.addSyncQueueItem({
       path: formatPath(path),
@@ -133,7 +145,16 @@ async function storageAppDenoService(): Promise<StorageAppDenoService> {
     path: string;
     attrNames: string[];
   }) {
-    await fsSrv.deleteEntityXAttrs({ fsId, path, attrNames });
+    // attributes the GUI may remove; the others (favorites, trash data) are removed by the service itself
+    const { allowed, rejected } = filterRpcRemovableXAttrs(attrNames);
+    if (rejected.length > 0) {
+      log.error(`Refused to remove the attributes (${rejected.join(', ')}): not allowed. `);
+    }
+    if (allowed.length === 0) {
+      return;
+    }
+
+    await fsSrv.deleteEntityXAttrs({ fsId, path, attrNames: allowed });
     if (fsId === USER_FS) {
       await enqueueForSync(path);
     }
@@ -339,20 +360,30 @@ async function storageAppDenoService(): Promise<StorageAppDenoService> {
     targetFsId: string;
     target: ListingEntryExtended;
     moveMode?: boolean;
-  }) {
+  }): Promise<{ skippedBroken: string[] }> {
     const { fullPath: targetPath = '' } = target;
 
     if (moveMode) {
-      await moveEntities({
+      const pathsMap = await moveEntities({
         fsId: sourceFsId,
         entities,
         targetFsId,
         targetFolder: targetPath,
       });
-      return;
+      // move skips broken links: they are not present in the resulting paths map
+      const skippedBroken = entities.filter(entity => !(entity.fullPath in pathsMap)).map(entity => entity.name);
+      return { skippedBroken };
     }
 
-    await copyEntities({ fsId: sourceFsId, entities, targetFsId, targetFolder: targetPath });
+    const results = await copyEntities({ fsId: sourceFsId, entities, targetFsId, targetFolder: targetPath });
+    // undefined result means the entity was skipped because its link is broken
+    const skippedBroken = results.reduce<string[]>((acc, result, index) => {
+      if (result.status === 'fulfilled' && result.value === undefined) {
+        acc.push(entities[index].name);
+      }
+      return acc;
+    }, []);
+    return { skippedBroken };
   }
 
   async function renameEntity({
@@ -464,6 +495,31 @@ async function storageAppDenoService(): Promise<StorageAppDenoService> {
     }
   }
 
+  /**
+   * A trashed entity moved to the trash on another device carries its original location in
+   * xattrs of a new version. Until that version is adopted here, the entity has no such
+   * marks and would be restored into the root, so a version behind is adopted first.
+   */
+  async function adoptTrashedEntitiesBehind(entities: ListingEntryExtended[]) {
+    for (const entity of entities) {
+      try {
+        const status = await fsSrv.getSyncedStatus({ fsId: USER_FS, fullPath: entity.fullPath });
+        const remoteVersion = status?.remote?.latest;
+        if (status?.state === 'behind' && remoteVersion) {
+          log.info(`🔗 restore: adopting '${entity.fullPath}' (v${remoteVersion}) to read its original location`);
+          await fsSyncSrv.startSyncAdopt({
+            path: entity.fullPath,
+            opts: { remoteVersion },
+            stopErrorPropagate: false,
+          });
+        }
+      } catch (err) {
+        // the entity is restored by the marks it has
+        log.error(`Error adopting the trashed '${entity.fullPath}' before its restoration. `, err);
+      }
+    }
+  }
+
   async function restoreEntities({
     fsId,
     entities,
@@ -473,6 +529,10 @@ async function storageAppDenoService(): Promise<StorageAppDenoService> {
     entities: ListingEntryExtended[];
     mode?: 'keep' | 'replace';
   }) {
+    if (fsId === USER_FS) {
+      await adoptTrashedEntitiesBehind(entities);
+    }
+
     const mappingPathToRestorePath = await fsSrv.restoreEntities({ fsId, entities, mode });
 
     if (!mappingPathToRestorePath) {
@@ -483,6 +543,8 @@ async function storageAppDenoService(): Promise<StorageAppDenoService> {
 
     const restoredParentFolders = new Set<string>();
     for (const restoredPath of Object.values(mappingPathToRestorePath)) {
+      // restored into a folder behind a link, the entity is a new copy that was never uploaded
+      await enqueueForSync(restoredPath);
       const { parentFolder } = getEntityNameAndParent(restoredPath);
       if (!restoredParentFolders.has(parentFolder)) {
         await enqueueForSync(parentFolder);

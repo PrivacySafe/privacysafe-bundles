@@ -79,7 +79,7 @@ export interface ListingEntryExtended {
   id: string;
   name: string;
   fullPath: string;
-  type: 'folder' | 'file' | 'link';
+  type: 'folder' | 'file' | 'link-broken' | 'link-file' | 'link-folder';
   ext?: string;
   size?: number;
   mtime?: Date;
@@ -91,6 +91,8 @@ export interface ListingEntryExtended {
   parentFolder?: string;
   originalName?: string;
   thumbnail?: string;
+  /** A custom icon set by the user (xattr `icon`): an image data URL; shown instead of the thumbnail and the type icon. */
+  icon?: string;
   favoriteId?: string;
   tags?: string[];
   sync?: web3n.files.SyncState | 'remote';

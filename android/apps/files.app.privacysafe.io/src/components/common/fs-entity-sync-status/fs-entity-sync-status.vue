@@ -319,7 +319,7 @@
   .syncStatus {
     position: relative;
     width: 100%;
-    height: var(--spacing-ml);
+    height: 20px;
     padding-right: var(--spacing-s);
     display: flex;
     justify-content: flex-start;

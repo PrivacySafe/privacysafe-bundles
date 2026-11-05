@@ -1,5 +1,5 @@
 /*
- Copyright (C) 2025 3NSoft Inc.
+ Copyright (C) 2025-2026 3NSoft Inc.
 
  This program is free software: you can redistribute it and/or modify it under
  the terms of the GNU General Public License as published by the Free Software
@@ -24,14 +24,19 @@ import { downloadEntities as _downloadEntities } from './fs-operations/download-
 import { useAppStore } from '@/store/app.store';
 import type { FileW, FsListItem, ListingEntryExtended, RootFsFolderView } from '@shared/types';
 import { START_OF_SYSTEM_FS_ID, USER_DEVICE_FS, USER_FS, USER_LOCAL_FS } from '@shared/constants';
-import { getListFolder } from '@shared/utils/fs-utils';
-import { formatPath } from '@shared/utils/various';
+import { getListFolder, makeLinkAwareFs, type FsLocation, type LinkAwareFS } from '@shared/utils/fs-utils';
+import { formatPath, prepareFolderPath } from '@shared/utils/various';
 import { makeLogger } from '@shared/utils/logger';
 
 const log = makeLogger('FsStore');
 
-// Relative to the mount area provided by the platform, not an OS path.
 const HOME_MOUNT_PATH = ['Home'];
+
+export interface FolderLocationInfo extends Pick<FsLocation, 'writable' | 'hasHops' | 'segments'> {
+  fsId: string;
+  rootFolderId: string;
+  fullPath: string;
+}
 
 const FILE_OPEN_REPEAT_DELAY_MS = 1000;
 const FILE_OPEN_PENDING_LOG_DELAY_MS = 5000;
@@ -88,6 +93,8 @@ export const useFsStore = defineStore('fs', () => {
   } = appStorageSrv;
 
   const fsList = shallowRef<Record<string, FsListItem>>({});
+  const folderLocations = ref<Partial<Record<'1' | '2', FolderLocationInfo>>>({});
+  const folderLocationRequests: Record<'1' | '2', number> = { '1': 0, '2': 0 };
   const fsFolderList = ref<RootFsFolderView[]>([]);
 
   const trashFolderName = ref<string | null>(null);
@@ -156,7 +163,7 @@ export const useFsStore = defineStore('fs', () => {
 
     const mounting = runFsMountOperation(fsId, async () => {
       try {
-        await mounts.mountFolder(getFsMountPath(fsId), getFs(fsId));
+        await mounts.mountFolder(getFsMountPath(fsId), getRawFs(fsId));
       } catch (err) {
         if (!isMountException(err) || !err.alreadyMounted) {
           throw err;
@@ -191,7 +198,7 @@ export const useFsStore = defineStore('fs', () => {
       } else {
         await runFsMountOperation(fsId, async () => {
           try {
-            await mounts.unmountFolder(getFs(fsId));
+            await mounts.unmountFolder(getRawFs(fsId));
           } catch (err) {
             if (!isMountException(err) || !err.notMounted) {
               throw err;
@@ -239,13 +246,41 @@ export const useFsStore = defineStore('fs', () => {
     }),
   );
 
-  function getFs(fsId: string): web3n.files.WritableFS {
+  /** The FS object itself, for platform APIs (mounts): they take no logical paths. */
+  function getRawFs(fsId: string): web3n.files.WritableFS {
     const fs = fsList.value[fsId];
     if (!fs) {
       throw new Error(`No FS found for id ${fsId}`);
     }
 
     return fs.entity;
+  }
+
+  const linkAwareFsList = new WeakMap<web3n.files.WritableFS, LinkAwareFS>();
+
+  /** The FS whose methods take logical paths, i.e. paths that may go through links to folders. */
+  function getFs(fsId: string): LinkAwareFS {
+    const raw = getRawFs(fsId);
+    let fs = linkAwareFsList.get(raw);
+    if (!fs) {
+      fs = makeLinkAwareFs(raw);
+      linkAwareFsList.set(raw, fs);
+    }
+    return fs;
+  }
+
+  /** Where a logical folder path leads: undefined when it cannot be resolved. */
+  async function getFolderLocation(
+    fsId: string,
+    path: string,
+  ): Promise<Pick<FsLocation, 'writable' | 'hasHops' | 'segments'> | undefined> {
+    try {
+      const { writable, hasHops, segments } = await getFs(fsId).resolveFolder(path);
+      return { writable, hasHops, segments };
+    } catch (err) {
+      log.error(`Resolving the folder '${path}'. `, err);
+      return undefined;
+    }
   }
 
   async function getFolderContentFilledList({
@@ -266,6 +301,22 @@ export const useFsStore = defineStore('fs', () => {
       path,
       data: await _getFolderContentFilledList({ fsId, path, basePath, operatingSystem }),
     };
+  }
+
+  async function updateFolderLocation(
+    windowNumber: '1' | '2',
+    { fsId, rootFolderId, basePath, path }: { fsId: string; rootFolderId: string; basePath: string; path: string },
+  ): Promise<void> {
+    const fullPath = formatPath(prepareFolderPath([basePath, path]));
+    const requestId = (folderLocationRequests[windowNumber] += 1);
+    const location = fsId ? await getFolderLocation(fsId, fullPath) : undefined;
+    // the window may show another folder by now
+    if (requestId !== folderLocationRequests[windowNumber]) {
+      return;
+    }
+    folderLocations.value[windowNumber] = location
+      ? { ...location, fsId, rootFolderId, fullPath }
+      : { fsId, rootFolderId, fullPath, writable: true, hasHops: false, segments: [] };
   }
 
   async function saveFileBaseOnOsFileSystemFile({
@@ -449,7 +500,11 @@ export const useFsStore = defineStore('fs', () => {
   async function openFile(fsId: string, fullPath: string, isLinkPath = false) {
     const shell = w3n.shell;
     const openInMounted = shell?.openInMounted;
-    const useMountedFs = !isLinkPath && !!openInMounted && canMountFs(fsId);
+    // the mounted FS is the root FS: a path through a link to a folder is not a path in it
+    const isBehindLinks = await getFs(fsId)
+      .isReachedThroughLinks(fullPath)
+      .catch(() => false);
+    const useMountedFs = !isLinkPath && !isBehindLinks && !!openInMounted && canMountFs(fsId);
     let openingFsFiles = openingFiles.get(fsId);
     let openingRequest: MountedFileOpenRequest | undefined;
 
@@ -498,7 +553,7 @@ export const useFsStore = defineStore('fs', () => {
           }, FILE_OPEN_PENDING_LOG_DELAY_MS);
 
           try {
-            await openInMounted(fs, pathInFS);
+            await openInMounted(getRawFs(fsId), pathInFS);
             log.debug('[Mount FS] platform open completed', details);
           } catch (err) {
             log.debug('[Mount FS] platform open failed', { ...details, err });
@@ -571,9 +626,12 @@ export const useFsStore = defineStore('fs', () => {
         throw new Error('External file opening is unavailable');
       }
 
+      const parentPath = fullPath.split('/').slice(0, -1).join('/');
+      const isWritable =
+        fs.writable && (!isBehindLinks || !!(await getFolderLocation(fsId, parentPath))?.writable);
       const file = isLinkPath
         ? ((await (await fs.readLink(fullPath)).target()) as FileW)
-        : await (fs.writable ? fs.writableFile(fullPath) : fs.readonlyFile(fullPath));
+        : await (isWritable ? fs.writableFile(fullPath) : fs.readonlyFile(fullPath));
 
       await shell.openFile(file);
     } catch (err) {
@@ -607,6 +665,10 @@ export const useFsStore = defineStore('fs', () => {
     trashFolderName,
     initializeFsItems,
     getFs,
+    getRawFs,
+    getFolderLocation,
+    folderLocations,
+    updateFolderLocation,
     isEntityPresent,
     getEntityStats,
     getSyncedStatus,

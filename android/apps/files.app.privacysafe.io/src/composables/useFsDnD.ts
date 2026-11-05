@@ -88,12 +88,14 @@ export function useFsDnD(fsWindowNumber: ComputedRef<'1' | '2'>, selectedEntitie
       (operatingSystem.value === 'macos' && altKey) || (operatingSystem.value !== 'macos' && ctrlKey);
 
     // without preventDefault() the browser shows the "not allowed" cursor and does not drop
-    if (entity.type === 'folder' && isDropTargetInsideDragged(currentWindowFsId.value, entity.fullPath)) {
+    // a link to a folder takes a drop as the folder does: the entities go into its target
+    const isFolderTarget = entity.type === 'folder' || entity.type === 'link-folder';
+    if (isFolderTarget && isDropTargetInsideDragged(currentWindowFsId.value, entity.fullPath)) {
       droppableEntity.value = null;
       return;
     }
 
-    if (entity.type === 'folder') {
+    if (isFolderTarget) {
       droppableEntity.value = entity.fullPath;
       ev.preventDefault();
     } else {

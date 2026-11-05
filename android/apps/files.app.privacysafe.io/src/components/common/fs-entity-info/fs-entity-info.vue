@@ -25,16 +25,20 @@
     Ui3nChip,
     Ui3nIcon,
     Ui3nProgressCircular,
+    Ui3nTooltip,
     Ui3nClickOutside,
   } from '@v1nt1248/3nclient-lib';
   import { formatFileSize, isFileImage, isFileVideo } from '@v1nt1248/3nclient-lib/utils';
   import { useFsStore } from '@/store';
+  import { useAbilities } from '@/composables/useAbilities';
+  import { useEntityIcon } from '@/composables/useEntityIcon';
   import { useFileHashing } from './useFileHashing';
-  import { createThumbnail } from '@/utils';
+  import { createThumbnail, getFsEntityTypeIcon, isLinkEntityType } from '@/utils';
   import type { FsSEntityInfoProps, FsSEntityInfoEmits } from './types';
   import type { ListingEntryExtended } from '@shared/types';
   import type { EntitySyncStatus } from '@deno/types.ts';
   import { makeLogger } from '@shared/utils/logger';
+  import LinkBadge from '@/components/common/link-badge/link-badge.vue';
 
   const log = makeLogger('FsEntityInfo');
 
@@ -45,6 +49,8 @@
 
   const { t } = useI18n();
   const { getEntityStats, getSyncedStatus } = useFsStore();
+  const { canEditEntityIcon } = useAbilities();
+  const { isIconEditorOpen, editEntityIcon } = useEntityIcon();
 
   const isLoading = ref(false);
   const entityStats = ref<Nullable<ListingEntryExtended & { thumbnail?: string }>>(null);
@@ -54,6 +60,7 @@
   const pathValue = computed(() => props.path);
 
   const {
+    canHash,
     sha256hex,
     calculating256,
     sha256progress,
@@ -65,18 +72,43 @@
     stopHashingProcess,
   } = useFileHashing(fsIdValue, pathValue, entityStats);
 
-  const canHash = computed(
-    () =>
-      entityStats.value?.type === 'file' &&
-      entityStats.value?.mtime &&
-      typeof entityStats.value?.size === 'number',
-  );
+  /*
+   The large block: only a thumbnail fills it; otherwise an icon is shown in its
+   center, the custom one or the type one (the same goes for the Type row).
+  */
+  const thumbnailImage = computed(() => entityStats.value?.thumbnail);
 
   const iconStyle = computed(() =>
-    !entityStats.value?.thumbnail
+    !thumbnailImage.value
       ? { backgroundColor: 'var(--color-bg-control-secondary-default)' }
-      : { backgroundImage: `url(${entityStats.value!.thumbnail})` },
+      : { backgroundImage: `url(${thumbnailImage.value})` },
   );
+
+  const canChangeIcon = computed(
+    () => !!entityStats.value && canEditEntityIcon(props.fsId, props.rootFolderId ?? null, entityStats.value),
+  );
+
+  async function changeIcon() {
+    if (!entityStats.value) {
+      return;
+    }
+    const isChanged = await editEntityIcon({ fsId: props.fsId, entity: entityStats.value });
+    if (isChanged) {
+      await loadEntity(props.fsId, props.path);
+    }
+  }
+
+  function onClickOutside(event: MouseEvent) {
+    // the icon editor is a dialog on top of the page, i.e. outside of this panel
+    const target = event.target as Element | null;
+    if (isIconEditorOpen.value || !target?.isConnected || target.closest('[data-ui3n="dialog-overlay"]')) {
+      return;
+    }
+    emits('close');
+  }
+
+  const entityTypeIcon = computed(() => getFsEntityTypeIcon(entityStats.value?.type ?? 'file'));
+  const isLink = computed(() => !!entityStats.value && isLinkEntityType(entityStats.value.type));
 
   const entityType = computed(() => {
     if (!entityStats.value) {
@@ -149,7 +181,8 @@
         return;
       }
       entityStats.value = stats;
-      if (canHash.value) {
+      // a link to a file is hashed by its target, if the target can be opened
+      if (stats?.type === 'file' || stats?.type === 'link-file') {
         await loadHashing();
       }
     } catch (err) {
@@ -172,14 +205,17 @@
     }
 
     const { type, thumbnail, ext } = entityStats.value ?? {};
-    if (
+    const isFileWithThumbnail =
       type === 'file' &&
-      !thumbnail &&
       (isFileImage({ fullName: fullPath.toLowerCase() }) ||
         isFileVideo({ fullName: fullPath.toLowerCase() }) ||
-        ext === 'pdf')
-    ) {
-      createThumbnail(fsId, fullPath, entityStats.value.version ?? entityStats.value.mtime?.valueOf())
+        ext === 'pdf');
+    // the group of a link's target is known only from the target's name
+    const isLinkToFile = type === 'link-file';
+    if (!thumbnail && (isFileWithThumbnail || isLinkToFile)) {
+      createThumbnail(fsId, fullPath, entityStats.value.version ?? entityStats.value.mtime?.valueOf(), {
+        isLink: isLinkToFile,
+      })
         .then(val => {
           // the thumbnail belongs to this entity only
           if (val && isCurrentLoad() && entityStats.value) {
@@ -207,7 +243,7 @@
 
 <template>
   <div
-    v-ui3n-click-outside="() => emits('close')"
+    v-ui3n-click-outside="onClickOutside"
     :class="$style.fsEntityInfo"
   >
     <div
@@ -242,20 +278,75 @@
         :class="$style.iconWrapper"
         :style="iconStyle"
       >
-        <ui3n-icon
-          v-if="!entityStats?.thumbnail"
-          :icon="entityStats?.type === 'folder' ? 'round-folder' : 'round-subject'"
-          width="100"
-          height="100"
-          color="var(--color-icon-table-secondary-default)"
-        />
+        <link-badge
+          v-if="!thumbnailImage"
+          :is-link="isLink"
+          size="large"
+        >
+          <img
+            v-if="entityStats?.icon"
+            :src="entityStats.icon"
+            alt=""
+            draggable="false"
+            :class="$style.customIconLarge"
+          >
+          <ui3n-icon
+            v-else
+            :icon="entityTypeIcon"
+            width="100"
+            height="100"
+            color="var(--color-icon-table-secondary-default)"
+          />
+        </link-badge>
       </div>
     </div>
 
     <div :class="$style.content">
-      <div :class="$style.row">
+      <div :class="[$style.row, $style.typeRow]">
         <span>{{ t('fs.entity.info.type') }}</span>
-        <div>{{ entityType }}</div>
+        <div>
+          <link-badge
+            v-if="entityStats"
+            :is-link="isLink"
+          >
+            <img
+              v-if="entityStats.icon"
+              :src="entityStats.icon"
+              alt=""
+              draggable="false"
+              :class="$style.customIcon"
+            >
+            <ui3n-icon
+              v-else
+              :icon="entityTypeIcon"
+              :size="20"
+              color="var(--color-icon-table-secondary-default)"
+            />
+          </link-badge>
+
+          {{ entityType }}
+        </div>
+
+        <div
+          v-if="canChangeIcon"
+          :class="$style.rowAction"
+        >
+          <ui3n-tooltip
+            :content="t('fs.entity.info.change_icon')"
+            position-strategy="fixed"
+            placement="top-end"
+          >
+            <ui3n-button
+              type="icon"
+              size="small"
+              color="var(--color-bg-block-primary-default)"
+              icon="outline-image"
+              icon-size="20"
+              icon-color="var(--color-icon-control-accent-default)"
+              @click.stop.prevent="changeIcon"
+            />
+          </ui3n-tooltip>
+        </div>
       </div>
 
       <div :class="$style.row">
@@ -469,7 +560,7 @@
     font-size: var(--font-12);
     line-height: var(--font-16);
 
-    span {
+    > span {
       display: block;
       position: relative;
       width: 64px;
@@ -478,7 +569,8 @@
       color: var(--color-text-table-secondary-default);
     }
 
-    div {
+    // the value cell; components inside it (icons, chips, tooltips) keep their own styles
+    > div:not([data-ui3n], .rowAction) {
       position: relative;
       display: flex;
       flex-wrap: wrap;
@@ -505,6 +597,34 @@
         font-weight: 600;
       }
     }
+  }
+
+  .customIconLarge {
+    display: block;
+    width: 100px;
+    height: 100px;
+    border-radius: var(--spacing-s);
+    object-fit: cover;
+  }
+
+  .customIcon {
+    display: block;
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    object-fit: cover;
+  }
+
+  // the icon button is taller than the text and the type icon: all of them are centered
+  .typeRow {
+    align-items: center;
+  }
+
+  .rowAction {
+    position: relative;
+    margin-left: auto;
+    // the button is 24px, the type icon is 20px: the row keeps the height of the others
+    margin-block: -2px;
   }
 
   .loader {

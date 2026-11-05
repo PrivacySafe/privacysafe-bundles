@@ -18,6 +18,7 @@
 import type { ListingEntryExtended } from '../../../shared/types/index.ts';
 import { formatPath } from '../../../shared/utils/various.ts';
 import { getListFolder } from './get-list-folder.ts';
+import { readLink } from './read-link.ts';
 import { isSafeRelativePath, isValidEntityName, joinEntityPath, pickFreeEntityName } from './entity-name.ts';
 
 export type RestoreConflict = Pick<ListingEntryExtended, 'fullPath' | 'name' | 'type'>;
@@ -62,12 +63,22 @@ export async function prepareRestoredPath({
     return { restoredPath };
   }
 
+  let conflictType: ListingEntryExtended['type'];
+  if (existing.isFolder) {
+    conflictType = 'folder';
+  } else if (!existing.isLink) {
+    conflictType = 'file';
+  } else {
+    const link = await readLink({ fs, path: restoredPath, stopErrorPropagate: true });
+    conflictType = !link ? 'link-broken' : link.isFolder ? 'link-folder' : 'link-file';
+  }
+
   return {
     restoredPath,
     conflict: {
       fullPath: restoredPath,
       name: originalName,
-      type: existing.isFolder ? 'folder' : existing.isLink ? 'link' : 'file',
+      type: conflictType,
     },
   };
 }

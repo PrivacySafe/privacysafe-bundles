@@ -9,6 +9,7 @@ import type {
   StorageEvent,
   SyncQueueItem,
 } from '../shared/types/index.ts';
+import type { LinkAwareFS } from '../shared/utils/fs-utils/link-aware-fs.ts';
 
 export interface AppConfigService {
   appLocalFs: web3n.files.WritableFS;
@@ -22,6 +23,12 @@ export interface FsStore {
   fsList: Record<string, FsListItem>;
   fsRootFolderList: RootFsFolderView[];
   getFsItem: (fsId: string) => Promise<FsListItem>;
+  /**
+   * The same item with a link-aware FS: its methods take logical paths, which
+   * may go through links to folders. For the app's own work only: the wrapper
+   * cannot be passed over RPC or to platform APIs.
+   */
+  getLinkAwareFsItem: (fsId: string) => Promise<FsListItem & { entity: LinkAwareFS }>;
   getFsList: () => Promise<Record<string, FsListItem>>;
   getFsRootFolderList: () => Promise<RootFsFolderView[]>;
   initializeFsItems: () => Promise<void>;
@@ -157,7 +164,7 @@ export interface FsService {
     targetFsId: string;
     target: ListingEntryExtended;
     moveMode?: boolean;
-  }) => Promise<void>;
+  }) => Promise<{ skippedBroken: string[] }>;
 
   renameEntity: (payload: { fsId: string; entity: ListingEntryExtended; newName: string }) => Promise<void>;
 
@@ -180,7 +187,7 @@ export interface StorageAppDenoService
     FavoritesService,
     FsService,
     SyncService,
-    Omit<FsStore, 'fsList' | 'fsRootFolderList'> {
+    Omit<FsStore, 'fsList' | 'fsRootFolderList' | 'getLinkAwareFsItem'> {
   watchEvent(obs: web3n.Observer<StorageEvent>): () => void;
 }
 

@@ -26,6 +26,24 @@ import { makeLogger } from '../../../shared/utils/logger.ts';
 const log = makeLogger('FsService');
 
 /**
+ * The original location of a trashed entity, read from its xattrs now. The
+ * listing the GUI sent may be older: on another device the entity can be shown
+ * in the trash before its version with these marks is adopted, and then the
+ * listing has no original folder, i.e. the root.
+ */
+async function readTrashMarks(
+  fs: web3n.files.WritableFS,
+  entity: ListingEntryExtended,
+): Promise<Pick<ListingEntryExtended, 'parentFolder' | 'originalName'>> {
+  const read = (name: string) => fs.getXAttr(entity.fullPath, name).catch(() => undefined);
+  const [parentFolder, originalName] = await Promise.all([read('parentFolder'), read('originalName')]);
+  return {
+    parentFolder: typeof parentFolder === 'string' ? parentFolder : entity.parentFolder,
+    originalName: typeof originalName === 'string' && originalName ? originalName : entity.originalName,
+  };
+}
+
+/**
  * Restores trashed entities one by one. Each entity is resolved against the
  * current state of its original folder, so entities restored earlier in the
  * same batch are taken into account. A failure of one entity is logged and
@@ -49,7 +67,8 @@ export async function restoreFsEntities({
 
   for (const entity of entities) {
     try {
-      const { restoredPath, conflict } = await prepareRestoredPath({ fs, entity, mode });
+      const marks = await readTrashMarks(fs, entity);
+      const { restoredPath, conflict } = await prepareRestoredPath({ fs, entity: { ...entity, ...marks }, mode });
 
       if (mode === 'replace' && conflict) {
         await deleteFsEntities({

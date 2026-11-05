@@ -36,3 +36,5 @@ export * from './make-folder.ts';
 export * from './get-entity-name-and-parent.ts';
 export * from './prepare-restored-path.ts';
 export * from './entity-name.ts';
+export * from './copy-across-fs.ts';
+export * from './link-aware-fs.ts';

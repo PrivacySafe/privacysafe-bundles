@@ -55,6 +55,30 @@ describe('compareListingEntries', () => {
     expect(sorted(list, 'type', 'desc')).toEqual(['a.txt', 'z']);
   });
 
+  it("orders type 'asc' as folder → link-folder → file → link-file → link-broken", () => {
+    const list = [
+      entry('broken', { type: 'link-broken', ext: undefined }),
+      entry('a.txt'),
+      entry('lfolder', { type: 'link-folder', ext: undefined }),
+      entry('lfile', { type: 'link-file', ext: undefined }),
+      entry('dir', { type: 'folder', ext: undefined }),
+    ];
+
+    expect(sorted(list, 'type', 'asc')).toEqual(['dir', 'lfolder', 'a.txt', 'lfile', 'broken']);
+    expect(sorted(list, 'type', 'desc')).toEqual(['broken', 'lfile', 'a.txt', 'lfolder', 'dir']);
+  });
+
+  it('groups files and file-links by extension within their category', () => {
+    const list = [
+      entry('l-b.txt', { type: 'link-file', ext: undefined }),
+      entry('l-a.pdf', { type: 'link-file', ext: undefined }),
+      entry('b.txt'),
+      entry('a.pdf'),
+    ];
+
+    expect(sorted(list, 'type', 'asc')).toEqual(['a.pdf', 'b.txt', 'l-a.pdf', 'l-b.txt']);
+  });
+
   it("puts entries without a value first for 'asc'", () => {
     const folder = entry('dir', { type: 'folder', size: undefined });
     const file = entry('a.txt', { size: 1 });

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { StorageEvent, SyncQueueItem } from '../../../shared/types/index.ts';
 import { syncService } from '../../../src_deno/services/sync.service.ts';
 import { SYNC_QUEUE_DATA_FILE } from '../../../src_deno/constants.ts';
+import { makeLinkAwareFs } from '../../../shared/utils/fs-utils/link-aware-fs.ts';
 
 type SyncState = web3n.files.SyncState;
 
@@ -665,5 +666,273 @@ describe('syncService: uploads that end without upload-done', () => {
 
     expect(await srv.getSyncQueue()).not.toHaveProperty('Docs');
     expect(synced.sync.startUpload).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Live test, round 2, item 15: the queue holds paths as the GUI shows them, which may go
+// through links to folders ('Docs-new' -> the folder 'Docs'), while the platform does not
+// follow a link inside a path.
+describe('syncService with paths through links to folders', () => {
+  async function setupWithLink() {
+    const root = createSyncedFs();
+    const target = createSyncedFs();
+    const rootStatus = root.sync.status.getMockImplementation()!;
+    root.sync.status.mockImplementation(async (path: string) => {
+      if (path.startsWith('Docs-new/')) {
+        throw { runtimeException: true, type: 'file', notDirectory: true };
+      }
+      return rootStatus(path);
+    });
+    Object.assign(root.fs, {
+      checkFolderPresence: async (path: string) => path === '',
+      checkFilePresence: async () => false,
+      checkLinkPresence: async (path: string) => path === 'Docs-new',
+      readLink: async () => ({ isFolder: true, readonly: false, target: async () => target.fs }),
+    });
+    Object.assign(target.fs, {
+      writable: true,
+      checkFolderPresence: async (path: string) => path === '' || path === 'sub',
+      checkLinkPresence: async () => false,
+    });
+
+    const local = createAppLocalFs();
+    const events: StorageEvent[] = [];
+    const srv = await syncService({
+      appLocalFs: local.fs,
+      userSyncedFs: makeLinkAwareFs(root.fs),
+      emitStorageEvent: ev => events.push(ev),
+    });
+    return { srv, root, target, events };
+  }
+
+  it('uploads a file behind a link through the FS of the link target', async () => {
+    const { srv, root, target } = await setupWithLink();
+    target.setState('sub/25.jpeg', { state: 'unsynced' });
+
+    await srv.addSyncQueueItem(pending('Docs-new/sub/25.jpeg'));
+    await runQueue();
+    expect(target.sync.startUpload).toHaveBeenCalledWith('sub/25.jpeg', undefined);
+    expect(root.sync.startUpload).not.toHaveBeenCalled();
+    expect((await srv.getSyncQueue())['Docs-new/sub/25.jpeg']?.status).toBe('inProgress');
+  });
+
+  it('finishes the upload at once by the upload-done event that comes with the path in the synced FS', async () => {
+    const { srv, root, target } = await setupWithLink();
+    target.setState('sub/25.jpeg', { state: 'unsynced' });
+    await srv.addSyncQueueItem(pending('Docs-new/sub/25.jpeg'));
+    await runQueue();
+
+    target.setState('sub/25.jpeg', { state: 'synced' });
+    root.emit({ type: 'upload-done', path: 'Docs/sub/25.jpeg' });
+    await vi.advanceTimersByTimeAsync(1000); // much less than the 15 s of the regular check
+
+    expect(await srv.getSyncQueue()).not.toHaveProperty('Docs-new/sub/25.jpeg');
+  });
+
+  it('syncs the root of a link target as "<link>/." before the link', async () => {
+    const { srv, root, target } = await setupWithLink();
+    target.setState('', { state: 'unsynced' }); // e.g. a file was added right into Docs-new/
+
+    await srv.addSyncQueueItem(pending('Docs-new'));
+    await runQueue();
+
+    expect(target.sync.startUpload).toHaveBeenCalledWith('', undefined);
+    expect(root.sync.startUpload).not.toHaveBeenCalled();
+    const queue = await srv.getSyncQueue();
+    expect(queue['Docs-new/.']?.status).toBe('inProgress');
+    expect(queue['Docs-new']?.status).toBe('pending');
+  });
+
+  // Live test, round 2, item 16: the platform's upload events come with the path in the synced FS,
+  // so the GUI saw no start of the upload of an entity behind a link.
+  it('reports the start of an upload behind a link by the path the GUI shows', async () => {
+    const { srv, target, events } = await setupWithLink();
+    target.setState('sub/New', { state: 'unsynced' });
+
+    await srv.addSyncQueueItem(pending('Docs-new/sub/New'));
+    await runQueue();
+
+    expect(events).toContainEqual({ event: 'upload:start', payload: { path: 'Docs-new/sub/New' } });
+  });
+
+  it('reports the start of an upload of a link target root by the path of the link', async () => {
+    const { srv, target, events } = await setupWithLink();
+    target.setState('', { state: 'unsynced' });
+
+    await srv.addSyncQueueItem(pending('Docs-new'));
+    await runQueue();
+
+    expect(events).toContainEqual({ event: 'upload:start', payload: { path: 'Docs-new' } });
+  });
+
+  it('finishes an upload behind a link soon when its completion is recorded after upload-done', async () => {
+    const { srv, root, target, events } = await setupWithLink();
+    target.setState('sub/New', { state: 'unsynced' });
+    await srv.addSyncQueueItem(pending('Docs-new/sub/New'));
+    await runQueue();
+
+    // the event comes while the status is still unsynced
+    root.emit({ type: 'upload-done', path: 'Docs/sub/New' });
+    await vi.advanceTimersByTimeAsync(500);
+    expect((await srv.getSyncQueue())['Docs-new/sub/New']?.status).toBe('inProgress');
+
+    target.setState('sub/New', { state: 'synced' });
+    await vi.advanceTimersByTimeAsync(3000); // much less than the 15 s of the regular check
+
+    expect(await srv.getSyncQueue()).not.toHaveProperty('Docs-new/sub/New');
+    expect(events).toContainEqual({ event: 'upload:end', payload: { path: 'Docs-new/sub/New' } });
+    expect((await srv.getSyncQueue())['Docs-new/sub/New']?.attempts).toBeUndefined(); // not failed
+  });
+
+  // Live test, round 2, item 17: a conflicting target root was queued again after each
+  // conflict report, so the queue never got empty and the progress banner stayed.
+  it('does not queue a conflicting target root of a link again and again', async () => {
+    const { srv, target, events } = await setupWithLink();
+    target.setState('', { state: 'conflicting' });
+
+    await srv.addSyncQueueItem(pending('Docs-new'));
+    await runQueue();
+    await runQueue();
+
+    expect(await srv.getSyncQueue()).toEqual({});
+    expect(target.sync.startUpload).not.toHaveBeenCalled();
+    expect(
+      events.filter(e => e.event === 'sync_queue:item:update' && e.payload.item.path === 'Docs-new/.'),
+    ).toEqual([]);
+  });
+
+  it('does not queue the target root of a link when it is synced', async () => {
+    const { srv, target } = await setupWithLink();
+
+    await srv.addSyncQueueItem(pending('Docs-new'));
+    await runQueue();
+
+    expect(await srv.getSyncQueue()).toEqual({});
+    expect(target.sync.startUpload).not.toHaveBeenCalled();
+  });
+});
+
+// Live test, round 2, item 18: a file moved away on another device is 'behind' with no
+// current remote version; adopting it failed endlessly and blocked the adoption of its folder.
+describe('syncService with an object removed on the server', () => {
+  const removed = { state: 'behind' as SyncState, remote: { isArchived: true, archived: [2] } };
+
+  /** After the folder is adopted, the entity is no longer at its old path. */
+  function goneAfterFolderAdoption(synced: ReturnType<typeof createSyncedFs>, folder: string, entity: string) {
+    let isFolderAdopted = false;
+    const status = synced.sync.status.getMockImplementation()!;
+    synced.sync.adoptRemote.mockImplementation(async (path: string) => {
+      if (path === folder) {
+        isFolderAdopted = true;
+      }
+    });
+    synced.sync.status.mockImplementation(async (path: string) => {
+      if (isFolderAdopted && path === entity) {
+        throw { runtimeException: true, type: 'file', notFound: true };
+      }
+      return status(path);
+    });
+  }
+
+  it('adopts the folder of the removed object instead of the object', async () => {
+    const { srv, synced } = await setup();
+    synced.setState('docs/b.txt', removed);
+    synced.setState('docs', { state: 'behind', remote: { latest: 3 } });
+    goneAfterFolderAdoption(synced, 'docs', 'docs/b.txt');
+
+    await srv.addSyncQueueItem(pending('docs/b.txt'));
+    await runQueue();
+
+    expect(synced.sync.adoptRemote).toHaveBeenCalledWith('docs', { remoteVersion: 3 });
+    expect(synced.sync.adoptRemote).not.toHaveBeenCalledWith('docs/b.txt', expect.anything());
+    expect(await srv.getSyncQueue()).not.toHaveProperty('docs/b.txt');
+  });
+
+  it('fails up to the attempts limit while the folder has no new version yet', async () => {
+    const { srv, synced } = await setup();
+    synced.setState('docs/b.txt', removed);
+
+    await srv.addSyncQueueItem(pending('docs/b.txt'));
+    await vi.advanceTimersByTimeAsync(20_000);
+
+    expect(synced.sync.adoptRemote).not.toHaveBeenCalled();
+    expect((await srv.getSyncQueue())['docs/b.txt']?.attempts).toBe(3);
+  });
+
+  it('keeps the attempts of a failing item when the GUI queues it again', async () => {
+    const { srv, synced } = await setup();
+    synced.setState('docs/b.txt', removed);
+    await srv.addSyncQueueItem(pending('docs/b.txt'));
+    await runQueue();
+
+    await srv.addSyncQueueItem(pending('docs/b.txt'));
+    await runQueue();
+    await srv.addSyncQueueItem(pending('docs/b.txt'));
+    await runQueue();
+
+    expect((await srv.getSyncQueue())['docs/b.txt']?.attempts).toBe(3);
+  });
+});
+
+// Live test, round 2, item 20: a file trashed on another device was adopted by its old path
+// in the root while the adopted trash downloaded it: EEXIST, then a broken entity.
+describe('syncService adopting an entity whose folder is behind', () => {
+  it('adopts the folder first and drops the entity that is no longer there', async () => {
+    const { srv, synced } = await setup();
+    synced.setState('a_copy.txt', { state: 'behind', remote: { latest: 4 } });
+    synced.setState('', { state: 'behind', remote: { latest: 9 } });
+    let isRootAdopted = false;
+    const status = synced.sync.status.getMockImplementation()!;
+    synced.sync.adoptRemote.mockImplementation(async (path: string) => {
+      if (path === '') {
+        isRootAdopted = true;
+      }
+    });
+    synced.sync.status.mockImplementation(async (path: string) => {
+      if (isRootAdopted && path === 'a_copy.txt') {
+        throw { runtimeException: true, type: 'file', notFound: true };
+      }
+      return status(path);
+    });
+
+    await srv.addSyncQueueItem(pending('a_copy.txt'));
+    await runQueue();
+
+    expect(synced.sync.adoptRemote).toHaveBeenCalledWith('', { remoteVersion: 9 });
+    expect(synced.sync.adoptRemote).not.toHaveBeenCalledWith('a_copy.txt', expect.anything());
+    expect(await srv.getSyncQueue()).not.toHaveProperty('a_copy.txt');
+  });
+
+  it('adopts the entity itself when its folder is not behind', async () => {
+    const { srv, synced } = await setup();
+    synced.setState('docs/a.txt', { state: 'behind', remote: { latest: 4 } });
+
+    await srv.addSyncQueueItem(pending('docs/a.txt'));
+    await runQueue();
+
+    expect(synced.sync.adoptRemote).toHaveBeenCalledWith('docs/a.txt', { remoteVersion: 4 });
+  });
+});
+
+// Live test, round 2, item 21: a file restored into a folder behind a link is a new copy;
+// the folder upload was refused with childNeverUploaded three times and the banner stayed.
+describe('syncService with an entry that was never uploaded', () => {
+  it('queues the entry and lets its folder wait without a counted attempt', async () => {
+    const { srv, synced } = await setup();
+    synced.setState('Docs', { state: 'unsynced' });
+    synced.sync.startUpload.mockImplementation(async (path: string) => {
+      if (path === 'Docs' && !synced.sync.startUpload.mock.calls.some(([p]) => p === 'Docs/4.jpeg')) {
+        throw { runtimeException: true, type: 'fs-sync', path: '', childNeverUploaded: true, childName: '4.jpeg' };
+      }
+      return { uploadVersion: 2, uploadTaskId: 1 };
+    });
+    synced.setState('Docs/4.jpeg', { state: 'unsynced' });
+
+    await srv.addSyncQueueItem(pending('Docs'));
+    await runQueue();
+
+    const queue = await srv.getSyncQueue();
+    expect(queue['Docs']?.attempts).toBe(0);
+    expect(synced.sync.startUpload).toHaveBeenCalledWith('Docs/4.jpeg', undefined);
   });
 });

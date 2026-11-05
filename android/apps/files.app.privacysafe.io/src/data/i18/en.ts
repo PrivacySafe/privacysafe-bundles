@@ -28,6 +28,7 @@ export const en = {
     exit: 'Exit',
     create: 'Create',
     create_folder: 'Create Folder',
+    create_link: 'Create SymLink',
     selected: 'Selected',
     favorites_title: 'Favorites',
     settings: {
@@ -74,7 +75,6 @@ export const en = {
   validation: {
     text: {
       required: 'This field is required. ',
-      equality: 'The old and new values must not be equal. ',
       length: 'No more then {length} characters ',
       invalid_name: "A name must not be '.' or '..' and must not contain '/' or '\\'. ",
     },
@@ -101,6 +101,42 @@ export const en = {
         confirm: 'Create',
       },
     },
+    create_link: {
+      title: 'Create SymLink',
+      field: {
+        name: 'SymLink name',
+        type: 'Target type',
+        target: 'Target',
+      },
+      type: {
+        folder: 'Folder',
+        file: 'File',
+      },
+      no_target: 'Not selected',
+      button: {
+        select: 'Select…',
+        confirm: 'Create',
+      },
+      picker: {
+        folder_title: 'Select the folder for the SymLink',
+        file_title: 'Select the file for the SymLink',
+        button: 'Select',
+      },
+    },
+    entity_icon: {
+      title: 'Entity icon',
+      no_image: 'Load an image to use it as the icon',
+      load_error: 'The file could not be read as an image',
+      button: {
+        load: 'Load image…',
+        rotate_left: 'Rotate left',
+        rotate_right: 'Rotate right',
+        flip_horizontal: 'Flip horizontally',
+        flip_vertical: 'Flip vertically',
+        delete: 'Delete and close',
+        save: 'Save',
+      },
+    },
     rename_folder: {
       title: 'Rename Folder',
       field: {
@@ -123,11 +159,14 @@ export const en = {
         merge: 'Merge',
         absorb: 'Absorb Remote',
         absorb_tooltip: 'By clicking this button you absorb remote changes to local folder.',
+        keep_local_same: 'The local and the cloud versions are the same: choose Keep Cloud.',
       },
       cloud_text: 'Cloud',
       local_text: 'Local',
       checkbox_text: 'Keep this option for all conflicting objects',
       error: "Couldn't resolve the conflict of '{name}'.",
+      error_upload:
+        "Couldn't upload the local version of '{name}'. If the versions are the same, choose Keep Cloud.",
     },
     restore: {
       text: 'There is already an object named "{name}" in this folder | There are already objects named "{name}" in this folder',
@@ -164,6 +203,11 @@ export const en = {
   },
 
   fs: {
+    create_link_error: "Couldn't create the SymLink '{name}'.",
+    name_taken: "The name '{name}' is already taken in this folder.",
+    create_link_error_not_allowed:
+      "A link to this target can't be made here: the synced storage links only to synced and shared storages, a device folder only to device files and folders.",
+    create_link_error_readonly: 'This folder is available for reading only.',
     sync_state: {
       synced: 'synced',
       unsynced: 'unsynced',
@@ -209,6 +253,9 @@ export const en = {
         type: 'Type',
         type_folder: 'Folder',
         type_file: 'File',
+        'type_link-folder': 'Link to a folder',
+        'type_link-file': 'Link to a file',
+        'type_link-broken': 'Broken link',
         type_link: 'Link',
         path: 'Path',
         size: 'Size',
@@ -217,6 +264,7 @@ export const en = {
         tags: 'Tags',
         status: 'Sync Status',
         calculate_hash: 'Calculate hash',
+        change_icon: 'Change the icon of the entity',
         sync_state: 'state',
         local_version: 'local ver',
         synced_version: 'synced ver',
@@ -235,6 +283,10 @@ export const en = {
             'The selected object has been successfully downloaded. | The selected objects ({count}) have been successfully downloaded.',
           copy: 'The selected object has been successfully copied. | The selected objects ({count}) have been successfully copied.',
           move: 'The selected object has been successfully moved. | The selected objects ({count}) have been successfully moved.',
+          copy_except_broken:
+            'The selected object has been copied, except a broken link. | The selected objects have been copied, except {count} broken links.',
+          move_except_broken:
+            'The selected object has been moved, except a broken link. | The selected objects have been moved, except {count} broken links.',
         },
         error: {
           delete:
@@ -246,6 +298,8 @@ export const en = {
           move: 'Error while moving the selected object. | Error while moving the selected objects ({count}).',
           into_itself: "A folder can't be copied or moved into itself or its subfolder.",
           open: 'Could not open "{name}"',
+          icon: 'Could not change the icon of "{name}"',
+          broken_link: 'The link "{name}" is broken and cannot be opened.',
         },
       },
     },

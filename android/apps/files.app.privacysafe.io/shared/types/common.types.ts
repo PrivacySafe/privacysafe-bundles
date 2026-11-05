@@ -169,6 +169,7 @@ export type StorageEventPayloadWithPath = Exclude<
 export interface FsEntityInfoProps {
   fsId: string;
   path: string;
+  rootFolderId?: string;
   windowIndex?: '1' | '2';
 }
 

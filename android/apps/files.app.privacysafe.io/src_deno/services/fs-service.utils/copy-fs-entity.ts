@@ -43,10 +43,13 @@ export async function copyFsEntity({
 }): Promise<string | undefined> {
   const { type, fullPath } = entity;
 
+  if (type === 'link-broken') {
+    return undefined;
+  }
+
   try {
     const entityNewPath = await getEntityTargetPath({
       fs: targetFs,
-      srcFs,
       entity,
       targetFolder,
       targetEntityName,
@@ -65,21 +68,21 @@ export async function copyFsEntity({
         break;
       }
 
-      case 'link': {
-        const link = await readLink({ fs: srcFs, path: fullPath });
+      case 'link-folder':
+      case 'link-file': {
+        const link = await readLink({ fs: srcFs, path: fullPath, stopErrorPropagate: true });
 
         if (!link) {
-          return;
+          return undefined;
         }
 
-        const data = await link.target();
+        const target = await link.target().catch(() => undefined);
 
-        if (link.isFolder) {
-          await saveFolder({ fs: targetFs, folder: data as web3n.files.FS, dst: entityNewPath });
-        } else if (link.isFile) {
-          await saveFile({ fs: targetFs, file: data as web3n.files.File, dst: entityNewPath });
+        if (!target) {
+          return undefined;
         }
 
+        await targetFs.link(entityNewPath, target);
         break;
       }
     }

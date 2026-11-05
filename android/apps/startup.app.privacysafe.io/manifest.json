@@ -1,7 +1,7 @@
 {
   "name": "PrivacySafe startup",
   "appDomain": "startup.app.privacysafe.io",
-  "version": "0.10.11",
+  "version": "0.10.13",
   "description": "Opens PrivacySafe platform for user and does signups.",
   "icon": "logo.png",
   "components": {
