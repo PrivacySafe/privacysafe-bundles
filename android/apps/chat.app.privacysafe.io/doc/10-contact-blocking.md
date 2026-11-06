@@ -86,7 +86,7 @@ local-data-store ([contacts-blacklist.ts:61](../src-deno/services/contacts-servi
 | [inbox-dispatcher.ts:388](../src-deno/services/mail-service/inbox-dispatcher.ts#L388) | catch-up-скан ящика при старте |
 | [inbox-dispatcher.ts:467](../src-deno/services/mail-service/inbox-dispatcher.ts#L467) | живой поток входящих |
 | [chat-service.ts:313](../src-deno/services/chat-service/chat-service.ts#L313) | `handleIncomingMsg`, после разбора тела |
-| [video-chat-service.ts:1362](../src-deno/services/video-chat-service/video-chat-service.ts#L1362) | WebRTC-сигналы |
+| [incoming-signals.ts:172](../src-deno/services/video-chat-service/incoming-signals.ts#L172) | WebRTC-сигналы |
 
 Везде проверка идёт в паре с `!areAddressesEqual(sender, ownAddr)`: собственный адрес в чёрном
 списке оказаться не может, но фантомы синхронизации приходят от себя же, и терять их нельзя.

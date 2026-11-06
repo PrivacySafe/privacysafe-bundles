@@ -186,3 +186,10 @@ MP4 оно всё равно бесполезно.
   ручная, на стенде ([07-build-test-run.md](07-build-test-run.md)). Куски здесь
   (`streamableMimeOf`, `streamingLimitFor`, `bufferedStartOf`, `read-with-progress`) как раз чистые
   и тестируемые.
+- **Открытый дефект: PDF-превью обрезается, а не масштабируется.** В
+  [create-pdf-thumbnail.ts:35-44](../src-main/common/utils/create-thumbnail/create-pdf-thumbnail.ts#L35-L44)
+  канва размечена по `scaledViewport`, а `page1.render` получает исходный `viewport`. Правка — передать
+  в `render` `scaledViewport`.
+- **Если превью массово не влезают в кэш** (`THUMBNAIL_CACHE_MAX_CHARS` = 64 КБ,
+  [attachment-limits.ts](../shared-libs/constants/attachment-limits.ts)), ответ — перекодировать
+  результат `resizeImage` в JPEG (сейчас это PNG от `canvas.toDataURL()`), а не поднимать порог.

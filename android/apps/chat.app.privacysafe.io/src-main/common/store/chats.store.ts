@@ -413,7 +413,7 @@ export const useChatsStore = defineStore('chats', () => {
    * The mapping is the same one the push events make (see useInitialize):
    *   in a call here, and it is running   -> callStart, i.e. an End Call button
    *   rejoinable                          -> isCallActive, i.e. "Join call"
-   *   ringing and not ours                -> incomingCall
+   *   ringing                             -> incomingCall
    * A chat absent from the snapshot loses all three: the snapshot is the
    * authority, and clearing state nobody will ever clear otherwise is the
    * reason this exists.
@@ -431,9 +431,13 @@ export const useChatsStore = defineStore('chats', () => {
         ...item,
         callStart: runningHere ? (item.callStart ?? state.since) : undefined,
         isCallActive: (state.state === 'rejoinable'),
-        incomingCall: ((state.state === 'ringing') && !state.inCallHere)
-          ? item.incomingCall
-          : undefined,
+        // Not guarded on `inCallHere`: a call ringing here always has its call
+        // object already (handleIncomingCall creates it to ring), so that flag
+        // is true for every incoming call. The guard used to wipe the Join
+        // button and the ringtone at the first minute-by-minute reconcile -
+        // two seconds into the ringing in the live run of 2026-11-04. Only an
+        // incoming call is ever 'ringing'; an outgoing one is 'dialing'.
+        incomingCall: (state.state === 'ringing') ? item.incomingCall : undefined,
       };
     });
   }

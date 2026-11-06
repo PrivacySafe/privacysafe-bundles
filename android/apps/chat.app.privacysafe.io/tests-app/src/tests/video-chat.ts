@@ -131,6 +131,7 @@ import {
   isRejoinNotice,
   rejoinNoticeMsg,
   signalAgeOf,
+  startsWithdrawnInBatch,
 } from '@deno/services/video-chat-service/utils/webrtc-msg-body.ts';
 import {
   REJOIN_NOTICE_TTL_MS,
@@ -1081,6 +1082,103 @@ describe(`Video Chat Star Architecture`, () => {
       expect(reg.admitsStart(OTO, NEXT_SESSION, FRESH, T0 + 1000))
         .withContext(`the peer calling again is a new call, not a straggler`)
         .toBe('accept');
+    }, 5000);
+
+    itCond(`rings for an invitation overtaken by a heartbeat of its own call`, async () => {
+      // Live run of 2026-11-04: a device starting up got the host's heartbeat
+      // live while its catch-up scan was still fetching the 'start's it had
+      // missed. The beat made the chat "rejoinable", and every 'start' of that
+      // very call was then dropped as "not live here" - the user, never asked,
+      // got neither a ringtone nor Join/Decline.
+      const reg = sessions();
+      reg.noteHeartbeat(CHAT, HOST_ADDR, SESSION, T0);
+      expect(reg.get(CHAT)?.heardOnly)
+        .withContext(`a beat into a chat with no record is the first word of the call here`)
+        .toBeTrue();
+      expect(reg.admitsStart(CHAT, SESSION, aged(54_000), T0 + 100))
+        .withContext(`the 'start' that the beat overtook still rings`)
+        .toBe('accept');
+      expect(reg.admitsStart(CHAT, SESSION, aged(MAX_SIGNAL_AGE_MILLIS + 1), T0 + 100))
+        .withContext(`but a stale one is a leftover, not a question to the user`)
+        .toBe('drop-not-live');
+      expect(reg.admitsSignal(CHAT, SESSION, FRESH, T0 + 100))
+        .withContext(`and nothing but a 'start' is let through`)
+        .toBe('drop-not-live');
+
+      reg.noteHeartbeat(CHAT, HOST_ADDR, SESSION, T0 + 15_000);
+      expect(reg.get(CHAT)?.heardOnly)
+        .withContext(`further beats of that call keep it heard-only`)
+        .toBeTrue();
+
+      reg.transit(CHAT, 'ended', T0 + 20_000, { endedBy: 'host', callSessionId: SESSION });
+      reg.noteHeartbeat(CHAT, HOST_ADDR, NEXT_SESSION, T0 + 30_000);
+      expect(reg.get(CHAT)?.heardOnly)
+        .withContext(`a beat of a new call after the old one is heard-only again`)
+        .toBeTrue();
+    }, 5000);
+
+    itCond(`does not ring again for a call this device has been in or turned down`, async () => {
+      // Left the call: the detach writes a provisional record of our own.
+      const left = sessions();
+      left.transit(CHAT, 'ringing', T0, { role: 'client', hostAddr: HOST_ADDR, callSessionId: SESSION });
+      left.transit(CHAT, 'connecting', T0, {});
+      left.transit(CHAT, 'rejoinable', T0 + 1000, {
+        hostAddr: HOST_ADDR, callSessionId: SESSION, lastBeat: T0 + 1000,
+        provisional: true, endedBy: undefined, heardOnly: false,
+      });
+      left.noteHeartbeat(CHAT, HOST_ADDR, SESSION, T0 + 2000);
+      expect(left.admitsStart(CHAT, SESSION, FRESH, T0 + 2100))
+        .withContext(`a repeat of the 'start' of a call we left`)
+        .toBe('drop-not-live');
+
+      // Declined while ringing, then the call went on and its beats came in.
+      const declined = sessions();
+      declined.transit(CHAT, 'ringing', T0, { role: 'client', hostAddr: HOST_ADDR, callSessionId: SESSION });
+      declined.transit(CHAT, 'ended', T0 + 500, { endedBy: 'self' });
+      declined.noteHeartbeat(CHAT, HOST_ADDR, SESSION, T0 + 1000);
+      expect(declined.get(CHAT)?.heardOnly).toBeFalse();
+      expect(declined.admitsStart(CHAT, SESSION, FRESH, T0 + 1100))
+        .withContext(`a repeat of the 'start' the user already declined`)
+        .toBe('drop-not-live');
+
+      // Heard of it first, then joined from the "Join call" button and left.
+      const joined = sessions();
+      joined.noteHeartbeat(CHAT, HOST_ADDR, SESSION, T0);
+      joined.transit(CHAT, 'connecting', T0 + 100, {
+        role: 'client', hostAddr: HOST_ADDR, callSessionId: SESSION, heardOnly: undefined,
+      });
+      joined.transit(CHAT, 'rejoinable', T0 + 1000, {
+        hostAddr: HOST_ADDR, callSessionId: SESSION, lastBeat: T0 + 1000,
+        provisional: true, endedBy: undefined, heardOnly: false,
+      });
+      joined.noteHeartbeat(CHAT, HOST_ADDR, SESSION, T0 + 2000);
+      expect(joined.admitsStart(CHAT, SESSION, FRESH, T0 + 2100))
+        .withContext(`having been in the call, this device is past its invitation`)
+        .toBe('drop-not-live');
+    }, 5000);
+
+    itCond(`does not replay a 'start' that its own batch withdraws`, async () => {
+      // Same run: a catch-up scan handed over the 'start' (158 s old) and the
+      // 'disconnect' of a call that began and ended while the device was away.
+      // The 'start' rang, armed a dead Join button, and the 'disconnect' then
+      // tore down the record of the call that was actually going on.
+      const msg = (stage: WebRTCMsg['stage'], callSessionId?: string): WebRTCMsg =>
+        ({ stage, id: T0, callSessionId } as WebRTCMsg);
+      const batch = [
+        { sender: HOST_ADDR, webrtcMsg: msg('start', NEXT_SESSION) },
+        { sender: HOST_ADDR, webrtcMsg: msg('start', SESSION) },
+        { sender: HOST_ADDR, webrtcMsg: msg('start', SESSION) },
+        { sender: CLIENT_A_ADDR, webrtcMsg: msg('start', NEXT_SESSION) },
+        { sender: HOST_ADDR, webrtcMsg: msg('start') },
+        { sender: HOST_ADDR, webrtcMsg: msg('disconnect', SESSION) },
+        { sender: CLIENT_A_ADDR, webrtcMsg: msg('disconnect') },
+      ];
+      expect([...startsWithdrawnInBatch(batch)].sort())
+        .withContext(`only the 'start's of the session its own host withdrew`)
+        .toEqual([1, 2]);
+      expect(startsWithdrawnInBatch(batch.slice(0, 5)).size)
+        .withContext(`with no 'disconnect' in the batch nothing is held back`)
+        .toBe(0);
     }, 5000);
 
     itCond(`falls back on time windows for a peer that sends no session id`, async () => {

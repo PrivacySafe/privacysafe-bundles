@@ -233,6 +233,15 @@ export interface CallSessionRecord {
   provisional?: boolean;
   /** `rejoinable` only: when the last heartbeat was seen. */
   lastBeat?: number;
+  /**
+   * `rejoinable` only: this device learned of the call from heartbeats alone -
+   * it was never in it, never rang for it, and no device of ours left it. Such a
+   * record says "a call is going on", not "we left it": the host's 'start' to us
+   * may simply have been overtaken by a beat (a catch-up scan hands a beat that
+   * arrived live before the invitations it missed - live run of 2026-11-04), and
+   * that invitation must still ring here (see verdictAfterCall).
+   */
+  heardOnly?: boolean;
   /** `ended` only. */
   endedBy?: CallEndedBy;
   /**
@@ -255,7 +264,7 @@ export type CallSessionPatch = Partial<
   Pick<
     CallSessionRecord,
     | 'role' | 'hostAddr' | 'callSessionId' | 'provisional' | 'lastBeat' | 'endedBy'
-    | 'lastSignal' | 'startedAt'
+    | 'lastSignal' | 'startedAt' | 'heardOnly'
   >
 >;
 
@@ -600,6 +609,31 @@ export function shouldRelayRejoinBeat({
 export interface SignalAge {
   fromSenderClock: number;
   sinceDelivery: number;
+}
+
+/**
+ * Whether a heartbeat about to make the record `rejoinable` finds this device
+ * outside the call altogether (see CallSessionRecord.heardOnly).
+ *
+ * Anything this device has done in the beat's session - rung for it, been in it,
+ * declined it, left it - is in the record before the beat, so only a record of
+ * another session, or none, makes the beat the first word of this call here.
+ * Without session ids nothing can be told apart, and the answer is the old
+ * behaviour: not heard-only.
+ */
+export function isHeardOnly(
+  prior: CallSessionRecord | undefined, beatSessionId: string | undefined,
+): boolean {
+  if (!prior) {
+    return !!beatSessionId;
+  }
+  if (beatSessionId && prior.callSessionId && (beatSessionId !== prior.callSessionId)) {
+    return true;
+  }
+  if (prior.state === 'rejoinable') {
+    return !!prior.heardOnly;
+  }
+  return false;
 }
 
 export function isStaleAge(age: SignalAge): boolean {
@@ -982,7 +1016,8 @@ export function createCallSessions(
   function noteHeartbeat(
     chatId: ChatIdObj, hostAddr: string, callSessionId: string | undefined, now: number,
   ): boolean {
-    const wasRejoinable = get(chatId)?.state === 'rejoinable';
+    const prior = get(chatId);
+    const wasRejoinable = prior?.state === 'rejoinable';
     // A real heartbeat confirms the call is live, so the record is no longer a
     // provisional guess made on our way out of it.
     transit(chatId, 'rejoinable', now, {
@@ -992,6 +1027,7 @@ export function createCallSessions(
       provisional: false,
       role: 'client',
       endedBy: undefined,
+      heardOnly: isHeardOnly(prior, callSessionId),
     });
     return !wasRejoinable;
   }
@@ -1003,6 +1039,7 @@ export function createCallSessions(
    */
   function verdictAfterCall(
     record: CallSessionRecord, sessionId: string | undefined, msgAge: SignalAge, now: number,
+    isStart: boolean,
   ): SignalVerdict {
     switch (sessionMatch(record, sessionId)) {
       case 'same':
@@ -1010,6 +1047,15 @@ export function createCallSessions(
         // `rejoinable` means that call is still going, just without us, so the
         // reason is "not live here" rather than "over".
         if (record.state === 'rejoinable') {
+          // Except for the host's invitation to a device that has only ever
+          // heard of the call from its heartbeats: that device was never asked
+          // until now, and dropping the 'start' leaves its user with no ringing
+          // and no Join/Decline - only the quiet "Join call" of a call they
+          // supposedly left (live run of 2026-11-04). Fresh invitations only:
+          // a stale one is a leftover, not a question to the user.
+          if (record.heardOnly && isStart && !isStaleAge(msgAge)) {
+            return 'accept';
+          }
           return 'drop-not-live';
         }
         // Held on another device of ours: the signal is not ours to consume, and
@@ -1082,7 +1128,7 @@ export function createCallSessions(
       }
     }
 
-    return verdictAfterCall(record, sessionId, msgAge, now);
+    return verdictAfterCall(record, sessionId, msgAge, now, true);
   }
 
   function admitsSignal(
@@ -1098,7 +1144,7 @@ export function createCallSessions(
       return (match === 'different') ? 'drop-foreign-session' : 'accept';
     }
 
-    return verdictAfterCall(record, sessionId, msgAge, now);
+    return verdictAfterCall(record, sessionId, msgAge, now, false);
   }
 
   function admitsHeartbeat(

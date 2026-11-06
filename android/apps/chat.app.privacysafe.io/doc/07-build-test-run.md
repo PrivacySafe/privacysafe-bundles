@@ -65,8 +65,8 @@
 
 ## 3. Сборка Deno-части
 
-[ci/bundle-deno-code.sh](../ci/bundle-deno-code.sh) вызывает
-[ci/build-deno.js](../ci/build-deno.js):
+[bundle-deno-code.sh](../bundle-deno-code.sh) вызывает
+[build-deno.js](../build-deno.js):
 
 ```mermaid
 flowchart LR
@@ -79,18 +79,24 @@ flowchart LR
 Детали:
 
 - Плагин `jsr:@deno/esbuild-plugin` разрешает импорты JSR/NPM/HTTP прямо из TS
-  ([build-deno.js:2](../ci/build-deno.js#L2)) — благодаря этому в коде допустимы записи вида
+  ([build-deno.js:2](../build-deno.js#L2)) — благодаря этому в коде допустимы записи вида
   `import { excerpt } from 'jsr:@dbushell/hyperless'`
   ([msg-sending.ts:18](../src-deno/services/chat-service/utils/msg-sending.ts#L18)).
 - `node:path` и `node:fs` оставлены внешними: полифилы подставит рантайм платформы
-  ([build-deno.js:22](../ci/build-deno.js#L22)).
+  ([build-deno.js:48](../build-deno.js#L48)).
 - Перед бандлом дописывается заглушка `Deno.env.get()`
-  ([build-deno.js:4-10](../ci/build-deno.js#L4-L10)): зависимости могут обращаться к переменным
+  ([build-deno.js:4-10](../build-deno.js#L4-L10)): зависимости могут обращаться к переменным
   окружения, которых в компоненте нет.
-- `drop: ['console']` в production-сборке ([build-deno.js](../ci/build-deno.js)): в поставляемом
+- `drop: ['console']` в production-сборке ([build-deno.js](../build-deno.js)): в поставляемом
   бандле нет ни одного вызова `console`. Диагностика, которую стоит сохранить, идёт не через
   console, а через логгер (§3.1), поэтому ничего не теряется. Сборка с console — `pnpm
   build:deno:dev` (тот же скрипт с `--dev`).
+- `consoleMute` ([build-deno.js](../build-deno.js)) — первые строки production-бандла заменяют
+  `console.*` на пустые функции во всём процессе, включая код платформы, до которого `drop` не
+  достаёт. Платформа без `--devtools` не читала stdout deno-компонента, а её preload эхом пишет каждую
+  строку `w3n.log` в console: после ~64 КБ главный поток навсегда вставал в `write()`, и компонент
+  «не отвечал». Платформа 0.32.11004 трубу вычитывает всегда, так что обход можно убрать, когда
+  минимальная поддерживаемая версия платформы будет не ниже неё.
 - Результат — единый ESM-файл `app/background-instance.mjs`, ровно тот путь, который указан в
   манифесте.
 
@@ -226,6 +232,16 @@ const groupChatId = await chatService.createGroupChat({ … });
 [sync-versions.ts](../src-deno/services/chat-service/utils/sync-versions.ts) в `sync-conflicts`.
 Логика без `w3n`, без таймеров и со временем в аргументах проверяется так детерминированно и без
 платформенных зависимостей.
+
+Ловушка при написании спек, стоившая двух прогонов: **чат 1-1 один на весь прогон**. Его ключ —
+адрес собеседника, поэтому повторное «создать чат 1-1» с тем же собеседником возвращает чат,
+созданный раньше другой спекой, с его прежним именем: `createOneToOneChat()` существующую запись не
+переименовывает
+([chat-creation.ts](../src-deno/services/chat-service/utils/chat-creation.ts)). Спеке, которой нужен
+свежий чат 1-1, нужен и ещё не занятый собеседник. Тестовых пользователей на стенде три
+([test-setup.json](../tests-app/test-setup.json)): чат со вторым создаёт `Chat Management`, с третьим —
+`chat-names`, так что свободных уже нет, и новой такой спеке придётся добавить пользователя в
+`users`. У групповых чатов этой ловушки нет — их `chatId` спека задаёт сама.
 
 ### 5.2.1 Спеки, не требующие сети
 
@@ -366,7 +382,7 @@ pnpm tests:run-on <путь-к-платформе>
 само записывает `tests-start` + `tests-fail`
 ([boot1.js](../tests-app/public/jasmine/boot1.js)), поэтому такой прогон падает с кодом 2, называет
 причину в stdout и печатает логи платформы. Сам дефект вердикта живёт в платформе и описан в
-[plans/core-platform-issues-2026-08-14.md](../plans/core-platform-issues-2026-08-14.md) §4.
+[platform-requests.md](platform-requests.md) §5.5.
 
 Тестовые пользователи берутся из `tests-app/build/test-user-creds.json` (`"userCreds"` в
 `test-setup.json`) и **переиспользуются между прогонами** — новые заводятся только если файла нет.
@@ -451,12 +467,25 @@ deno run -A ci/bench-db-writes.ts --seed=3000 --batch=50 --disk
 Что важно помнить, читая числа: мок не шифрует и не пишет в реальное 3N-хранилище, поэтому
 измеренный выигрыш по времени — **нижняя оценка**; число записей и объём байтов точны.
 
-Результаты замера до/после батчинга — в
-[plans/db-write-batching.md](../plans/db-write-batching.md).
+Замер до/после батчинга записи ([02-data-model.md §1.1.1](02-data-model.md#111-запись-файла-батчится)),
+`pnpm bench:db` и та же команда с `--seed=3000 --batch=50 --disk`:
+
+| Режим и метрика | До | После |
+|---|---|---|
+| память, 20 000 сообщений: пакет 100 входящих, записей главной БД | 200 | 4 |
+| — то же, вспомогательной БД | 100 | 2 |
+| — время пакета | 99 мс | 12 мс |
+| — записано байт за пакет | 1.87 ГБ | 38.4 МБ |
+| — записано байт за весь прогон | 96.6 ГБ | 1.5 ГБ (63×) |
+| диск, 3 000 сообщений: записей файла при наполнении | 3 002 | 4 |
+
+На диске коалесинг сильнее, чем обещает порог: пока медленная запись в полёте, вся пачка мутаций
+схлопывается в следующую. Журнал фантомов коалесинг не ломает: 50 локальных изменений — 3 записи
+файла.
 
 ## 7. Локальный запуск приложения
 
-[run-test.sh](../test-stand-data/run-test.sh) (и `../test-stand-data/run-test-mac.sh` для macOS) запускает платформу с приложением, а
+[run-test.sh](../run-test.sh) (и [run-test-mac.sh](../run-test-mac.sh) для macOS) запускает платформу с приложением, а
 не с тестами:
 
 ```bash
@@ -470,10 +499,17 @@ deno run -A ci/bench-db-writes.ts --seed=3000 --batch=50 --disk
 
 Если путь к платформе не передан, скрипт ожидает символическую ссылку `test-runner` в корне проекта.
 
+Живые прогоны на macOS — скрипты `run:mac:N` из `package.json` (платформа из `/Applications`, вывод
+дублируется в `live-user*.log`). `run:mac:1` ([run-test-mac.sh](../run-test-mac.sh), `mock-data`,
+мобильная форма) и `run:mac:2` ([run-test-mac1.sh](../run-test-mac1.sh), `mock-data1`) — **два
+устройства одного пользователя**; `run:mac:3` (`mock-data2`) и `run:mac:4` (`mock-data3`) — другие
+пользователи. Два инстанса на **одной** папке данных — не два устройства: у них один `appDeviceId`, и
+синхронизация между ними мертва ([04-multi-device-sync.md §8](04-multi-device-sync.md)).
+
 ### 7.1. Как проверить поведение при мёртвом фоновом компоненте
 
 Инцидент 2026-09-10 (компонент жив, но не отвечает; см.
-[plans/core-platform-issues-2026-09-10.md](../plans/core-platform-issues-2026-09-10.md))
+[platform-requests.md](platform-requests.md) §4.2)
 воспроизводится сигналом, без единой строки тестового кода:
 
 ```bash
@@ -490,7 +526,7 @@ kill -9 <pid>                        # молчаливая смерть
 Что должно получиться:
 
 - при `-STOP` окно чата в течение минуты показывает «The chat background service is not
-  responding» с кнопками «Retry» и «Close the app» — вместо бесконечного спиннера; кнопка End Call
+  responding» с кнопками «Retry» и «Close this window» — вместо бесконечного спиннера; кнопка End Call
   снимается за ~15 с;
 - «Retry» после `-CONT` поднимает приложение;
 - при `-9` последняя строка сердцебиения в `<data-dir>/util/logs` датирует смерть с точностью

@@ -81,7 +81,7 @@
 - **Уведомления ОС** умеют показывать и фон, и основной GUI, но в коде это делает фон: новое
   сообщение ([msg-sending.ts:280-299](../src-deno/services/chat-service/utils/msg-sending.ts#L280-L299)),
   приглашение ([chat-creation.ts:107-123](../src-deno/services/chat-service/utils/chat-creation.ts#L107-L123)),
-  завершение звонка хостом ([video-chat-service.ts:225-241](../src-deno/services/video-chat-service/video-chat-service.ts#L225-L241)).
+  завершение звонка хостом ([call-history.ts:43-59](../src-deno/services/video-chat-service/call-history.ts#L43-L59)).
 
 ## 2. Порядок старта фонового инстанса
 
@@ -114,8 +114,9 @@ sequenceDiagram
     I->>VS: videoChatService(ownAddr, chatsSrv, db, emit)
     VS-->>I: videoChatSrv (+ IPC 'VideoGUIOpener' поднят)
     I->>MS: mailService({ownAddr, db, localDataStoreSrv, chatsSrv, videoChatSrv})
-    MS->>P: inbox.subscribe('message') + delivery.observeAllDeliveries()
-    MS->>MS: handleMissedInboxMessages() — догоняем пропущенное
+    MS->>P: inbox.subscribe('message')
+    MS-)MS: handleMissedInboxMessages() — догон, без await
+    MS->>P: delivery.observeAllDeliveries()
 ```
 
 Обслуживающие операции при старте ([index.ts](../src-deno/index.ts)):
@@ -135,7 +136,19 @@ sequenceDiagram
 
 Важно: подписка на inbox поднимается **последней** — только после того, как БД и все сервисы готовы.
 Пропущенное за время старта догоняется явным сканированием
-([inbox-dispatcher.ts:108-151](../src-deno/services/mail-service/inbox-dispatcher.ts#L108-L151)).
+([inbox-dispatcher.ts](../src-deno/services/mail-service/inbox-dispatcher.ts),
+`handleMissedInboxMessages()`).
+
+Догон запускается, но старт его **не ждёт**: весь он — один `inbox.listMsgs(scanFrom)`, который на
+обычных запусках шёл от 15 до 91 с (2026-09-11), и до правки компонент всё это время числился
+стартующим, а монитор доставки не поднимался. Теперь подписка ставится первой, монитор доставки —
+сразу за ней, а скан живёт отдельной незавершённой стадией `mail/catch-up`, которая каждые 15 с
+пишет, что вызов ещё не вернулся. Перекрытие с живым трафиком безопасно: копию сообщения гасит
+`seenMsgIds`, а watermark двигают только обработанные сообщения. Пользователь видит догон в тулбаре
+как «Catching up on messages…» (`app.sync.catchUp`) — это единственная фаза синхронизации, которая
+проходит мимо `isReportable` ([sync-activity.ts](../src-deno/utils/sync-activity.ts)), то есть видна
+и без второго устройства. Своего таймаута вокруг `listMsgs` сознательно нет: он сделал бы поломку
+невидимой — догон молча не находил бы части сообщений.
 
 ### 2.1. Что старт о себе сообщает
 
@@ -221,6 +234,14 @@ flowchart LR
 вернувшийся за окно (~20 с), не отменяется, а сопровождается пингом — компонент отвечает «ещё
 стартую» → GUI показывает стадию и ждёт дальше; не отвечает → отказ и экран с «Повторить».
 
+«Повторить» не перезагружает окно вслепую: сначала `probeBackend()` пингует компонент, и окно
+перезагружается, только если тот ответил, что готов
+([backend-unreachable.vue](../src-main/common/components/app-shell/backend-unreachable.vue)).
+Перезагрузка замерший компонент не лечит — окно снова подключится к тому же процессу, — и
+`w3n.closeSelf()` тоже: он закрывает только вызвавшее окно, а deno-процесс живёт, пока жив хоть один
+экземпляр приложения. Поэтому, когда компонент молчит, экран прямо говорит, что помогает только выход
+из PrivacySafe целиком; вторая кнопка поэтому называется «Close this window».
+
 Расхождение, которое стоит знать: `ipc-expose` публикует больше методов, чем перечисляет клиент в
 [external-services.ts:43-79](../src-main/common/services/external-services.ts#L43-L79) (клиент не
 использует `findChatEntry`, `resolveStuckSyncingSelfMessages`, `collectGarbageInSyncVersions`,
@@ -260,7 +281,7 @@ flowchart LR
 
 ### 3.2 `VideoGUIOpener`
 
-Реализация и публикация — [video-chat-service.ts:72-81](../src-deno/services/video-chat-service/video-chat-service.ts#L72-L81),
+Реализация и публикация — [video-chat-service.ts:58-71](../src-deno/services/video-chat-service/video-chat-service.ts#L58-L71),
 контракт — [types/services.types.ts:120-128](../types/services.types.ts#L120-L128).
 
 | Метод | Назначение |
@@ -321,7 +342,13 @@ Deno строит по своему списку `VIDEO_WINDOW_METHODS_CALLED_HE
 Части приложения пишут в три разных места: `w3n.log` фонового компонента виден в stdout стенда, а
 `w3n.log` окна — только в консоли devtools **этого** окна. Окно звонка живёт ровно столько, сколько
 звонок, так что его строки исчезают вместе с ним; файл лога платформы не помогает — там записи
-только ядра. Поэтому строки окон зеркалятся в фоновый компонент, который печатает их у себя:
+только ядра. Поэтому строки окон зеркалятся в фоновый компонент, который печатает их у себя.
+
+Реле включается **только на тест-стенде** (`shouldRelayLogs()` в
+[log-relay.ts](../shared-libs/log-relay.ts), проверка `w3n.testStand`). В проде у каждого окна свой
+`logToPlatform`, так что реле давало вторую копию каждой строки в тот же файл, и шла она через
+`w3n.log` компонента — тот самый канал к ядру, в записи в который компонент замер посреди звонка
+2026-09-11. Устройство реле:
 
 - общий логгер [shared-libs/logger.ts](../shared-libs/logger.ts) (`makeLogger(scope)`) отдаёт
   готовую строку в реле, установленное через `setLogRelay`; в Deno реле не ставится — оттуда и так
@@ -345,7 +372,7 @@ scope в ней уже стоят, и вторая отметка времени
 данных», который окно получает при открытии: `chatId`, `ownAddr`/`ownName`, список `peers`,
 `chatName`, `rtcConfig`, `direction`, `hostAddr`, `callSessionId`, `participantCount`,
 `isRejoiningActiveCall`. Собирается в
-[video-chat-service.ts](../src-deno/services/video-chat-service/video-chat-service.ts)
+[call-registry.ts](../src-deno/services/video-chat-service/call-registry.ts)
 (`chatInfoForNewCall()`). `callSessionId` окно не разбирает, а лишь штампует в каждый сигнал, который
 отправляет по ASMail (см. [05-video-calls.md §3.1](05-video-calls.md)). `rtcConfig` — единственный
 источник конфигурации STUN/TURN для окна: своей копии у него нет
@@ -361,7 +388,7 @@ scope в ней уже стоят, и вторая отметка времени
 | `incoming-call` | только фоновый инстанс | `{peerAddress, chatId}` | [useCommandHandler.ts:49-51](../src-main/common/composables/useCommandHandler.ts#L49-L51): переход в чат с `?call=yes` |
 
 Фон запускает команду при входящем звонке
-([video-chat-service.ts:557-572](../src-deno/services/video-chat-service/video-chat-service.ts#L557-L572)),
+([call-registry.ts:318-335](../src-deno/services/video-chat-service/call-registry.ts#L318-L335)),
 за счёт чего окно чата открывается и показывает звонок, даже если GUI был закрыт.
 
 Подписка на команды — [useCommandHandler.ts](../src-main/common/composables/useCommandHandler.ts)
@@ -386,7 +413,7 @@ observable **без реплея**, а `handle()` возвращается си�
 [external-services.ts:32-41](../src-main/common/services/external-services.ts#L32-L41),
 контракт — [types/contact.types.ts:18-47](../types/contact.types.ts#L18-L47).
 Если контактов нет, отображаемое имя выводится из адреса — например
-[video-chat-service.ts:398-400](../src-deno/services/video-chat-service/video-chat-service.ts#L398-L400)
+[call-history.ts:213-215](../src-deno/services/video-chat-service/call-history.ts#L213-L215)
 и `getContactName()` в [use-in-calls.ts:112-119](../src-video/common/composables/use-in-calls.ts#L112-L119).
 
 **В это же приложение ходит и Deno-инстанс** — за чёрным списком: он решает, чьи входящие

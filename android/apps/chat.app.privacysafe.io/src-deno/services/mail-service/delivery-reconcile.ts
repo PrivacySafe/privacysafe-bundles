@@ -20,8 +20,8 @@
  *
  * The platform's delivery worker can stall for good: a hung HTTP request has
  * no timeout, so a delivery stays at `allDone` never set and `bytesSent=0`
- * forever (see plans/asmail-load-diagnostic-report-2026-08-10.md and
- * plans/core-platform-recommendations-2026-08-10.md). Two user-visible
+ * forever (see doc/platform-requests.md §1.1). Two
+ * user-visible
  * consequences, both of which this sweep repairs:
  *
  * 1. A chat message whose delivery record never reports `allDone` spins in

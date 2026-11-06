@@ -104,7 +104,7 @@
           <div :class="$style.msg">
             <div
               v-ui3n-html:sanitize="{
-                dirty: change.value,
+                dirty: change.value as string,
                 allowedAttributes: { '*': ['class', 'data-mention', 'data-href'] },
               }"
               :class="$style.text"

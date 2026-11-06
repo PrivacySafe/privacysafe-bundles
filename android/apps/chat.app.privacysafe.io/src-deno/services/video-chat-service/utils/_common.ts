@@ -37,7 +37,7 @@ const log = makeLogger('VideoCallSignalling');
 // Re-exported for the callers that only know this module.
 export {
   checkChatMessageJSONforWebRTC, isRejoinNotice, REJOIN_NOTICE_REPEAT_DELAYS_MILLIS,
-  rejoinNoticeMsg, signalAgeOf, startStageFirst,
+  rejoinNoticeMsg, signalAgeOf, startStageFirst, startsWithdrawnInBatch,
 } from './webrtc-msg-body.ts';
 export type { WebRTCMsgInChat } from './webrtc-msg-body.ts';
 

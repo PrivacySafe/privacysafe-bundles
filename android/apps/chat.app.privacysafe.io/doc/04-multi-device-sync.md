@@ -190,7 +190,7 @@ GUI-сторе через `makeAndSaveMsgToDb()` и оставалась нав�
 Цена приёма — писать такую запись обязан тот, кто готов встретить её уже существующей: `addMessage`
 это голый INSERT, а на один и тот же id выходят и повторный вход в тот же звонок, и фантом соседнего
 устройства, пришедший раньше. Проверка живёт в `doAfterStartCall`
-([video-chat-service.ts](../src-deno/services/video-chat-service/video-chat-service.ts)) и в
+([call-history.ts](../src-deno/services/video-chat-service/call-history.ts)) и в
 `saveAndSyncLocalSystemMsg` ([chat-service.ts](../src-deno/services/chat-service/chat-service.ts)),
 а не у каждого вызывающего.
 
@@ -299,7 +299,7 @@ flowchart LR
 - **Уступка звонку.** Пока идёт звонок, проход не начинается (`setPhantomReleaseBusyCheck()`, та же
   идиома, что `ResyncCtx.isBusy`): фантомы делят доставку с сигналингом, а ждать им безопасно — на то
   и журнал. Выпуск запускается в `doAfterEndCall()`
-  ([video-chat-service.ts](../src-deno/services/video-chat-service/video-chat-service.ts)).
+  ([call-history.ts](../src-deno/services/video-chat-service/call-history.ts)).
   Гейт **узкий**: `hasAnyCallSignalling()` — состояния `dialing | connecting | active`
   (`SIGNALLING_STATES` в
   [call-state.ts](../src-deno/services/video-chat-service/utils/call-state.ts)), а не широкий

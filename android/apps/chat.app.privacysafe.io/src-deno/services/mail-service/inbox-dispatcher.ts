@@ -23,9 +23,13 @@ import type {
 import type { ChatSrv, DB, LocalDataStore, VideoChatSrv } from '../../types/index.ts';
 import type { SyncActivityTracker } from '../../utils/sync-activity.ts';
 import { SingleProc } from '../../../shared-libs/processes/single.ts';
-import { startStageFirst } from '../video-chat-service/utils/_common.ts';
+import { startStageFirst, startsWithdrawnInBatch } from '../video-chat-service/utils/_common.ts';
 import { MAX_SIGNAL_AGE_MILLIS } from '../video-chat-service/utils/call-state.ts';
-import { INBOX_COMMIT_BATCH, INBOX_SCAN_FLOOR_MS, MAX_WATERMARK_LAG } from '../../../shared-libs/constants/index.ts';
+import {
+  INBOX_COMMIT_BATCH,
+  INBOX_SCAN_FLOOR_MS,
+  MAX_WATERMARK_LAG,
+} from '../../../shared-libs/constants/index.ts';
 import { makeLogger } from '../../../shared-libs/logger.ts';
 import { areAddressesEqual } from '../../../shared-libs/address-utils.ts';
 import { removeMessageFromInbox } from '../../utils/inbox-utils.ts';
@@ -55,12 +59,12 @@ export function isSyncPhantomFromOtherDevice(
   if (body?.chatMessageType !== 'synchronization') {
     return false;
   }
-  return !!body.sourceDeviceId && (body.sourceDeviceId !== ownDeviceId);
+  return !!body.sourceDeviceId && body.sourceDeviceId !== ownDeviceId;
 }
 
 /**
  * Inbox Dispatcher
- * 
+ *
  * Responsible for:
  * - Subscribing to incoming messages from inbox
  * - Routing messages to appropriate handlers (chat or WebRTC)
@@ -172,8 +176,8 @@ export async function inboxDispatcher({
         const ts = failureFloor.capFor(tsToCommit);
         if (ts < tsToCommit) {
           log.info(
-            `Watermark of ${queueName} held at ${ts} instead of ${tsToCommit}: `
-              + `an older message failed this session and must be seen by the next catch-up scan`,
+            `Watermark of ${queueName} held at ${ts} instead of ${tsToCommit}: ` +
+              `an older message failed this session and must be seen by the next catch-up scan`,
           );
         }
         try {
@@ -216,7 +220,9 @@ export async function inboxDispatcher({
         }
       } catch (err) {
         failureFloor.recordFailure(msg.deliveryTS);
-        await w3n.log('error', `Processing incoming chat message ${msg.msgId} threw an error.`, err).catch(() => {});
+        await w3n
+          .log('error', `Processing incoming chat message ${msg.msgId} threw an error.`, err)
+          .catch(() => {});
       } finally {
         // Mirrors the counting in handleIncomingMessage() below, and has to: a
         // condition that drifts from it leaves the counter stuck above zero.
@@ -248,7 +254,9 @@ export async function inboxDispatcher({
         }
       } catch (err) {
         failureFloor.recordFailure(msg.deliveryTS);
-        await w3n.log('error', `Processing incoming WebRTC signalling message ${msg.msgId} threw an error.`, err).catch(() => {});
+        await w3n
+          .log('error', `Processing incoming WebRTC signalling message ${msg.msgId} threw an error.`, err)
+          .catch(() => {});
       }
     }
     try {
@@ -281,8 +289,7 @@ export async function inboxDispatcher({
       return false;
     }
     const { chatSystemData } = msg.jsonBody as ChatSystemMsgV1;
-    return (chatSystemData?.event === 'webrtc-call')
-      && ((now - msg.deliveryTS) > MAX_SIGNAL_AGE_MILLIS);
+    return chatSystemData?.event === 'webrtc-call' && now - msg.deliveryTS > MAX_SIGNAL_AGE_MILLIS;
   }
 
   /**
@@ -329,9 +336,7 @@ export async function inboxDispatcher({
     // take" is a question only we can answer.
     const listMessages = await startupStage(
       'mail/catch-up-list',
-      () => w3n
-        .mail!.inbox.listMsgs(scanFrom)
-        .catch(err => w3n.log('error', `Fail to list messages`, err)),
+      () => w3n.mail!.inbox.listMsgs(scanFrom).catch(err => w3n.log('error', `Fail to list messages`, err)),
       15000,
     );
 
@@ -344,18 +349,14 @@ export async function inboxDispatcher({
     }
 
     log.info(
-      `Catch-up scan: watermark ${watermark}, listing since ${scanFrom} `
-        + `returned ${listMessages.length} message(s)`,
+      `Catch-up scan: watermark ${watermark}, listing since ${scanFrom} ` +
+        `returned ${listMessages.length} message(s)`,
     );
 
-    await startupStage(
-      'mail/catch-up-handle', () => handleListedInboxMessages(listMessages), 15000,
-    );
+    await startupStage('mail/catch-up-handle', () => handleListedInboxMessages(listMessages), 15000);
   }
 
-  async function handleListedInboxMessages(
-    listMessages: web3n.asmail.MsgInfo[],
-  ): Promise<void> {
+  async function handleListedInboxMessages(listMessages: web3n.asmail.MsgInfo[]): Promise<void> {
     const now = Date.now();
     const webrtcCandidates: Array<{ msg: ChatIncomingMessage; webrtcMsg: WebRTCMsg }> = [];
     let queuedChat = 0;
@@ -410,8 +411,8 @@ export async function inboxDispatcher({
           continue;
         }
         log.debug(
-          `Catch-up scan: ${msgId} (deliveryTS: ${deliveryTS}, `
-            + `type: ${(msg.jsonBody as { chatMessageType?: string })?.chatMessageType})`,
+          `Catch-up scan: ${msgId} (deliveryTS: ${deliveryTS}, ` +
+            `type: ${(msg.jsonBody as { chatMessageType?: string })?.chatMessageType})`,
         );
         if (isSyncPhantom(msg.jsonBody)) {
           syncPhantoms += 1;
@@ -427,12 +428,12 @@ export async function inboxDispatcher({
         } else if (isStaleCallSysMsg(msg, now)) {
           stale += 1;
           log.info(
-            `Not replaying a stale call system message ${msgId} from ${msg.sender} `
-              + `(age: ${now - msg.deliveryTS}ms); scheduling its removal from inbox`,
+            `Not replaying a stale call system message ${msgId} from ${msg.sender} ` +
+              `(age: ${now - msg.deliveryTS}ms); scheduling its removal from inbox`,
           );
-          await db.scheduleInboxMsgRemoval(msgId).catch(err => w3n.log(
-            'error', `Fail to schedule removal of stale call system message ${msgId}`, err,
-          ));
+          await db
+            .scheduleInboxMsgRemoval(msgId)
+            .catch(err => w3n.log('error', `Fail to schedule removal of stale call system message ${msgId}`, err));
         } else {
           queuedChat += 1;
           handleIncomingMessage(msg);
@@ -447,10 +448,10 @@ export async function inboxDispatcher({
     }
 
     log.info(
-      `Catch-up scan handled ${listMessages.length} message(s): ${queuedChat} queued as chat `
-        + `(${syncPhantoms} sync phantom(s), ${ownSyncPhantoms} of them from this device `
-        + `${thisDeviceId}), ${webrtcCandidates.length} webrtc, ${stale} stale call sysmsg(s), `
-        + `${blacklisted} blacklisted, ${failed} failed to fetch`,
+      `Catch-up scan handled ${listMessages.length} message(s): ${queuedChat} queued as chat ` +
+        `(${syncPhantoms} sync phantom(s), ${ownSyncPhantoms} of them from this device ` +
+        `${thisDeviceId}), ${webrtcCandidates.length} webrtc, ${stale} stale call sysmsg(s), ` +
+        `${blacklisted} blacklisted, ${failed} failed to fetch`,
     );
 
     // Ensure 'start' is handed to VideoChatSrv before any 'signalling'/
@@ -458,7 +459,31 @@ export async function inboxDispatcher({
     // returned in by listMsgs().
     webrtcCandidates.sort((a, b) => startStageFirst(a.webrtcMsg, b.webrtcMsg));
 
-    for (const { msg, webrtcMsg } of webrtcCandidates) {
+    // A call that began and ended while this device was away must not ring now:
+    // its 'start' would be put out by its own 'disconnect' a moment later, and in
+    // between it arms a dead incoming-call UI and tears down the record of the
+    // call that is actually going on (see startsWithdrawnInBatch). The
+    // 'disconnect' itself still goes through - it is what leaves the tombstone
+    // that keeps that session's stragglers out.
+    const withdrawnStarts = startsWithdrawnInBatch(
+      webrtcCandidates.map(({ msg, webrtcMsg }) => ({ sender: msg.sender, webrtcMsg })),
+    );
+    for (const i of withdrawnStarts) {
+      const { msg, webrtcMsg } = webrtcCandidates[i];
+      log.info(
+        `Catch-up scan: not replaying 'start' ${msg.msgId} from ${msg.sender} ` +
+          `(session ${webrtcMsg.callSessionId}): its 'disconnect' is in the same batch`,
+      );
+      seenMsgIds.add(msg.msgId);
+      removeMessageFromInbox(msg.msgId).catch(err =>
+        w3n.log('error', `Fail to remove withdrawn 'start' ${msg.msgId} from inbox`, err),
+      );
+    }
+
+    for (const [i, { msg, webrtcMsg }] of webrtcCandidates.entries()) {
+      if (withdrawnStarts.has(i)) {
+        continue;
+      }
       log.debug(`Forwarding missed WebRTC msg ${msg.msgId} from ${msg.sender}, stage: ${webrtcMsg.stage}`);
       handleIncomingMessage(msg);
     }
@@ -477,7 +502,10 @@ export async function inboxDispatcher({
       seenMsgIds.add(msgId);
 
       const incomingChatMsg = msg as ChatIncomingMessage;
-      if (!areAddressesEqual(incomingChatMsg.sender, ownAddr) && blacklistTracker.isBlacklisted(incomingChatMsg.sender)) {
+      if (
+        !areAddressesEqual(incomingChatMsg.sender, ownAddr) &&
+        blacklistTracker.isBlacklisted(incomingChatMsg.sender)
+      ) {
         // Normally new, and normally not in the database - but the platform can
         // hand the same message over again, and the one already kept for its
         // attachments must not be taken off the server. See the catch-up scan.
@@ -509,8 +537,7 @@ export async function inboxDispatcher({
         // delivery problem from a call-lifecycle verdict (see logDroppedSignal in
         // video-chat-service.ts). An inbox belongs to the user, not to a device,
         // so with several devices online the two are easy to confuse.
-        if ((webrtcBody.webrtcMsg?.stage === 'start')
-          || (webrtcBody.webrtcMsg?.stage === 'disconnect')) {
+        if (webrtcBody.webrtcMsg?.stage === 'start' || webrtcBody.webrtcMsg?.stage === 'disconnect') {
           log.info(receivedLine);
         } else {
           log.debug(receivedLine);
@@ -545,16 +572,17 @@ export async function inboxDispatcher({
 
   const stopInboxWatching = await startupStage(
     'mail/inbox-subscribe',
-    async () => w3n.mail!.inbox.subscribe('message', {
-      next: msg => {
-        try {
-          handleIncomingMessage(msg);
-        } catch (err) {
-          log.error(`Error in inbox message subscriber callback:`, err);
-        }
-      },
-      error: err => w3n.log('error', `Inbox subscribe error: `, err),
-    }),
+    async () =>
+      w3n.mail!.inbox.subscribe('message', {
+        next: msg => {
+          try {
+            handleIncomingMessage(msg);
+          } catch (err) {
+            log.error(`Error in inbox message subscriber callback:`, err);
+          }
+        },
+        error: err => w3n.log('error', `Inbox subscribe error: `, err),
+      }),
     15000,
   );
 
@@ -576,11 +604,10 @@ export async function inboxDispatcher({
   // What the scan still owes the start is ordering within itself ('start'
   // before the signalling of the same call), and that is unchanged: the sort
   // is over the scan's own batch.
-  startupStage('mail/catch-up', () => handleMissedInboxMessages(), 15000)
-    .catch(err => {
-      log.error(`Catch-up scan of the inbox failed:`, err);
-      w3n.log('error', `Catch-up scan of the inbox failed`, err).catch(() => {});
-    });
+  startupStage('mail/catch-up', () => handleMissedInboxMessages(), 15000).catch(err => {
+    log.error(`Catch-up scan of the inbox failed:`, err);
+    w3n.log('error', `Catch-up scan of the inbox failed`, err).catch(() => {});
+  });
 
   return {
     stop: () => {

@@ -261,7 +261,7 @@
 </template>
 
 <style lang="scss" module>
-  @use '@main/common/assets/styles/_mixins.scss' as mixins;
+  @use '@main/common/assets/styles/mixins' as mixins;
 
   .chatHeader {
     position: relative;

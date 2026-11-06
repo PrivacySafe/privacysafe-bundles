@@ -83,8 +83,8 @@ const log = makeLogger('WebRTCSignalling');
  *
  * Flip back to `false` if the negotiation timers are ever shortened again below
  * the confirmation window, or if `observeDelivery` starts losing terminal events
- * often enough that timeouts outnumber real failures (§2 of
- * plans/core-platform-recommendations-2026-08-10.md).
+ * often enough that timeouts outnumber real failures (§1.3 of
+ * doc/platform-requests.md).
  */
 export const CONFIRM_DELIVERY_ENABLED = true;
 

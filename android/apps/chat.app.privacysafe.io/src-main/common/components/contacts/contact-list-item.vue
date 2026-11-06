@@ -125,7 +125,7 @@ function onClickRight() {
 </template>
 
 <style lang="scss" module>
-@use '@main/common/assets/styles/_mixins.scss' as mixins;
+@use '@main/common/assets/styles/mixins' as mixins;
 
 .contactListItem {
   --contact-list-item-height: 48px;

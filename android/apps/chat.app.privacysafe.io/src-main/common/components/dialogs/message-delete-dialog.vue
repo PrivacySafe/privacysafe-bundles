@@ -21,6 +21,7 @@
   import {
     Ui3nCheckbox,
     Ui3nDialog,
+    type Ui3nCheckboxValue,
     type Ui3nDialogComponentProps,
     type Ui3nDialogEvent,
   } from '@v1nt1248/3nclient-lib';
@@ -35,7 +36,7 @@
 
   const { t } = useI18n();
 
-  const deleteForEveryone = ref(false);
+  const deleteForEveryone = ref<Ui3nCheckboxValue>(false);
 
   const bodyText = computed(() => props.text || t('chat.message.dialog.delete.text'));
 
@@ -56,7 +57,7 @@
         </div>
 
         <ui3n-checkbox
-          v-model="deleteForEveryone as boolean"
+          v-model="deleteForEveryone"
           :class="$style.messageDeleteDialogCheckbox"
           @change="onFlagChange"
         >

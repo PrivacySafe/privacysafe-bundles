@@ -68,7 +68,7 @@ flowchart LR
 
 | Слой | Что делает |
 |---|---|
-| `video-chat-service.ts` | приём сигналов из inbox и решения по ним, буфер опережающих сигналов, ссылки на живые объекты звонка, очистка inbox от сигналов, открытие/закрытие окна |
+| `video-chat-service.ts` и модули рядом (карта — §2.2) | приём сигналов из inbox и решения по ним, буфер опережающих сигналов, ссылки на живые объекты звонка, очистка inbox от сигналов, открытие/закрытие окна |
 | `call-state.ts` | состояние звонка каждого чата и все правила «принять / отбросить сигнал»; чистый модуль |
 | `call.ts` (`CallInChat`) | жизненный цикл одного звонка: роль, отправка `start`/`disconnect`, heartbeat, маршрутизация сигналов в окно, teardown |
 | `video-chat-srv.ts` | реализация сервиса на стороне окна, маршрутизация сигнала в host/client-канал, обработка `disconnect` |
@@ -97,6 +97,35 @@ flowchart LR
 чтобы сбой чтения ресурса деградировал до прежнего поведения, а не отключал релей; он вкомпилирован
 из того же файла, поэтому разойтись с поставляемым не может. Разбор проверяется спекой
 [ice-config.ts](../tests-app/src/tests/ice-config.ts).
+
+Поставляется `iceTransportPolicy: "all"`. `"relay"` допустим только с TURN, про который известно,
+что он работает: relay-only разрешает одни TURN-кандидаты, и с мёртвым TURN звонок получает **ноль**
+кандидатов — ICE вечно `new`, треки muted, DataChannel не открывается. Так было при просроченном
+TLS-сертификате TURN (`SSL handshake failed … net_error -201`); с `"all"` тот же сломанный TURN
+нефатален, потому что соединяют host-кандидаты. Эффективная политика пишется в лог на каждый звонок
+(`ICE config for call: … policy=…`, логгер `IceConfig`).
+
+### 2.2 Модули сервиса звонков в Deno
+
+Сервис звонков фонового инстанса разбит на модули в
+[src-deno/services/video-chat-service/](../src-deno/services/video-chat-service/). Каждый модуль —
+фабрика `make…(ctx, …)` над общим `VideoChatCtx`. Модули создаются в `videoChatService()` по порядку
+зависимостей. Функции другого модуля приходят аргументом фабрики, а не глобальным импортом.
+
+| Модуль | Что в нём |
+|---|---|
+| [video-chat-ctx.ts](../src-deno/services/video-chat-service/video-chat-ctx.ts) | `VideoChatCtx`: аргументы `videoChatService()`, `sessions`, `calls` и прочие коллекции (§6), `sinkGUIEvents` |
+| [signal-inbox.ts](../src-deno/services/video-chat-service/signal-inbox.ts) | буфер опережающих сигналов, передача сигнала в звонок, сигналы, оставленные в inbox до teardown, отброс с логом причины, разовая очистка inbox после старта |
+| [call-history.ts](../src-deno/services/video-chat-service/call-history.ts) | запись о звонке в истории чата (`doAfterStartCall` / `doAfterEndCall`), системное уведомление о звонке, завершённом хостом |
+| [call-registry.ts](../src-deno/services/video-chat-service/call-registry.ts) | `createAndRegisterCall()` — единственное место создания `CallInChat` (с его `detachFromParent`), `handleIncomingCall()` |
+| [own-devices.ts](../src-deno/services/video-chat-service/own-devices.ts) | `requestStart`, ретрансляция heartbeat своим устройствам, `callHandledElsewhere`, уведомление о re-join |
+| [call-collisions.ts](../src-deno/services/video-chat-service/call-collisions.ts) | коллизия двух звонков в одном чате (§4.5) |
+| [incoming-signals.ts](../src-deno/services/video-chat-service/incoming-signals.ts) | `handleIncomingWebRTCMsg()`: общие проверки, затем ветки `handleHeartbeat` / `handleNoCallDisconnect` / `handleStart` и остальные сигналы |
+| [video-chat-service.ts](../src-deno/services/video-chat-service/video-chat-service.ts) | сборка модулей, публичный API `VideoChatSrv`, сторожевой таймер, системные сообщения об отмене звонка, `VideoGUIOpener` на IPC |
+
+Единственная зависимость против порядка: registry передаёт `callInChat()` функцию
+`reportFailedCallCollision` из модуля коллизий, а тот сам зависит от registry. Поэтому она
+связывается поздно, лямбдой в `videoChatService()`.
 
 ## 3. Сигналинг
 
@@ -138,7 +167,7 @@ flowchart LR
 дойти до **всех** устройств: за любым из них может сидеть пользователь. Живой прогон 2026-08-15:
 подтверждённый `start` зазвонил на одном устройстве двухдевайсного пользователя и не был показан
 ядром второго — при живой подписке на ящик и 55 секундах, в течение которых сообщение в общем ящике
-лежало (разбор — [core-platform-issues-2026-08-14.md §7](../plans/core-platform-issues-2026-08-14.md)).
+лежало (разбор — [platform-requests.md §2.1](platform-requests.md#21-одно-устройство-пользователя-не-получает-по-подписке-сообщения-одного-корреспондента)).
 Гейт `stillNeeded` (`inviteStillPending`) при этом не ослаблен: повторы гаснут, как только этот пир
 ответил или отклонил, так что «фантомного» звонка они не рождают. При подтверждённой отправке отсчёт
 задержек идёт от **конца** окна подтверждения (15–20 с на практике), а не от вызова: сервер, которому
@@ -263,10 +292,10 @@ watcher'ы успевали выстрелить в идущее подтвер�
 
 ### 3.2 Уровень Star: `StarSignalMessage`
 
-[star.types.ts](../src-video/common/types/star.types.ts) — 11 типов сигналов:
-`offer`, `answer`, `candidate`, `participant-joined`, `participant-left`,
+[star.types.ts](../src-video/common/types/star.types.ts) — 14 типов сигналов:
+`offer`, `answer`, `candidate`, `candidates`, `participant-joined`, `participant-left`,
 `participant-reconnecting`, `call-full`, `stream-state-changed`, `stream-sender-info`,
-`request-stream-info`, `disconnect`.
+`stream-sender-infos`, `request-stream-info`, `disconnect`, `dropped`.
 
 Транспорт выбирается в момент отправки
 ([host-signaling-channel.ts:86-127](../src-video/common/services/host-signaling-channel.ts#L86-L127),
@@ -291,7 +320,14 @@ flowchart LR
   `description.sdp` ([signaling-channel-core.ts:157-196](../src-video/common/services/signaling-channel-core.ts#L157-L196)),
   а на приёме распознаётся по подстрокам `"signalType"` / `"starSignal"`
   ([signaling-channel-core.ts:248-323](../src-video/common/services/signaling-channel-core.ts#L248-L323)).
-- Анти-спуфинг: для `offer`/`answer`/`candidate` отправитель всегда берётся из конверта ASMail; для
+- **ICE-кандидаты по ASMail едут пачкой** — сигнал `candidates` (`createCandidateBatcher()` в
+  [signaling-channel-core.ts](../src-video/common/services/signaling-channel-core.ts)): первый
+  кандидат взводит окно `CANDIDATE_BATCH_WINDOW_MS` = 400 мс, и пачка уходит по его истечении
+  либо по завершении ICE-gathering. При открытом `signaling`-DataChannel кандидаты идут по нему
+  поодиночке (`candidate`). Причина — измерение: по-кандидатная отправка давала ~25 ASMail-сообщений
+  за ~220 мс, платформа открывает на каждое отдельную сессию доставки, и сервер ответил 500 всему
+  бёрсту — сигналы звонка не доехали вовсе.
+- Анти-спуфинг: для `offer`/`answer`/`candidate`/`candidates` отправитель всегда берётся из конверта ASMail; для
   прикладных сигналов сохраняется «логический» автор, потому что хост пересылает чужое состояние
   (например, mute участника) от своего адреса
   ([signaling-channel-core.ts:298-315](../src-video/common/services/signaling-channel-core.ts#L298-L315)).
@@ -317,10 +353,16 @@ flowchart LR
 правило владения `mayActFor` — участник вправе назвать себя и свои `screen:<его адрес>:<srcId>`,
 всё остальное отбрасывается.
 
+Адреса, пришедшие с провода, сравниваются через `sameAddress()`, а не `areAddressesEqual()`
+([address-utils.ts](../shared-libs/address-utils.ts)): вторая канонизирует через
+`ensureIsAddressString` и **бросает** на строке без `@` (пустая строка, `screen:x:y`, не-строка).
+Значение выбирает отправитель, и «это не адрес» для обработчика сигнала — ответ «не совпадает», а не
+исключение: на DataChannel-пути его проглотил бы catch разбора JSON, на ASMail-пути оно ушло бы
+необработанным rejection'ом.
+
 Это правило не было записано нигде, и именно поэтому две половины кода разошлись: на ASMail-пути
-анти-спуфинг был, на DataChannel-пути — нет. Разбор инцидента:
-[plans/signal-sender-spoofing-2026-09-10.md](../plans/signal-sender-spoofing-2026-09-10.md),
-регрессы — `Test Suite 28`.
+анти-спуфинг был, на DataChannel-пути — нет. Регрессы — `Test Suite 28` в
+[video-chat.ts](../tests-app/src/tests/video-chat.ts).
 
 ## 4. Жизненный цикл звонка (Deno)
 
@@ -417,7 +459,7 @@ sequenceDiagram
 ```
 
 Отклонение вместо принятия: `joinOrDismissCallInRoom(chatId, false, hostAddr)` отправляет хосту
-`callDeclined` ([video-chat-service.ts:878-889](../src-deno/services/video-chat-service/video-chat-service.ts#L878-L889),
+`callDeclined` ([video-chat-service.ts:386-394](../src-deno/services/video-chat-service/video-chat-service.ts#L386-L394),
 [_common.ts:235-281](../src-deno/services/video-chat-service/utils/_common.ts#L235-L281)), чтобы
 баннер у хоста показал «отклонил», а не ждал таймаута.
 
@@ -462,6 +504,12 @@ sequenceDiagram
 - **Дедупликация повторного offer'а** по `o=`-строке SDP (`parseSdpOrigin`):
   если тот же offer уже применён, хост просто пересылает существующий answer
   ([host-channel.ts](../src-video/common/services/host-channel.ts)).
+- **Answer знает, на какой offer отвечает.** Каждый answer несёт `answerTo: {sessionId, version}` —
+  `o=`-origin отвеченного offer'а (`AnswerToRef` в
+  [star.types.ts](../src-video/common/types/star.types.ts)), и обе стороны отвергают answer к
+  вытесненному offer'у. Одного `signalingState === 'have-local-offer'` мало: answer к старому offer'у
+  чисто применялся к пересозданному PC с той же структурой m-line, и PC оказывался `stable`, но
+  мёртвым, со снятыми watchdog'ами. Answer без поля (старый пир) принимается, как прежде.
 - **Сторожевой таймер переговорки**: offer по ASMail может потеряться, поэтому арминится
   `createRetryWatcher`. Числа — не «4/8/15 с», как было в первой версии: измеренная односторонняя
   латентность ASMail 10–20 с означает, что answer на ре-негоциационный offer физически не может
@@ -504,6 +552,25 @@ sequenceDiagram
   `mid-call` (замечено в прогоне 2026-08-13). На хосте признак — доходило ли соединение до
   `connected` (`ClientConnection.connectedAt`). Слова оставлены одинаковыми, чтобы два лога читались
   рядом.
+
+**Предвыделенные relay-слоты.** Ре-негоциация при входе третьего участника — то, что уронило
+групповой звонок 2026-08-12: offer хоста по ASMail (7–15 с на плечо) приходил, пока клиент сидел в
+`have-local-offer`, polite-клиент откатывался, и уже подключённый транспорт не восстанавливался.
+Поэтому клиент заранее резервирует в своём offer'е приёмные m-line и объявляет их полем `relaySlots`,
+хост захватывает их `claimRelaySlots()` между `setRemoteDescription` и `createAnswer`
+([host-channel.ts](../src-video/common/services/host-channel.ts)), а наполнение слота потом —
+`replaceTrack()`, без offer'а и answer'а. Кап `MAX_RESERVED_SLOTS` = 4
+([relay-slots.ts](../src-video/common/services/relay-slots.ts)) выставлен по измерению Suite 15:
+offer клиента ~7 КБ без слотов плюс ~1.4 КБ на слот; прежний кап 10 давал 20.9 КБ, тогда как
+нагрузочные тесты ASMail проверяли SDP лишь до 14 КБ и называют 8–14 КБ опасной зоной. Четыре слота
+покрывают трёхсторонний звонок целиком; участники сверх капа ретранслируются по-старому, через
+ре-негоциацию. Для неё у хоста есть гейт (`attemptExplicitNegotiate`): offer не уходит, пока PC
+клиента не `connected`, затем до `NEGOTIATE_WAIT_DC_MS` = 5 с ждётся signaling-DataChannel, и только
+после этого — offer по DC или по ASMail. Ожидание `connected` ограничено
+`NEGOTIATE_WAIT_CONNECTED_MAX_MS` = 60 с: преждевременный offer хоста заодно служит восстановлением
+потерянного первичного answer'а, и этот путь откладывается, но не теряется. Эпоха-хендшейк
+поколений PC, планировавшийся против взаимных recreate, на живом прогоне оказался не нужен и не
+реализован.
 
 ### 4.4 Идентификация потоков
 
@@ -595,7 +662,7 @@ flowchart LR
 
 | Кто | Что видит | Что делает |
 |---|---|---|
-| Хост в `dialing` | `start` другой сессии или уведомление `callCollision` | `resolveCallCollision()` в [video-chat-service.ts](../src-deno/services/video-chat-service/video-chat-service.ts): один раз шлёт сопернику `callCollision` со своими фактами (только так тот узнает про `established`); проиграл — `yieldToRivalCall()`, выиграл — ждёт соперника клиентом |
+| Хост в `dialing` | `start` другой сессии или уведомление `callCollision` | `resolveCallCollision()` в [call-collisions.ts](../src-deno/services/video-chat-service/call-collisions.ts): один раз шлёт сопернику `callCollision` со своими фактами (только так тот узнает про `established`); проиграл — `yieldToRivalCall()`, выиграл — ждёт соперника клиентом |
 | Хост, ещё на va-setup | то же | уступает сразу: никто не приглашён, взвешивать нечего, сообщать некому |
 | Проигравший хост | — | снимает свою запись «исходящий звонок», шлёт своим приглашённым (кроме победителя) `disconnect` с `supersededBy` и **в том же окне** становится клиентом победителя (`CallInChat.switchToClientOf`, см. ниже); дальше — как при ответе на входящий: `callHandledElsewhere` своим устройствам и запись «входящий звонок» |
 | Приглашённый в `ringing` | `start` второго звонка | `admitsStart` сравнивает его со звонящим: победил новый — `accept-superseding` (перезвонить по нему), иначе `drop-superseded` |
@@ -670,7 +737,10 @@ ASMail — норма; `HEARTBEAT_TIMEOUT` = 50 с даёт `N = 2` (3·15 = 45 
 ограничение делает механизм самогасящимся относительно неизмеренной величины: если платформа сообщает
 исход доставки медленнее 12 с, ресенд просто никогда не произойдёт. Саму величину меряет кейс
 `report-latency` в
-[asmail-group-call-load.ts](../tests-app/src/tests/asmail-group-call-load.ts). Обязательные условия —
+[asmail-group-call-load.ts](../tests-app/src/tests/asmail-group-call-load.ts); два живых прогона
+дали 10.9 и 7.2 с, поэтому `MAX_TICK_AGE_MILLIS` = 12 с не понижать. Если когда-нибудь поднимать
+`SDP_CONFIRM_TIMEOUT_MS` (сейчас 25 с), то не выше ~35 с: зазор до первого повтора на 45 с
+обязателен. Обязательные условия —
 `stillNeeded` на каждом ресенде и очистка в `end()`: heartbeat, принятый после конца звонка, зажигает
 кнопку «Join» заново (ветка `'unknown'` в `admitsHeartbeat`).
 
@@ -684,8 +754,7 @@ ASMail — норма; `HEARTBEAT_TIMEOUT` = 50 с даёт `N = 2` (3·15 = 45 
 пользователя не получило от хоста **ничего** — ни одной из четырёх копий `'start'`, ни одного
 heartbeat'а за три с лишним минуты, — при том что сообщения собственного адреса шли исправно, а
 `listMsgs` находил в ящике всё пропавшее (разбор —
-[core-platform-recommendations-2026-08-16.md](../plans/core-platform-recommendations-2026-08-16.md),
-часть II пункт 7). Хост тут бессилен: сколько копий ни шли, отправитель у них один. Сосед — нет,
+[platform-requests.md §2.1](platform-requests.md#21-одно-устройство-пользователя-не-получает-по-подписке-сообщения-одного-корреспондента)). Хост тут бессилен: сколько копий ни шли, отправитель у них один. Сосед — нет,
 потому что другой отправитель и есть то, на что слепота не распространяется. В прогоне 2026-08-17
 обход сработал: слепое устройство получило кнопку от соседа (14:18:09) и вошло в звонок клиентом
 (14:18:13).
@@ -780,8 +849,8 @@ sequenceDiagram
 
 Код: [host-channel.ts:1466-1476](../src-video/common/services/host-channel.ts#L1466-L1476),
 [call.ts](../src-deno/services/video-chat-service/utils/call.ts) (`end()`),
-[video-chat-service.ts](../src-deno/services/video-chat-service/video-chat-service.ts)
-(ветка `disconnect` без активного звонка).
+[incoming-signals.ts](../src-deno/services/video-chat-service/incoming-signals.ts)
+(`handleNoCallDisconnect()` — `disconnect` без активного звонка).
 
 ### 5.1 Несколько устройств одного участника
 
@@ -980,7 +1049,7 @@ heartbeat'ы хоста через 1.5/4/8 с при этом никуда не 
 `isHostEndingRingingCall()` ([call-state.ts](../src-deno/services/video-chat-service/utils/call-state.ts)):
 состояние `ringing`, отправитель — хост записи, сессия не чужая. Действие —
 `handleHostEndedRingingCall()` в
-[video-chat-service.ts](../src-deno/services/video-chat-service/video-chat-service.ts): `end({ silent:
+[incoming-signals.ts](../src-deno/services/video-chat-service/incoming-signals.ts): `end({ silent:
 true })` (это устройство в звонок не входило, наружу отправлять нечего), затем запись правится на
 `endedBy: 'host'` — без этого heartbeat той же сессии, ещё летящий, включил бы кнопку «Join Call» для
 звонка, которого нет, — и `call-ended` в GUI. `call-ended-by-host` намеренно не эмитится: он
@@ -1113,7 +1182,7 @@ call…» против «Reconnecting to {user}…» — второй про *н
 сигнал прошлого звонка от текущего можно было только по возрасту. Теперь состояние выражено явно, а
 идентификатор сессии делает принадлежность сигнала проверяемой.
 
-Структуры в [video-chat-service.ts](../src-deno/services/video-chat-service/video-chat-service.ts):
+Структуры в `VideoChatCtx` ([video-chat-ctx.ts](../src-deno/services/video-chat-service/video-chat-ctx.ts)):
 
 | Структура | Назначение |
 |---|---|
@@ -1179,9 +1248,9 @@ call…» против «Reconnecting to {user}…» — второй про *н
 | `MAX_SIGNAL_AGE_MILLIS` | 120 с | [call-state.ts](../src-deno/services/video-chat-service/utils/call-state.ts) | предельный возраст сигнала без `callSessionId` |
 | `ENDED_SESSION_RETENTION_MILLIS` | 150 с | [call-state.ts](../src-deno/services/video-chat-service/utils/call-state.ts) | сколько живёт запись `ended` — обязана превышать `MAX_SIGNAL_AGE_MILLIS` |
 | `ENDED_BY_HOST_RETENTION_MILLIS` | 10 мин | [call-state.ts](../src-deno/services/video-chat-service/utils/call-state.ts) | запись о звонке, завершённом хостом |
-| `PENDING_SIGNAL_TTL_MILLIS` | 120 с | [video-chat-service.ts](../src-deno/services/video-chat-service/video-chat-service.ts) | жизнь буферизованного сигнала |
-| `PURGE_SCAN_BACK_MILLIS` | 10 мин | [video-chat-service.ts](../src-deno/services/video-chat-service/video-chat-service.ts) | глубина сканирования inbox при разовой очистке |
-| `STARTUP_PURGE_DELAY_MILLIS` | 60 с | [video-chat-service.ts](../src-deno/services/video-chat-service/video-chat-service.ts) | пауза перед разовой очисткой inbox после старта |
+| `PENDING_SIGNAL_TTL_MILLIS` | 120 с | [signal-inbox.ts](../src-deno/services/video-chat-service/signal-inbox.ts) | жизнь буферизованного сигнала |
+| `PURGE_SCAN_BACK_MILLIS` | 10 мин | [signal-inbox.ts](../src-deno/services/video-chat-service/signal-inbox.ts) | глубина сканирования inbox при разовой очистке |
+| `STARTUP_PURGE_DELAY_MILLIS` | 60 с | [signal-inbox.ts](../src-deno/services/video-chat-service/signal-inbox.ts) | пауза перед разовой очисткой inbox после старта |
 | `PENDING_TRACK_WARN_MS` | 10 с | [host-channel.ts](../src-video/common/services/host-channel.ts) | до предупреждения о задержке `stream-sender-info` |
 | `PENDING_TRACK_DISCARD_MS` | 60 с | [host-channel.ts](../src-video/common/services/host-channel.ts) | до освобождения буферизованных дорожек |
 | `MAX_PENDING_STREAMS_PER_CLIENT` | 4 | [host-channel.ts](../src-video/common/services/host-channel.ts) | буферизованных потоков на клиента |
@@ -1225,8 +1294,8 @@ teardown шёл `listMsgs()` за 10 минут плюс `getMsg()` с расш�
 
 Отдельный механизм — запрос на повторную отправку `start`: если пришли сигналы без
 предшествующего `start` (тот потерялся), получатель просит хоста повторить
-(`requestStartRetransmission()` и ветка `requestStart` в
-[video-chat-service.ts](../src-deno/services/video-chat-service/video-chat-service.ts)). Запрос
+(`requestStartRetransmission()` в [own-devices.ts](../src-deno/services/video-chat-service/own-devices.ts) и ветка `requestStart`
+в `handleHeartbeat()`, [incoming-signals.ts](../src-deno/services/video-chat-service/incoming-signals.ts)). Запрос
 передаётся типизированным полем `requestStart: { requester, callSessionId }` в теле heartbeat
 ([asmail-msgs.types.ts](../types/asmail-msgs.types.ts); флаг `requestStart: true` без вложенного
 объекта — форма прежних сборок, она тоже принимается). Хост повторяет `start` только если звонок

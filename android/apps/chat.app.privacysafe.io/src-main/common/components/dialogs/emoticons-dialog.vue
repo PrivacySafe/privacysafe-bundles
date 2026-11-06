@@ -73,7 +73,7 @@ function selectEmoticon({ id, value }: { id: string, value: string }) {
 </template>
 
 <style lang="scss" module>
-@use '@main/common/assets/styles/_mixins.scss' as mixins;
+@use '@main/common/assets/styles/mixins' as mixins;
 
 @keyframes scale {
   0% { transform: scale(1); }

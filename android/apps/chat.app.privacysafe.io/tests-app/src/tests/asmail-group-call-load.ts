@@ -25,8 +25,8 @@
  * Does NOT open a call window / RTCPeerConnection.
  * Baseline must succeed; load cases log FAIL_ASMAIL, never fail the suite.
  *
- * See plans/group-call-3p-media-and-hangup-2026-08-10.md and
- * plans/group-call-signalling-and-rejoin-fixes-2026-08-13.md (report-latency).
+ * See doc/07-build-test-run.md §5.2.3 (this load diagnostic and its
+ * report-latency case).
  */
 
 import { itCond } from '../libs-for-tests/jasmine-utils.js';
@@ -692,8 +692,8 @@ describe(`ASMail group-call load diagnostic`, () => {
   }, 360_000);
 
   itCond(`report-latency: how long a terminal delivery event takes to arrive`, async () => {
-    // The measurement the heartbeat resend rests on (P4.3 of
-    // plans/group-call-signalling-and-rejoin-fixes-2026-08-13.md). A resend
+    // The measurement the heartbeat resend rests on (doc/05-video-calls.md §5,
+    // "Реактивный ресенд вместо подтверждения"). A resend
     // reacting to a REPORTED failure replaces a lost tick, so it is only useful
     // while that tick is still fresher than the next scheduled one — if the
     // platform takes longer than USEFUL_REPORT_LATENCY_MS to say what became of a

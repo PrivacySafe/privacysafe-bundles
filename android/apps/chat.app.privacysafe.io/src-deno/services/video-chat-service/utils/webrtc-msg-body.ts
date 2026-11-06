@@ -235,6 +235,44 @@ export function rejoinNoticeMsg(
   };
 }
 
+/**
+ * Indices of the 'start' signals of a batch that the same batch also withdraws:
+ * a 'disconnect' from the same sender, of the same call session, is in it too.
+ *
+ * Meant for a catch-up scan, which hands over everything a device missed while
+ * it was offline at once - 'start' first (see startStageFirst). A call that was
+ * started and ended while the device was away then rang for a split second and
+ * was put out by its own 'disconnect' a few milliseconds later; on the way it
+ * armed an incoming-call UI for a call that no longer existed, and its teardown
+ * cleared the record of the call that WAS going on in the chat (live run of
+ * 2026-11-04: a 158-second-old 'start' of the previous session rang there while
+ * the current session's invitations were dropped).
+ *
+ * Only signals carrying a session id are matched: without one, nothing ties a
+ * 'disconnect' to a particular 'start', and guessing could swallow a live call.
+ */
+export function startsWithdrawnInBatch(
+  batch: ReadonlyArray<{ sender: string; webrtcMsg: WebRTCMsg }>,
+): Set<number> {
+  const withdrawn = new Set<string>();
+  for (const { sender, webrtcMsg } of batch) {
+    if ((webrtcMsg.stage === 'disconnect') && webrtcMsg.callSessionId) {
+      withdrawn.add(`${toCanonicalAddress(sender)}|${webrtcMsg.callSessionId}`);
+    }
+  }
+  const indices = new Set<number>();
+  if (withdrawn.size === 0) {
+    return indices;
+  }
+  batch.forEach(({ sender, webrtcMsg }, i) => {
+    if ((webrtcMsg.stage === 'start') && webrtcMsg.callSessionId
+      && withdrawn.has(`${toCanonicalAddress(sender)}|${webrtcMsg.callSessionId}`)) {
+      indices.add(i);
+    }
+  });
+  return indices;
+}
+
 export function startStageFirst(a: WebRTCMsg, b: WebRTCMsg): -1 | 0 | 1 {
   if (a.stage === 'start') {
     return -1;
