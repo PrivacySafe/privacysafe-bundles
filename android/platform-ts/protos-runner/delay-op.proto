@@ -1,7 +1,0 @@
-syntax = "proto2";
-
-package delay_op;
-
-message MillisArgs {
-	required int32 millis = 1;
-}

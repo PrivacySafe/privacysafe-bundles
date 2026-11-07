@@ -1,7 +1,0 @@
-syntax = "proto2";
-
-package connectivity;
-
-message OnlineStatus {
-	required string status = 1;
-}
