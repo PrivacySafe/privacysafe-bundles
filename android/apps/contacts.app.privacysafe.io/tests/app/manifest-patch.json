@@ -1,0 +1,6 @@
+[
+  {
+    "place": [ "launchOnSystemStartup" ],
+    "action": "remove"
+  }
+]

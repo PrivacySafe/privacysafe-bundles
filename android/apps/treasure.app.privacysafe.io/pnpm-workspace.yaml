@@ -1,0 +1,16 @@
+allowBuilds:
+  '@parcel/watcher': true
+  core-js: true
+  deasync: true
+  electron: true
+  esbuild: true
+  unrs-resolver: true
+  vue-demi: true
+onlyBuiltDependencies:
+  - '@parcel/watcher'
+  - core-js
+  - deasync
+  - electron
+  - esbuild
+  - unrs-resolver
+  - vue-demi

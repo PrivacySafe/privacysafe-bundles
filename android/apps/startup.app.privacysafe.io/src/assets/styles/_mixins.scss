@@ -1,0 +1,76 @@
+@mixin text-overflow-ellipsis($width: 100%) {
+  max-width: $width;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+@mixin block-shadow {
+  box-shadow: 0 3px 3px -2px rgb(0, 0, 0, 0.2),
+  0 3px 4px 0 rgb(0, 0, 0, 0.14),
+  0 1px 8px 0 rgb(0, 0, 0, 0.12);
+}
+
+@mixin elevation($number: 1) {
+  @if $number == 3 {
+    box-shadow: 0 3px 3px -2px rgb(0, 0, 0, 0.2),
+    0 3px 4px 0 rgb(0, 0, 0, 0.14),
+    0 1px 8px 0 rgb(0, 0, 0, 0.12);
+  } @else if $number == 2 {
+    box-shadow: 0 2px 1px -2px rgb(0, 0, 0, 0.2),
+    0 2px 2px 0 rgb(0, 0, 0, 0.14),
+    0 1px 5px 0 rgb(0, 0, 0, 0.12);
+  } @else {
+    box-shadow: 0 2px 1px -1px rgb(0, 0, 0, 0.2),
+    0 1px 1px 0 rgb(0, 0, 0, 0.14),
+    0 1px 3px 0 rgb(0, 0, 0, 0.12),
+  }
+}
+
+@mixin ripple($color) {
+  @if & {
+    background-position: center;
+    transition: background 0.35s ease-in-out;
+
+    &:not([disabled]) {
+      cursor: pointer;
+
+      &:hover {
+        background: $color radial-gradient(circle, transparent 1%, $color 1%) center/15000%;
+      }
+
+      &:active {
+        opacity: 1;
+        background-color: var(--grey-20);
+        background-size: 100%;
+        transition: background 0s;
+      }
+    }
+  }
+}
+
+@mixin scrollbar($size: 200px) {
+  &::-webkit-scrollbar-track {
+    background-color: var(--grey-10);
+  }
+
+  &::-webkit-scrollbar-thumb {
+    height: $size;
+    background-color: var(--grey-15);
+    border-radius: 80px;
+  }
+}
+
+@mixin scrollbar-vertical($size: 200px) {
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  @include scrollbar($size);
+}
+
+@mixin scrollbar-horizontal($size: 200px) {
+  &::-webkit-scrollbar {
+    height: 8px;
+  }
+  @include scrollbar($size);
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "place": [ "launchOnSystemStartup" ],
+    "action": "remove"
+  },
+  {
+    "place": [ "components", "/index.html", "capsRequested", "mail" ],
+    "action": "set",
+    "value": {
+      "sendingTo": "all",
+      "receivingFrom": "all"
+    }
+  }
+]
