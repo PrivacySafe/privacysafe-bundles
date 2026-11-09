@@ -22,7 +22,7 @@
 // shared-libs: there is nothing about it the database side could answer better,
 // and an IPC method for it would only be a way of asking the same question
 // further away.
-import { inject } from 'vue';
+import { inject, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { unzipSync } from 'fflate';
 import {
@@ -53,6 +53,7 @@ import BackupNoticesDialog from '@main/common/components/dialogs/backup-notices-
 import BackupPassphraseDialog from '@main/common/components/dialogs/backup-passphrase-dialog.vue';
 import BackupRestoringDialog from '@main/common/components/dialogs/backup-restoring-dialog.vue';
 import RestoreOptionsDialog from '@main/common/components/dialogs/restore-options-dialog.vue';
+import AutoBackupRestoreDialog from '@main/common/components/dialogs/auto-backup-restore-dialog.vue';
 import { makeLogger } from '@shared/logger';
 import type {
   BackupArchiveError,
@@ -658,7 +659,92 @@ export function useBackupRestore() {
     return executeRestoration(archive, mode, opened);
   }
 
+  /**
+   * Restore from the automatic backups, asked for from the menu: the user is
+   * shown when each device last saved its copy BEFORE anything happens, and
+   * picks the devices.
+   *
+   * The progress dialog is not opened here: the background component reports
+   * the progress with `source: 'auto-backup'` and closes it itself, and
+   * watchAutoBackupRestoreProgress() below opens the dialog for it - the same
+   * one for a restore asked for here and for the one a new installation
+   * starts on its own.
+   */
+  async function runAutoBackupRestoreWorkflow(): Promise<boolean> {
+    if (!dialog) {
+      return false;
+    }
+    const res = await dialog.$openDialog<string[]>(AutoBackupRestoreDialog, {
+      dialogProps: {
+        title: t('autoBackup.restore.listTitle'),
+        icon: 'outline-cloud-download',
+        confirmButtonText: t('autoBackup.restore.confirmBtn'),
+        cancelButtonText: t('app.text.cancel'),
+        cssStyle: { width: '570px', maxWidth: '95%' },
+        hideCloseButton: true,
+        closeOnClickOverlay: false,
+      },
+    });
+    const deviceIds = (res?.event === 'confirm') ? res.data : undefined;
+    if (!deviceIds?.length) {
+      return false;
+    }
+
+    try {
+      const outcome = await chatService.restoreFromAutoBackups(deviceIds);
+      $createNotice({
+        type: 'success',
+        content: t('autoBackup.restore.success', {
+          devices: outcome.devices,
+          created: outcome.chatsCreated + outcome.messagesCreated,
+          updated: outcome.chatsUpdated + outcome.messagesUpdated,
+        }),
+        duration: 6000,
+      });
+      return true;
+    } catch (err) {
+      await w3n.log('error', 'Restoring from automatic backups failed', err);
+      $createNotice({ type: 'error', content: t('autoBackup.restore.error'), duration: 4000 });
+      return false;
+    }
+  }
+
+  let autoRestoreDialogOpen = false;
+
+  /**
+   * Opens the progress dialog for a restore from the automatic backups. Such
+   * a restore may be started by the background component alone (the first
+   * run of a new installation), so the dialog follows the progress events
+   * rather than a call made from here. Called once, by the app's view.
+   */
+  function watchAutoBackupRestoreProgress(): void {
+    watch(() => backupStore.restoreProgress, progress => {
+      if ((progress?.source !== 'auto-backup') || autoRestoreDialogOpen || !dialog) {
+        return;
+      }
+      autoRestoreDialogOpen = true;
+      Promise.resolve(dialog.$openDialog(BackupRestoringDialog, {
+        dialogProps: {
+          icon: 'outline-cloud-download',
+          title: t('autoBackup.restore.dialogTitle'),
+          cssStyle: { width: '570px', maxWidth: '95%' },
+          hideCloseButton: true,
+          confirmButton: false,
+          cancelButton: false,
+          closeOnClickOverlay: false,
+          closeOnEsc: false,
+        },
+      }))
+        .catch(err => log.error('The progress dialog of a restore from automatic backups failed', err))
+        .finally(() => {
+          autoRestoreDialogOpen = false;
+        });
+    });
+  }
+
   return {
+    runAutoBackupRestoreWorkflow,
+    watchAutoBackupRestoreProgress,
     pickBackupArchiveFile,
     openPickedArchive,
     readArchive,

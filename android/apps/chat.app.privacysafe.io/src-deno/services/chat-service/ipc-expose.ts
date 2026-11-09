@@ -70,6 +70,10 @@ const REQ_REPLY_METHODS: (keyof ChatSrv)[] = [
   'cancelBackupPlan',
   'previewRestore',
   'restoreBackupArchive',
+  'getAutoBackupInfo',
+  'setAppSettings',
+  'listAutoBackups',
+  'restoreFromAutoBackups',
   // Published so that specs can feed synthesized phantoms to the real
   // service: a device skips its own phantoms by sourceDeviceId, and the test
   // stand has no second device of the same user, so there is no other way to

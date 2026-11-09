@@ -14,7 +14,8 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
-import { computed, onBeforeMount, onBeforeUnmount } from 'vue';
+import { computed, defineAsyncComponent, inject, onBeforeMount, onBeforeUnmount } from 'vue';
+import { DIALOGS_KEY, type DialogsPlugin } from '@v1nt1248/3nclient-lib/plugins';
 import { useI18n } from 'vue-i18n';
 import { storeToRefs } from 'pinia';
 import { useCommandHandler } from '@main/common/composables/useCommandHandler';
@@ -49,7 +50,27 @@ export function useAppView() {
   useThemeSync(colorTheme);
 
   const { initialize, stopMessagesProcessing, stopVideoCallsWatching } = useInitialize();
-  const { startBackupWorkflow, runRestoreWorkflow } = useBackupRestore();
+  const {
+    startBackupWorkflow,
+    runRestoreWorkflow,
+    runAutoBackupRestoreWorkflow,
+    watchAutoBackupRestoreProgress,
+  } = useBackupRestore();
+  watchAutoBackupRestoreProgress();
+  const dialogs = inject<DialogsPlugin>(DIALOGS_KEY);
+
+  async function openSettings(): Promise<void> {
+    const component = defineAsyncComponent(() => import('@main/common/components/dialogs/app-settings-dialog.vue'));
+    await dialogs?.$openDialog(component, {
+      dialogProps: {
+        title: t('autoBackup.settings.title'),
+        icon: 'outline-settings',
+        cssStyle: { width: '560px', maxWidth: '95%' },
+        confirmButton: false,
+        cancelButton: false,
+      },
+    });
+  }
 
   const isOnline = computed(() => connectivityStatus.value === 'online');
 
@@ -76,6 +97,12 @@ export function useAppView() {
         break;
       case 'restore-backup':
         await runRestoreWorkflow();
+        break;
+      case 'restore-auto-backup':
+        await runAutoBackupRestoreWorkflow();
+        break;
+      case 'settings':
+        await openSettings();
         break;
       case 'exit':
         await appExit();

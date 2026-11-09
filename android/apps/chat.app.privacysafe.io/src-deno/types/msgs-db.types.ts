@@ -226,6 +226,11 @@ export interface MsgsDb {
    * device is missing, i.e. the work-list of the start-up resync pass.
    */
   getStuckOrphanTargets(): { chatId: ChatIdObj; targetMessageId: string }[];
+  /**
+   * Distinct chats that buffered phantoms wait to exist - the chats this
+   * device is missing, i.e. the work-list of the start-up 'resync:chats' ask.
+   */
+  getChatlessOrphanChatIds(): ChatIdObj[];
   /** How many phantoms wait in the buffer for a chat or a record to appear. */
   countOrphanedSyncs(): number;
   deleteOrphanedMessage(id: number): Promise<void>;

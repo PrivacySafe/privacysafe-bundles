@@ -34,7 +34,7 @@ flowchart LR
   токеном изменения, поэтому потерянная отправка повторяется, а не пропадает насовсем (§4.1).
 - **Своё же сообщение из inbox не применяется** (иначе двойное применение), но и не удаляется сразу:
   inbox общий, остальным устройствам оно ещё нужно
-  ([chat-service.ts:206-212](../src-deno/services/chat-service/chat-service.ts#L206-L212)).
+  ([incoming-messages.ts:185-199](../src-deno/services/chat-service/incoming-messages.ts#L185-L199)).
 - **Устройство идентифицируется** `appDeviceId` вида `<formFactor>-<random20>`, созданным один раз
   ([local-data-store.ts:33-38](../src-deno/services/local-data-store/local-data-store.ts#L33-L38)).
 
@@ -123,7 +123,7 @@ isNewerToken(incoming, stored):
 | Функция | Когда вызывается | Тело фантома | Аспект |
 |---|---|---|---|
 | `createSyncMsgBasedOnRegularMsg` | запись обычного сообщения создана ([msg-sending.ts](../src-deno/services/chat-service/utils/msg-sending.ts)) | `regular` + текст, вложения, статус, history | `record` |
-| `makeMsgRecordPhantom` | доставка завершилась / отмена ([handle-regular-sending-progress.ts](../src-deno/services/mail-sending-service/progress-handlers/handle-regular-sending-progress.ts), [chat-service.ts](../src-deno/services/chat-service/chat-service.ts)) | `update:msg-record` (авторитетный статус) | `msg.status` (при завершении доставки) |
+| `makeMsgRecordPhantom` | доставка завершилась / отмена ([handle-regular-sending-progress.ts](../src-deno/services/mail-sending-service/progress-handlers/handle-regular-sending-progress.ts), [local-msg-actions.ts](../src-deno/services/chat-service/local-msg-actions.ts)) | `update:msg-record` (авторитетный статус) | `msg.status` (при завершении доставки) |
 | `makeMsgStatusPhantom` | локальная смена статуса ('read'/'sent') ([msg-status-updating.ts](../src-deno/services/chat-service/utils/msg-status-updating.ts)) | `update:status` | `msg.status` |
 | `makeDeleteMessagePhantom` | любое удаление сообщений ([msg-deletion.ts](../src-deno/services/chat-service/utils/msg-deletion.ts)) | `delete:message` | `msg.deleted` / `chat.historyCleared` |
 | `makeInvitationPhantom` | чат создан / состав обновлён ([chat-creation.ts](../src-deno/services/chat-service/utils/chat-creation.ts)) | `invitation` (+ `status`, `settings`) | `record` |
@@ -132,7 +132,7 @@ isNewerToken(incoming, stored):
 | `makeSystemEventPhantom` | универсальный: переименование, настройки, участники, админы, правка текста, реакции, запись о звонке | соответствующее `system`-событие | по месту вызова |
 
 Отдельно: `syncLocallyMadeSystemEvent()`
-([chat-service.ts](../src-deno/services/chat-service/chat-service.ts)) — для событий, которые
+([local-system-events.ts](../src-deno/services/chat-service/local-system-events.ts)) — для событий, которые
 **никому наружу не отправляются** (запись о звонке, обновление её `endTimestamp`): без явного
 фантома они вообще не попали бы на другие устройства. Его парный метод
 `saveAndSyncLocalSystemMsg()` пишет запись и ставит её фантом одним вызовом, и существует именно
@@ -191,7 +191,7 @@ GUI-сторе через `makeAndSaveMsgToDb()` и оставалась нав�
 это голый INSERT, а на один и тот же id выходят и повторный вход в тот же звонок, и фантом соседнего
 устройства, пришедший раньше. Проверка живёт в `doAfterStartCall`
 ([call-history.ts](../src-deno/services/video-chat-service/call-history.ts)) и в
-`saveAndSyncLocalSystemMsg` ([chat-service.ts](../src-deno/services/chat-service/chat-service.ts)),
+`saveAndSyncLocalSystemMsg` ([local-system-events.ts](../src-deno/services/chat-service/local-system-events.ts)),
 а не у каждого вызывающего.
 
 **Вторая цена — алфавит.** `chatMessageId` в базе непрозрачен, но за её пределами он попадает в два
@@ -383,7 +383,8 @@ flowchart TB
 | `update:status` | `msg.status` | то же |
 | `update:msg-record` | `msg.status` | порядок решает только токен: «первый терминальный побеждает» дал бы разные состояния на устройствах ([565-573](../src-deno/services/chat-service/utils/handle-incoming-sync.ts#L565-L573)) |
 | `call` / `webrtc-call` | — | одна ветка на оба: создаёт запись, если её нет; не обновляет существующую |
-| `restore:snapshot` | все аспекты записей и чатов, что несёт чанк | анонс восстановления из архива. **Не** требует чата из конверта (чанк охватывает много чатов), применяется той же `applyRestoreSnapshot()`, что и на восстанавливающем устройстве — см. [08-backup-and-restore.md](./08-backup-and-restore.md) |
+| `restore:snapshot` | все аспекты записей и чатов, что несёт чанк | анонс восстановления из архива **или ответ на `resync:chats`** (поле `applyNewerAspects`, §5.2.2). **Не** требует чата из конверта (чанк охватывает много чатов), применяется той же `applyRestoreSnapshot()`, что и на восстанавливающем устройстве — см. [08-backup-and-restore.md](./08-backup-and-restore.md) |
+| `resync:chats` | — | запрос целых чатов (§5.2.2). **Не** требует чата из конверта: он просит именно те чаты, которых здесь может не быть |
 
 **У записей о звонках `isIncomingMsg` всегда `false`** — и у локальной копии, и у применённой из
 фантома: две копии одной записи не имеют права различаться, а на «непрочитанное» флаг всё равно не
@@ -441,6 +442,76 @@ Resync-трафик делит ASMail-доставку с сигналингом
 ([asmail-msgs.types.ts](../types/asmail-msgs.types.ts)) — иначе восстановленное чужое сообщение
 стало бы выглядеть собственным.
 
+### 5.2.2 Запрос целых чатов (resync:chats)
+
+Фантомы несут **изменения**. Чат появляется на устройстве из фантома его создания или из настоящего
+приглашения пира, а оба лежат в общем inbox не дольше 15 дней. Устройство, добавленное позже, о
+более старом чате не узнаёт никогда. Каждый следующий фантом этого чата ложится в буфер с
+`targetMessageId = null` и ждёт чата, который не придёт. Живой случай 2026-11-09: десктоп,
+добавленный к пользователю Android-телефона, показал один чат из двух. Чат `mikalai` от 2026-10-05
+не появился, а сообщение, отправленное в него с телефона, легло в буфер как
+`Buffered orphaned sync message for target chat-creation`.
+
+Механизм устроен так же, как §5.2.1, только на уровень выше
+([chat-resync.ts](../src-deno/services/chat-service/utils/chat-resync.ts)):
+
+- **Запрос** — фантом `resync:chats {requestId, chatIds?}`. Без `chatIds` он означает «все чаты».
+  Устройство отправляет запрос в трёх случаях:
+  - пока устройство **новое и не получило ответа**. Поле `initialChatsSnapshot` в
+    `delivery-service-data.json` создаётся вместе с файлом и снимается, когда приходит ответ на
+    любой из его запросов (`noteChatsResyncAnswer()`). Первый запрос уходит сразу при старте
+    ([index.ts](../src-deno/index.ts)). Пока ответа нет, запрос повторяется на следующих стартах, но
+    не чаще раза в час и не дольше 15 дней с первого запроса. Одного запроса мало: 2026-11-09 он ушёл,
+    когда единственное устройство с чатами было на старой сборке, и больше его никто не повторил.
+    Устройство, чей файл записан сборкой до 0.12.38, этого поля не имеет и «всё» не просит. Флаг
+    `initialChatsSnapshotPending` из 0.12.38 переводится в новое поле при чтении файла;
+  - когда фантом буферизуется **в ожидании чата** (`bufferOrphanedSyncAwaitingChat()` в
+    [handle-incoming-sync.ts](../src-deno/services/chat-service/utils/handle-incoming-sync.ts)):
+    просится этот чат;
+  - в **стартовом проходе** вместе с `requestResyncForStuckOrphans()`: просятся все чаты, которых
+    ждёт буфер (`getChatlessOrphanChatIds()`).
+
+  Не просятся чаты, которые уже есть, и чаты с локальным надгробием `deleted`. Дедупликация
+  действует в рамках сессии (`requestedChats`, `'*'` — запрос всех). В одном запросе не больше
+  `MAX_CHATS_PER_RESYNC_ASK` (50) чатов.
+- **Ответ** даёт устройство, у которого есть хотя бы один из запрошенных чатов. Это снимок этих
+  чатов со всей историей и per-aspect токенами: `readSnapshotFromDb()` →
+  `announceSnapshot()` ([snapshot-announce.ts](../src-deno/services/chat-service/utils/snapshot-announce.ts)),
+  тот же носитель `restore:snapshot`, что у анонса восстановления
+  ([08-backup-and-restore.md](./08-backup-and-restore.md)). Режим — `merge` с полем
+  `applyNewerAspects`. Устройство без запрошенных чатов молчит. На каждый `requestId` отвечают
+  **один раз навсегда**: отвеченные хранятся в `answeredChatsResyncs` (20 дней), потому что ответ —
+  целая история, а запрос до 15 дней переигрывается catch-up-сканами. На запрос **всех** чатов
+  устройство отвечает одному и тому же спрашивающему устройству один раз (ключ `all@<deviceId>`).
+  Иначе устройство, пришедшее онлайн с несколькими повторами в ящике, прислало бы всю историю на
+  каждый из них. Во время звонка ответ откладывается на 5 минут, не помечаясь отвеченным.
+- **Применение** — `applyRestoreSnapshot()`. Это `merge` (создаётся только недостающее, надгробия
+  `deleted` и `historyCleared` блокируют создание, ничего не удаляется) с одним отличием: у сущности,
+  которая **уже есть**, аспекты применяются через `applyIfNewer`, как применились бы фантомы этих
+  изменений. Так закрывается и случай §5.3.1, когда чат из приглашения висит в `invited`, а принятие
+  было на другом устройстве. Созданный чат дренирует буфер (`drainOrphanedForChat`), поэтому
+  сообщение, с которого всё началось, появляется вместе с историей.
+
+Если ни одного другого включённого устройства нет (единственное устройство переустановлено),
+чаты возвращает автоматический бэкап — снимки устройств в synced FS, которые новая установка читает
+на первом запуске ([08 §11](./08-backup-and-restore.md)).
+
+Байты вложений не передаются, как и при восстановлении: запись получает `hasNoLocalSource` и
+`originDeviceId`, а входящая — свой `incomingMsgId`, если сообщение ещё в общем inbox.
+
+`applyNewerAspects` сделан полем рядом с `mode`, а не третьим режимом, ради старых сборок. Они
+читают только `mode` и видят обычный `merge`, то есть единственное прочтение, которое ничего не
+разрушает. Новое значение `mode` попало бы у них в ветки `replace`. Сам `resync:chats` старая сборка
+не понимает: при известном ей чате конверта пишет одно предупреждение, при неизвестном —
+буферизует запрос, и он выбрасывается через 15 дней.
+
+Покрыто [ci/chats-resync.test.ts](../ci/chats-resync.test.ts) (`pnpm test:chats-resync`): живой
+случай целиком (фантом → запрос → ответ → чат, история, дренаж буфера), повтор запроса всех чатов до ответа и его окно, однократный ответ на повторы, однократный ответ,
+молчание без чатов, первый запуск, стартовый проход, надгробие, звонок, `invited` → `on` и
+неприкосновенность очищенной истории.
+
+### 5.2.3 Сбой буферизации
+
 Сбой буферизации не прерывает обработку остального inbox: фантом теряется, состояние остаётся как
 было ([241-252](../src-deno/services/chat-service/utils/handle-incoming-sync.ts#L241-L252)).
 
@@ -452,12 +523,33 @@ Resync-трафик делит ASMail-доставку с сигналингом
 ### 5.3 Создание чата из фантома приглашения
 
 `createChatFromInvitationSync()`
-([handle-incoming-sync.ts:259-290](../src-deno/services/chat-service/utils/handle-incoming-sync.ts#L259-L290)).
+([handle-incoming-sync.ts:290-321](../src-deno/services/chat-service/utils/handle-incoming-sync.ts#L290-L321)).
 Поля `status` и `settings` в теле приглашения заполняются **только для канала своих устройств** и
 никогда не уходят реальному приглашаемому
 ([types/asmail-msgs.types.ts:112-119](../types/asmail-msgs.types.ts#L112-L119),
 [143-150](../types/asmail-msgs.types.ts#L143-L150)) — благодаря этому чат, созданный из фантома,
 повторяет состояние оригинала, а не угадывает его.
+
+#### 5.3.1 Своё сообщение как доказательство принятия
+
+Чат может появиться на устройстве и не из фантома, а из **настоящего** приглашения собеседника:
+оно лежит в общем ящике до 15 дней, и новое устройство (например, после переустановки) создаёт по
+нему чат в статусе `invited`. Перевести такой чат в `on` может только фантом `accept:invitation`.
+Если его нет, чат остаётся `invited` навсегда: свои сообщения приходят фантомами, входящие от
+собеседника пропускаются, отправка заблокирована. Так было на Android-устройстве тестера, 2026-11.
+
+Поэтому фантом **исходящего** сообщения с другого своего устройства считается доказательством
+принятия: из `invited` отправить ничего нельзя. `acceptChatProvenByOwnMsg()`
+([handle-incoming-sync.ts:339-381](../src-deno/services/chat-service/utils/handle-incoming-sync.ts#L339-L381))
+переводит чат в `on` (в группе ещё ставит себе `hasAccepted`). Запись идёт в аспект `status` с
+токеном сообщения, поэтому более позднее изменение статуса её перекрывает.
+
+Пропущенные в статусе `invited` входящие догружаются, когда чат начинает принимать сообщения — по
+этому выводу, по фантому `accept:invitation` или по локальному Accept:
+`catchUpChatOpenedForReceiving()` в
+[incoming-messages.ts](../src-deno/services/chat-service/incoming-messages.ts) запускает
+`forceRefreshChat()` по этому чату. Без этого watermark ушёл бы дальше, и сообщения собеседника
+остались бы в ящике непрочитанными. Спеки — [ci/invitation-sync.test.ts](../ci/invitation-sync.test.ts).
 
 ## 6. Сценарии
 
@@ -542,8 +634,9 @@ sequenceDiagram
    [msg-status-updating.ts:44-64](../src-deno/services/chat-service/utils/msg-status-updating.ts#L44-L64)).
 2. Буферизованный фантом теряется, если запись/чат так и не появятся в течение 15 дней — сборка
    мусора удалит его ([msgs-db.ts:842-854](../src-deno/dataset/msgs-db.ts#L842-L854)). Для orphan'ов
-   с `targetMessageId` это смягчено повторным запросом записи (§5.2.1); orphan, ждущий **сам чат**,
-   по-прежнему только ждёт.
+   с `targetMessageId` это смягчено повторным запросом записи (§5.2.1), для orphan'а, ждущего
+   **сам чат**, — запросом чата (§5.2.2). Если ни у одного другого устройства чата нет (удалён везде),
+   orphan по-прежнему только ждёт.
 3. Авто-удаление по `removeAfter` **не** синхронизируется: каждое устройство истекает само
    ([msg-deletion.ts:199-203](../src-deno/services/chat-service/utils/msg-deletion.ts#L199-L203)).
    Если на устройствах разные настройки чата, момент удаления разойдётся.
@@ -554,10 +647,11 @@ sequenceDiagram
    уменьшает число доставок, но каждая уцелевшая строка едет отдельным сообщением. Настоящий батч
    потребовал бы формата, который старая сборка не выбросит из общего ящика: новый
    `chatMessageType` не проходит `checkChatMessageJSON()`, и такое сообщение удаляется **немедленно**
-   ([chat-service.ts](../src-deno/services/chat-service/chat-service.ts)), то есть старое устройство
+   ([incoming-messages.ts](../src-deno/services/chat-service/incoming-messages.ts)), то есть старое устройство
    отняло бы батч у новых.
 
-   **Исключение — анонс восстановления** (`restore:snapshot`, §5.1): он везёт много записей в одном
+   **Исключение — анонс восстановления и ответ на `resync:chats`** (`restore:snapshot`, §5.1,
+   §5.2.2): он везёт много записей в одном
    сообщении, потому что оформлен как новое `system`-событие внутри обычного
    `synchronization`-фантома `v: 1`. Старая сборка такое сообщение валидирует, доводит до
    `handleSystemSync`, роняет в `default:` (одна строка `warning`) и затем планирует

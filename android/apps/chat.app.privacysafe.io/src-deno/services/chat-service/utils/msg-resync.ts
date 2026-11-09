@@ -78,12 +78,46 @@ export interface ResyncCtx {
    * the video chat service starts (see setResyncBusyCheck in chat-service.ts).
    */
   isBusy?: () => boolean;
+  /**
+   * Chats already asked for with 'resync:chats' in this session, by
+   * chatIdToString(); '*' stands for the ask for all of them. See
+   * chat-resync.ts - the same "once per session" reasoning as requestedTargets.
+   */
+  requestedChats: Set<string>;
+  /**
+   * 'resync:chats' asks whose answer had to wait for a call to end, so that a
+   * replayed ask does not schedule a second wait.
+   */
+  deferredChatsAnswers: Set<string>;
+  /**
+   * The persisted side of 'resync:chats' (in the local data file). Absent in
+   * the specs that do not exercise it; without it this device neither asks
+   * for all chats on its first run nor remembers what it answered.
+   */
+  chatsResyncState?: ChatsResyncState;
+}
+
+export interface ChatsResyncState {
+  /** This device is new, has had no answer yet, and the last ask is old enough. */
+  isInitialAskDue(): Promise<boolean>;
+  noteInitialAsked(requestId: string): Promise<void>;
+  /** Ends the wait if `requestId` is one of the asks; returns whether it did. */
+  noteInitialAnswered(requestId: string): Promise<boolean>;
+  /** Keys of answered asks: a requestId, or `all@<deviceId>` for an ask for all chats. */
+  wasAnswered(key: string): boolean;
+  noteAnswered(key: string): Promise<void>;
 }
 
 export function makeResyncCtx(
-  ctx: Omit<ResyncCtx, 'requestedTargets' | 'answeredTargets'>,
+  ctx: Omit<ResyncCtx, 'requestedTargets' | 'answeredTargets' | 'requestedChats' | 'deferredChatsAnswers'>,
 ): ResyncCtx {
-  return { ...ctx, requestedTargets: new Set(), answeredTargets: new Set() };
+  return {
+    ...ctx,
+    requestedTargets: new Set(),
+    answeredTargets: new Set(),
+    requestedChats: new Set(),
+    deferredChatsAnswers: new Set(),
+  };
 }
 
 /**

@@ -44,6 +44,7 @@ import { itCond } from '../libs-for-tests/jasmine-utils.js';
 import { withSetup } from '../libs-for-tests/with-setup.ts';
 import { chatService, fileLinkStoreSrv } from '@main/common/services/external-services.ts';
 import { useAppMenuItems } from '@main/common/composables/useAppMenu.ts';
+import { useSettingsStore } from '@main/common/store/settings.store.ts';
 import {
   BackupArchiveFailure,
   openBackupContainer,
@@ -674,16 +675,30 @@ describe(`Backup and restore`, () => {
   // ===========================================================================
   describe(`Test Suite 6: the app menu`, () => {
 
-    itCond(`offers the same three actions, in the order both form factors show`, async () => {
+    itCond(`offers the same actions, in the order both form factors show`, async () => {
       // Through withSetup, and not called directly: the composable labels the
       // items with useI18n(), which needs an active component instance with the
       // i18n plugin. Called from a bare spec it threw as a vue-i18n error code
       // - a bare `SyntaxError: 26` with nothing in it to go on.
+      const settingsStore = useSettingsStore();
+      const infoBefore = settingsStore.autoBackupInfo;
       const { result: items, teardown } = withSetup(() => useAppMenuItems());
       try {
+        settingsStore.applyAutoBackupInfo({
+          ...infoBefore,
+          settings: { ...infoBefore.settings, showAutoBackupRestore: false },
+        });
         expect(items.value.map(i => i.id))
           .withContext(`one list for the desktop dropdown and the phone drawer`)
-          .toEqual(['make-backup', 'restore-backup', 'exit']);
+          .toEqual(['make-backup', 'restore-backup', 'settings', 'exit']);
+
+        settingsStore.applyAutoBackupInfo({
+          ...infoBefore,
+          settings: { ...infoBefore.settings, showAutoBackupRestore: true },
+        });
+        expect(items.value.map(i => i.id))
+          .withContext(`the restore from automatic backups only when the setting asks for it`)
+          .toEqual(['make-backup', 'restore-backup', 'restore-auto-backup', 'settings', 'exit']);
         for (const item of items.value) {
           expect(item.icon)
             .withContext(`the icon set is not open-ended: an unknown name renders as nothing`)
@@ -691,6 +706,7 @@ describe(`Backup and restore`, () => {
           expect(item.label).toBeTruthy();
         }
       } finally {
+        settingsStore.applyAutoBackupInfo(infoBefore);
         teardown();
       }
     });

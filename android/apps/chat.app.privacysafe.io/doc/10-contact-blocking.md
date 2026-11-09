@@ -73,7 +73,7 @@ local-data-store ([contacts-blacklist.ts:61](../src-deno/services/contacts-servi
 
 `start()` вызывается **после** создания chat-service
 ([index.ts:118](../src-deno/index.ts#L118)), потому что именно chat-service регистрирует
-обработчик дельты ([chat-service.ts:975-985](../src-deno/services/chat-service/chat-service.ts#L975-L985)),
+обработчик дельты ([chat-service.ts:184-195](../src-deno/services/chat-service/chat-service.ts#L184-L195)),
 а изменение, пришедшее без обработчика, не переигрывается. Фильтрация входящих от этого не
 страдает — трекер тёплый из кэша с момента создания (§2.1).
 
@@ -85,7 +85,7 @@ local-data-store ([contacts-blacklist.ts:61](../src-deno/services/contacts-servi
 |---|---|
 | [inbox-dispatcher.ts:388](../src-deno/services/mail-service/inbox-dispatcher.ts#L388) | catch-up-скан ящика при старте |
 | [inbox-dispatcher.ts:467](../src-deno/services/mail-service/inbox-dispatcher.ts#L467) | живой поток входящих |
-| [chat-service.ts:313](../src-deno/services/chat-service/chat-service.ts#L313) | `handleIncomingMsg`, после разбора тела |
+| [incoming-messages.ts:149](../src-deno/services/chat-service/incoming-messages.ts#L149) | `handleIncomingMsg`, после разбора тела |
 | [incoming-signals.ts:172](../src-deno/services/video-chat-service/incoming-signals.ts#L172) | WebRTC-сигналы |
 
 Везде проверка идёт в паре с `!areAddressesEqual(sender, ownAddr)`: собственный адрес в чёрном
@@ -189,7 +189,7 @@ local-data-store ([contacts-blacklist.ts:61](../src-deno/services/contacts-servi
 
 События `contact:blocked` / `contact:unblocked` входят в `ChatSystemMessageData`, но обработчиков
 на приёме у них нет: и `handleSystemMsg()`
-([chat-service.ts](../src-deno/services/chat-service/chat-service.ts)), и диспетчер фантомов
+([incoming-system-msgs.ts](../src-deno/services/chat-service/incoming-system-msgs.ts)), и диспетчер фантомов
 ([handle-incoming-sync.ts](../src-deno/services/chat-service/utils/handle-incoming-sync.ts))
 уводят неизвестное событие в `default:` с записью в лог. Пир, приславший такое тело, не создаст
 здесь никакой записи.

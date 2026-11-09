@@ -72,6 +72,8 @@ export const en = {
     menu: {
       makeBackup: 'Create a backup',
       restoreBackup: 'Restore from a backup',
+      restoreAutoBackup: 'Restore from automatic backups',
+      settings: 'Settings',
       exit: 'Exit',
     },
     ok: 'Ok',
@@ -103,6 +105,43 @@ export const en = {
     },
   },
 
+  autoBackup: {
+    settings: {
+      title: 'Settings',
+      autoBackup: 'Automatic backup',
+      autoBackupHint:
+        'Every {hours} hours, if anything has changed, this device saves a copy of its chats to ' +
+        'your encrypted storage. Files are not included. A new installation of the app restores ' +
+        'the chats from these copies by itself.',
+      showRestore: 'Show "Restore from automatic backups" in the menu',
+      on: 'On',
+      off: 'Off',
+      lastAt: 'Last automatic backup of this device: {date}',
+      never: 'This device has not made an automatic backup yet',
+      inProgress: 'Making an automatic backup…',
+      error: 'The last attempt failed ({date}): {message}',
+      saveError: 'The setting could not be changed',
+    },
+    restore: {
+      dialogTitle: 'Restoring from automatic backups',
+      listTitle: 'Restore from automatic backups',
+      loading: 'Reading the automatic backups…',
+      listError: 'The automatic backups could not be read',
+      empty: 'There are no automatic backups of your other devices',
+      thisDeviceLast: 'Last automatic backup of this device: {date}',
+      thisDeviceNone: 'This device has no automatic backup yet',
+      device: 'Device {id}',
+      written: 'Saved {date}',
+      counts: 'Chats: {chats}, messages: {messages}',
+      unreadable: 'Files that could not be read and are left out: {count}',
+      hint:
+        'Chats and messages that are not here are added, newer changes win, nothing is ' +
+        'deleted. Files of sent messages are not in automatic backups.',
+      confirmBtn: 'Restore',
+      success: 'Restored from {devices} automatic backup(s): {created} added, {updated} updated',
+      error: 'Restoring from automatic backups failed',
+    },
+  },
   backup: {
     // One set of lines for both places the same fact is told: after a backup,
     // and before a restore of one.

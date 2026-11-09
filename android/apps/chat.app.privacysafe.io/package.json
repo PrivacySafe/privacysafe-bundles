@@ -1,6 +1,6 @@
 {
   "name": "chat.app.privacysafe.io",
-  "version": "0.12.36",
+  "version": "0.12.40",
   "license": "GPL-3.0-or-later",
   "private": true,
   "type": "module",
@@ -16,6 +16,9 @@
     "test:db-writer": "deno test -A --no-check ci/db-writer-timeout.test.ts",
     "test:i18n-keys": "deno test -A --no-check ci/i18n-keys.test.ts",
     "test:blocked-inbox-retention": "deno test -A --no-check ci/blocked-inbox-retention.test.ts",
+    "test:invitation-sync": "deno test -A --no-check ci/invitation-sync.test.ts",
+    "test:chats-resync": "deno test -A --no-check ci/chats-resync.test.ts",
+    "test:auto-backup": "deno test -A --no-check ci/auto-backup.test.ts",
     "run:mac:1": "bash ./run-test-mac.sh /Applications/privacysafe.app 2>&1 | tee live-user1-A.log",
     "run:mac:2": "bash ./run-test-mac1.sh /Applications/privacysafe.app 2>&1 | tee live-user1-B.log",
     "run:mac:3": "bash ./run-test-mac2.sh /Applications/privacysafe.app 2>&1 | tee live-user2.log",
@@ -37,9 +40,9 @@
     "lint": "pnpm linter && pnpm stylelint"
   },
   "dependencies": {
-    "@dbushell/hyperless": "^0.35.0",
+    "@dbushell/hyperless": "0.35.0",
     "@v1nt1248/3nclient-lib": "0.4.16",
-    "@vueuse/core": "^15.0.0",
+    "@vueuse/core": "15.0.0",
     "dayjs": "1.11.23",
     "fflate": "0.8.3",
     "lodash": "4.18.1",
@@ -75,7 +78,7 @@
     "globals": "17.14.0",
     "postcss-html": "1.8.1",
     "prettier": "3.9.10",
-    "sass": "1.107.1",
+    "sass": "1.108.1",
     "stylelint": "18.0.0",
     "stylelint-config-recommended-scss": "17.0.1",
     "stylelint-config-recommended-vue": "1.6.1",
@@ -86,7 +89,7 @@
     "typescript-eslint": "8.72.1",
     "vite": "8.3.6",
     "vite-plugin-vue-devtools": "8.2.1",
-    "vue-eslint-parser": "10.4.1",
+    "vue-eslint-parser": "10.4.2",
     "vue-tsc": "3.3.14"
   },
   "packageManager": "pnpm@12.6.0"

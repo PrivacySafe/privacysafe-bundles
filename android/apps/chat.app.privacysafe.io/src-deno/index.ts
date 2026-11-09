@@ -204,12 +204,30 @@ try {
       await chatsSrv.requestResyncForStuckOrphans().catch(err =>
         w3n.log('error', `Resync pass for stuck orphans failed`, err),
       );
+      // Whole chats this device does not have: the ones orphans wait for, and
+      // all of them if the first-run ask below did not get out.
+      await chatsSrv.requestChatsResyncAtStartup().catch(err =>
+        w3n.log('error', `Chats resync pass failed`, err),
+      );
     } catch (err) {
       log.error(`scheduleResyncPass error:`, err);
       w3n.log('error', `scheduleResyncPass error`, err).catch(() => {});
     }
   }, delayMillis);
   scheduleResyncPass(RESYNC_PASS_DELAY_MILLIS);
+
+  // The automatic backup: a new installation restores from the files of the
+  // user's devices, and every device writes its own (see
+  // backup-service/auto-backup.ts). Its writes yield to a call, like resync.
+  chatsSrv.startAutoBackup(() => videoChatSrv.hasAnyCallInProgress());
+
+  // A new device asks for all chats right away rather than with the pass above:
+  // until it is answered its chat list holds only what the last 15 days of the
+  // shared inbox could tell it (see chat-service/utils/chat-resync.ts). The ask
+  // goes into the phantom journal, which yields to a call on its own.
+  chatsSrv.requestInitialChatsSnapshot().catch(err =>
+    w3n.log('error', `First-run ask for all chats failed`, err).catch(() => {}),
+  );
 
   // Two copies of the app on one data folder share this device's identity, and
   // the result looks exactly like broken synchronization (see the watch itself).

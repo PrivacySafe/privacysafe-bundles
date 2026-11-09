@@ -44,6 +44,7 @@ import type {
   SnapshotMsgEntry,
 } from '../../../types/backup.types.ts';
 import type { ChatMessageAttachmentsInfo } from '../../../types/chat.types.ts';
+import type { AutoBackupFile, AutoBackupRestoreOutcome } from '../../../types/auto-backup.types.ts';
 import type { ChatSrvEmit, DB, FileStoreService, MsgDbEntry } from '../../types/index.ts';
 import { SingleProc } from '../../../shared-libs/processes/single.ts';
 import { chatIdToString } from '../../../shared-libs/chat-ids.ts';
@@ -55,16 +56,15 @@ import {
   tombstoneVerdictForRestore,
   type RestoreSnapshotCtx,
 } from '../chat-service/utils/restore-snapshot.ts';
-import { attachmentsForPhantom } from '../chat-service/utils/_msgs-related-methods.ts';
+import { announceSnapshot, readSnapshotFromDb } from '../chat-service/utils/snapshot-announce.ts';
+import { mergeTombstonesOfFiles } from './auto-backup-merge.ts';
 import { chatEntityId, msgEntityId, parseMsgEntityId } from '../chat-service/utils/sync-versions.ts';
 import { isNewerToken } from '../chat-service/utils/sync-versions.ts';
-import { makeSystemEventPhantom, queueSnapshotChunks } from '../mail-sending-service/index.ts';
 import {
   archiveMsgKey,
   chatIdOfChatEntry,
   chatIdOfMsgRow,
   chatRecordForArchive,
-  chunkRestoreSnapshot,
   groupSyncVersions,
   indexArchivedChats,
   indexArchivedMsgs,
@@ -90,7 +90,13 @@ export interface ChatBackupSrv {
     mode: RestoreMode;
     snapshotTs?: number;
   }): Promise<RestoreOutcome>;
+  /** Applies automatic backups of the user's devices; see restoreFromAutoBackupFiles below. */
+  restoreFromAutoBackupFiles(files: AutoBackupFile[]): Promise<AutoBackupRestoreOutcome>;
 }
+
+/** How long a finished restore from automatic backups stays on screen before it is closed. */
+const AUTO_RESTORE_CLOSE_DELAY_MILLIS = 1500;
+const AUTO_RESTORE_ERROR_CLOSE_DELAY_MILLIS = 3000;
 
 export function chatBackupSrv({
   db,
@@ -702,72 +708,173 @@ export function chatBackupSrv({
       token: { ts: number; deviceId: string };
     };
   }): Promise<void> {
-    const sourceDeviceId = getAppDeviceId();
     const restoreId = generateFastRandomString(10);
-
-    // The record travels; the bytes do not, and `id` is cut out of every
-    // attachment by the one function that does that for phantoms as well.
-    const wireMsgs: SnapshotMsgEntry[] = msgs.map(msg => {
-      const attachments = attachmentsForPhantom(msg.attachments, sourceDeviceId);
-      return {
-        chatId: msg.chatId,
-        chatMessageId: msg.chatMessageId,
-        record: msg.record,
-        ...(attachments && { attachments }),
-        versions: msg.versions,
-      };
+    const chunks = await announceSnapshot({
+      db,
+      ownAddr,
+      sourceDeviceId: getAppDeviceId(),
+      snapshotId: restoreId,
+      mode,
+      snapshotTs,
+      restoreToken,
+      chats,
+      msgs,
+      deleted,
     });
-
-    const chunks = chunkRestoreSnapshot({ chats, msgs: wireMsgs, deleted });
-    if (chunks.length === 0) {
-      return;
+    if (chunks > 0) {
+      log.info(`Announced restore ${restoreId} to other devices in ${chunks} chunk(s)`);
     }
-
-    const phantoms = chunks.map((chunk, index) => {
-      // chatId of the ENVELOPE is the chat of the chunk's first record, and a
-      // chunk of deletions alone addresses this user's own chats through the
-      // first id it names. Our own branch ignores this field; an older build
-      // uses it only in its `chatRequired` gate, and with a chat that really
-      // exists it goes straight to `default:` - whereas a made-up sentinel
-      // would make it buffer every chunk in orphaned_messages for 15 days.
-      const envelopeChatId =
-        chunk.chats?.[0]?.chatId
-        ?? chunk.msgs?.[0]?.chatId
-        ?? chunk.deleted?.chatIds?.[0]
-        ?? chunk.deleted?.msgIds?.[0]?.chatId
-        ?? { isGroupChat: false, chatId: ownAddr };
-
-      return makeSystemEventPhantom({
-        chatId: envelopeChatId,
-        sourceDeviceId,
-        // Each chunk gets its own stamp: the journal orders rows by ts, and
-        // equal stamps would leave the order of the chunks to the row ids.
-        timestamp: snapshotTs + index,
-        chatSystemData: {
-          event: 'restore:snapshot',
-          value: {
-            mode,
-            snapshotTs,
-            restoreId,
-            part: index + 1,
-            of: chunks.length,
-            // In EVERY chunk, not only where records sit: a neighbour applies
-            // the chunks independently and each one that restores a record has
-            // to stamp it with the same token.
-            ...(restoreToken && { restoreToken }),
-            ...(chunk.chats && { chats: chunk.chats }),
-            ...(chunk.msgs && { msgs: chunk.msgs }),
-            ...(chunk.deleted && { deleted: chunk.deleted }),
-          },
-        },
-      });
-    });
-
-    log.info(`Announcing restore ${restoreId} to other devices in ${phantoms.length} chunk(s)`);
-    await queueSnapshotChunks({ db, ownAddr, restoreId, chunks: phantoms });
   }
 
-  return { createBackupPlan, cancelBackupPlan, previewRestore, restoreBackupArchive };
+  function emitAutoRestoreProgress(progress: Omit<RestoreProgress, 'source'> | null, closeAfter?: number): void {
+    emitRestoreProgress(progress && { ...progress, source: 'auto-backup' });
+    if (closeAfter !== undefined) {
+      setTimeout(() => emitRestoreProgress(null), closeAfter);
+    }
+  }
+
+  /**
+   * Applies the automatic backups of the user's devices (see auto-backup.ts):
+   * the tombstones of all the files first, then each file as a `merge` with
+   * newer aspects taken - exactly how a neighbour applies an answer to
+   * 'resync:chats', so there are no rules of merging of its own here.
+   *
+   * The chats this brings that were not here before are then announced to the
+   * user's other devices: the file of a reinstalled device may be the only
+   * copy of a chat, and its neighbours never read automatic backups.
+   *
+   * The progress is announced with `source: 'auto-backup'`, and closed from
+   * here: the restore of a new installation is started by this component, not
+   * by a window.
+   */
+  async function restoreFromAutoBackupFiles(files: AutoBackupFile[]): Promise<AutoBackupRestoreOutcome> {
+    return backupProc.startOrChain(async () => {
+      beginBulkReplay();
+      try {
+        emitAutoRestoreProgress({
+          stage: 'listing-inbox', totalItems: 0, processedItems: 0, percent: 0,
+        });
+        const inbox = await listInboxMsgIds();
+
+        await restoreTombstones(mergeTombstonesOfFiles(files), [], []);
+
+        const chatsBefore = new Set(db.getChatList().map(chat => chatIdToString(chatIdOfChatEntry(chat))));
+        const total = files.reduce((sum, file) => sum + file.chats.length + file.msgs.length, 0);
+        let doneBefore = 0;
+        const outcome: AutoBackupRestoreOutcome = {
+          devices: files.length,
+          chatsCreated: 0,
+          chatsUpdated: 0,
+          messagesCreated: 0,
+          messagesUpdated: 0,
+          skipped: 0,
+        };
+
+        emitAutoRestoreProgress({
+          stage: 'restoring', totalItems: total, processedItems: 0, percent: 0,
+        });
+
+        // Oldest first only so that the log reads in order; per-aspect tokens
+        // make the result the same in any order.
+        for (const file of [...files].sort((a, b) => a.writtenAt - b.writtenAt)) {
+          const applied = await applyRestoreSnapshot(
+            {
+              mode: 'merge',
+              applyNewerAspects: true,
+              snapshotTs: file.snapshotTs,
+              chats: file.chats,
+              msgs: file.msgs,
+            },
+            {
+              db,
+              emit,
+              filesStore,
+              ownAddr,
+              sourceDeviceId: file.deviceId,
+              hasLocalAttachmentBytes: false,
+              inboxMsgIds: inbox.ids,
+              inboxListingAvailable: inbox.available,
+              drainOrphanedForChat,
+              onProgress: (processed, _itemsTotal, currentItem) => {
+                const done = doneBefore + processed;
+                emitAutoRestoreProgress({
+                  stage: 'restoring',
+                  totalItems: total,
+                  processedItems: done,
+                  currentItem,
+                  percent: total > 0 ? Math.floor((done / total) * 100) : 0,
+                });
+              },
+            },
+          );
+          doneBefore += file.chats.length + file.msgs.length;
+          outcome.chatsCreated += applied.chatsCreated;
+          outcome.chatsUpdated += applied.chatsUpdated;
+          outcome.messagesCreated += applied.messagesCreated;
+          outcome.messagesUpdated += applied.messagesUpdated;
+          outcome.skipped += applied.skipped + applied.skippedExpired;
+          log.info(
+            `Automatic backup of ${file.deviceId} (written ${new Date(file.writtenAt).toISOString()}) applied: `
+              + `chats +${applied.chatsCreated}/~${applied.chatsUpdated}, `
+              + `messages +${applied.messagesCreated}/~${applied.messagesUpdated}, `
+              + `${applied.skipped} skipped, ${applied.skippedExpired} expired`,
+          );
+        }
+
+        await db.flush();
+
+        const newChats = db.getChatList()
+          .map(chatIdOfChatEntry)
+          .filter(chatId => !chatsBefore.has(chatIdToString(chatId)));
+        if (newChats.length > 0) {
+          emitAutoRestoreProgress({
+            stage: 'announcing', totalItems: total, processedItems: total, percent: 100,
+          });
+          const { chats, msgs } = readSnapshotFromDb(db, newChats);
+          const snapshotId = `auto-${generateFastRandomString(10)}`;
+          const chunks = await announceSnapshot({
+            db,
+            ownAddr,
+            sourceDeviceId: getAppDeviceId(),
+            snapshotId,
+            mode: 'merge',
+            snapshotTs: await nextSyncStamp(),
+            applyNewerAspects: true,
+            chats,
+            msgs,
+          });
+          if (chunks > 0) {
+            log.info(
+              `Announced ${chats.length} chat(s) restored from automatic backups to other devices `
+                + `in ${chunks} chunk(s) (${snapshotId})`,
+            );
+          }
+        }
+
+        emitAutoRestoreProgress(
+          { stage: 'completed', totalItems: total, processedItems: total, percent: 100 },
+          AUTO_RESTORE_CLOSE_DELAY_MILLIS,
+        );
+        return outcome;
+      } catch (err) {
+        emitAutoRestoreProgress(
+          { stage: 'error', totalItems: 0, processedItems: 0, percent: 0 },
+          AUTO_RESTORE_ERROR_CLOSE_DELAY_MILLIS,
+        );
+        throw err;
+      } finally {
+        endBulkReplay();
+      }
+    });
+  }
+
+  return {
+    createBackupPlan,
+    cancelBackupPlan,
+    previewRestore,
+    restoreBackupArchive,
+    restoreFromAutoBackupFiles,
+  };
 }
 
 export { CANCELLED_MESSAGE };

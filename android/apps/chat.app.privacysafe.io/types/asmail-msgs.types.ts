@@ -422,6 +422,43 @@ export interface ResyncMsgRecordSysMsgData {
   };
 }
 
+/**
+ * Request to the user's own other devices to send this device whole chats -
+ * their records and histories - as a snapshot.
+ *
+ * Phantoms carry CHANGES. A device that was not there when a chat was created
+ * (a new device, a reinstalled one) learns of the chat from a phantom of its
+ * creation or from the peer's invitation, and both live in the shared inbox
+ * for 15 days at most. Past that the chat never appears on the new device,
+ * and every later phantom of it is buffered as an orphan waiting for a chat
+ * that will not come (seen on a desktop added to an Android user, 2026-11-09).
+ *
+ * Sent in two cases:
+ *  - `chatIds` absent: the first run of this device asks for everything;
+ *  - `chatIds` given: a phantom arrived for a chat this device does not have,
+ *    and these are the chats the orphan buffer waits for.
+ *
+ * Any device that has the chats answers with a `restore:snapshot` in `merge`
+ * mode with `applyNewerAspects` - the carrier and the merge rule of a restore,
+ * so no second set of rules exists for this. A device that has none of them
+ * stays silent. Several answers are safe: merge creates only what is missing
+ * and applies only what is newer.
+ *
+ * Own-devices channel only, never goes to peers.
+ */
+export interface ResyncChatsSysMsgData {
+  event: 'resync:chats';
+  value: {
+    /**
+     * Identifies the ask, so that an answering device answers it once even
+     * though a catch-up scan replays it for as long as it is in the inbox.
+     */
+    requestId: string;
+    /** The chats wanted; absent means all of them. */
+    chatIds?: ChatIdObj[];
+  };
+}
+
 export interface AcceptedMsgBodySysMsgData {
   event: 'accept:invitation';
   value: {
@@ -533,6 +570,19 @@ export interface RestoreSnapshotSysMsgData {
     chats?: SnapshotChatEntry[];
     msgs?: SnapshotMsgEntry[];
     /**
+     * Only in a `merge`, and only in an answer to 'resync:chats' (see
+     * ResyncChatsSysMsgData): an entity the receiver already has is not left
+     * alone as a plain `merge` leaves it, but has its aspects applied by the
+     * ordinary last-write-wins rule (applyIfNewer) - exactly as the phantoms
+     * of those changes would have been, had they arrived.
+     *
+     * A field next to `mode`, and not a third mode, for the sake of older
+     * builds: they read `mode` alone, and to them this is a plain `merge` -
+     * the one reading that can destroy nothing. A new mode value would fall
+     * into their non-merge branches, which are `replace`'s.
+     */
+    applyNewerAspects?: true;
+    /**
      * Only in 'replace', and in every chunk. A FRESH token, minted once for the
      * whole restore, under which a `replace` re-creates a record that a
      * `historyCleared` marker would otherwise forbid.
@@ -578,6 +628,7 @@ export type ChatSystemMessageData =
   | ContactBlockedSysMsgData
   | ContactUnblockedSysMsgData
   | ResyncMsgRecordSysMsgData
+  | ResyncChatsSysMsgData
   | RestoreSnapshotSysMsgData;
 
 export interface WebRTCMsg {

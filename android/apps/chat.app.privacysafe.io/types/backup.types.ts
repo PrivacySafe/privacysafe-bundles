@@ -409,6 +409,12 @@ export interface RestoreProgress {
   processedItems: number;
   currentItem?: string;
   percent: number;
+  /**
+   * Set by a restore from the automatic backups, which the background component
+   * may start on its own (on the first run of a new installation): the window
+   * then opens the progress dialog itself, with its own title.
+   */
+  source?: 'auto-backup';
 }
 
 /**

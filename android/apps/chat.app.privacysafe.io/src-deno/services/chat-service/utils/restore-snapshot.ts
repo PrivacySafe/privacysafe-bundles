@@ -80,6 +80,17 @@ export interface RestoreSnapshotInput {
   chats: SnapshotChatEntry[];
   msgs: SnapshotMsgEntry[];
   /**
+   * Only meaningful in `merge`, and set only for an answer to 'resync:chats'
+   * (see RestoreSnapshotSysMsgData.value.applyNewerAspects): an entity that is
+   * already here gets its aspects by the last-write-wins rule instead of being
+   * left alone.
+   *
+   * Everything else stays `merge`: creation is guarded by the same tombstones
+   * (a `historyCleared` marker included - this is synchronization, not the
+   * user asking to bring a cleared history back), and nothing is deleted.
+   */
+  applyNewerAspects?: boolean;
+  /**
    * Only in `replace`: a fresh token, minted once for the whole restore, under
    * which a record forbidden by a `historyCleared` marker is brought back.
    *
@@ -220,14 +231,19 @@ export async function applyRestoreSnapshot(
   const total = input.chats.length + input.msgs.length;
   let processed = 0;
 
+  // Whether an entity that is already here is left alone. Only a plain `merge`
+  // does that; tombstone verdicts go by `input.mode` itself, so an answer to
+  // 'resync:chats' still creates nothing a `merge` would not.
+  const keepExisting = (input.mode === 'merge') && !input.applyNewerAspects;
+
   for (const chat of input.chats) {
-    await applyChat(chat, input.mode, ctx, res);
+    await applyChat(chat, keepExisting, ctx, res);
     processed += 1;
     ctx.onProgress?.(processed, total, chat.record.name);
   }
 
   for (const msg of input.msgs) {
-    await applyMsg(msg, input.mode, now, input.restoreToken, ctx, res);
+    await applyMsg(msg, input.mode, keepExisting, now, input.restoreToken, ctx, res);
     processed += 1;
     ctx.onProgress?.(processed, total, msg.chatMessageId);
   }
@@ -241,7 +257,7 @@ export async function applyRestoreSnapshot(
 
 async function applyChat(
   entry: SnapshotChatEntry,
-  mode: RestoreMode,
+  keepExisting: boolean,
   ctx: RestoreSnapshotCtx,
   res: RestoreSnapshotResult,
 ): Promise<void> {
@@ -313,7 +329,12 @@ async function applyChat(
   // `merge` never touches what is here. Not even an aspect whose archived token
   // is newer: the mode's promise is that it can destroy nothing, and a newer
   // token is still a statement about a state the user may have changed since.
-  if (mode === 'merge') {
+  //
+  // An answer to 'resync:chats' is the exception: it is not an archive but the
+  // current state of another device, and a newer token there is exactly what a
+  // phantom would have carried (e.g. a chat accepted elsewhere while this
+  // device saw it only as 'invited').
+  if (keepExisting) {
     res.skipped += 1;
     return;
   }
@@ -395,6 +416,8 @@ async function applyChatAspect(
 async function applyMsg(
   entry: SnapshotMsgEntry,
   mode: RestoreMode,
+  /** See applyRestoreSnapshot: true for a plain `merge` only. */
+  keepExisting: boolean,
   now: number,
   /** Only a `replace` has one; see RestoreSnapshotInput.restoreToken. */
   restoreToken: BackedUpSyncToken | undefined,
@@ -483,7 +506,7 @@ async function applyMsg(
   // cannot.
   const bytesTouched = await reconcileAvailability(existing, entry, ctx, res);
 
-  if (mode === 'merge') {
+  if (keepExisting) {
     if (bytesTouched) {
       res.messagesUpdated += 1;
     } else {
@@ -812,7 +835,7 @@ async function writeAspectTokens(
  * the tokens alone would understate the age of everything an archive holds -
  * and a tombstone older than the archive would win over it.
  */
-function newestToken(
+export function newestToken(
   versions: Partial<Record<SyncAspect, BackedUpSyncToken>>,
   ...wallClockStamps: number[]
 ): SyncToken {

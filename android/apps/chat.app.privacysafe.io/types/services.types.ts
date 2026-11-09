@@ -25,6 +25,7 @@ import type {
 } from './asmail-msgs.types';
 import type { ChatMessageView, ChatListItemView } from './chat.types';
 import type { BackupProgress, RestoreProgress } from './backup.types';
+import type { AutoBackupInfoEvent } from './auto-backup.types';
 import type { GuiLogLine } from '../shared-libs/log-relay';
 import type { SendingProgressInfo } from '../src-deno/types/index.ts';
 
@@ -206,6 +207,7 @@ export type UpdateEvent =
   | SyncStateEvent
   | BackupProgressEvent
   | RestoreProgressEvent
+  | AutoBackupInfoEvent
   | BulkReloadEvent;
 
 export type AddressCheckResult =

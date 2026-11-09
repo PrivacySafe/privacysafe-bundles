@@ -15,6 +15,9 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
 import { DELIVERY_SERVICE_DATA_FILE_NAME } from '../../../shared-libs/constants/index.ts';
+import { APP_SETTINGS_DEFAULT } from '../../../shared-libs/constants/auto-backup.ts';
+import type { AppSettings } from '../../../types/auto-backup.types.ts';
+import type { AutoBackupState } from '../../types/delivery-srv.types.ts';
 import { SingleProc } from '../../../shared-libs/processes/single.ts';
 import { randomStr } from '../../../shared-libs/randomStr.ts';
 import type { LocalDataStore, DeliveryServiceData } from '../../types';
@@ -28,6 +31,27 @@ const FOREIGN_INSTANCE_CHECK_MILLIS = 30_000;
  * real case persists, while one odd read must never accuse a healthy run.
  */
 const NOT_FOUND_READS_FOR_VERDICT = 3;
+
+/**
+ * How long an answered 'resync:chats' ask is remembered: longer than the 15
+ * days an ask can stay in the shared inbox and be replayed from there.
+ */
+const ANSWERED_CHATS_RESYNC_KEEP_MILLIS = 20 * 24 * 60 * 60 * 1000;
+
+/**
+ * A new device repeats its ask for all chats on a start at most this often
+ * while no answer has come. The earlier asks stay in the shared inbox and are
+ * answered by any device that catches up on them; a repeat is for the devices
+ * that saw them on an older build, or with a watermark already past them.
+ */
+const INITIAL_CHATS_REASK_MILLIS = 60 * 60 * 1000;
+
+/**
+ * How long a new device keeps asking for all chats: the 15 days a phantom
+ * stays in the shared inbox. A user with no other device that has chats would
+ * otherwise send an ask on every start forever.
+ */
+const INITIAL_CHATS_ASK_WINDOW_MILLIS = 15 * 24 * 60 * 60 * 1000;
 
 export async function localDataStore(): Promise<LocalDataStore> {
   const proc = new SingleProc();
@@ -57,11 +81,23 @@ export async function localDataStore(): Promise<LocalDataStore> {
       data = {
         appDeviceId,
         lastReceivedMessageTimestamp: 0,
+        // A new device: it asks the user's other devices for every chat they
+        // have, until one of them answers (see chat-resync.ts).
+        initialChatsSnapshot: { requestIds: [] },
+        // ... and restores from the automatic backups the user's devices left
+        // in the synced storage - the only copy of a chat whose device is gone
+        // (see backup-service/auto-backup.ts).
+        autoBackup: { restorePending: true },
       };
     } else {
       data = await file.readJSON<DeliveryServiceData>();
       if (!data.appDeviceId) {
         data.appDeviceId = appDeviceId;
+      }
+      // A first run of 0.12.38 that ended before its ask went out.
+      if (data.initialChatsSnapshotPending) {
+        delete data.initialChatsSnapshotPending;
+        data.initialChatsSnapshot ??= { requestIds: [] };
       }
     }
 
@@ -122,6 +158,10 @@ export async function localDataStore(): Promise<LocalDataStore> {
       data.lastSyncClockTs = ts;
       await saveOrderly();
     }
+  }
+
+  function getSyncClock(): number {
+    return data.lastSyncClockTs ?? 0;
   }
 
   /**
@@ -269,6 +309,93 @@ export async function localDataStore(): Promise<LocalDataStore> {
     return () => clearInterval(interval);
   }
 
+  /**
+   * Whether the ask for all chats should go out now: this device still waits
+   * for its first answer, the last ask is at least INITIAL_CHATS_REASK_MILLIS
+   * old, and the asking window is not over. A wait whose window is over is
+   * dropped here - nobody has answered in two weeks, so this user has no
+   * other device with chats on it.
+   */
+  async function isInitialChatsSnapshotAskDue(now = Date.now()): Promise<boolean> {
+    const wait = data.initialChatsSnapshot;
+    if (!wait) {
+      return false;
+    }
+    if (wait.firstAskAt && ((now - wait.firstAskAt) >= INITIAL_CHATS_ASK_WINDOW_MILLIS)) {
+      delete data.initialChatsSnapshot;
+      await saveOrderly();
+      await w3n.log(
+        'info',
+        `No answer to ${wait.requestIds.length} ask(s) for all chats since ${new Date(wait.firstAskAt).toISOString()}; `
+          + `not asking any more`,
+      );
+      return false;
+    }
+    return !wait.lastAskAt || ((now - wait.lastAskAt) >= INITIAL_CHATS_REASK_MILLIS);
+  }
+
+  async function noteInitialChatsSnapshotAsked(requestId: string, now = Date.now()): Promise<void> {
+    const wait = data.initialChatsSnapshot;
+    if (!wait) {
+      return;
+    }
+    wait.firstAskAt ??= now;
+    wait.lastAskAt = now;
+    wait.requestIds = [...wait.requestIds, requestId];
+    await saveOrderly();
+  }
+
+  /**
+   * Ends the wait if `requestId` is one of this device's asks for all chats.
+   * Returns whether it did.
+   */
+  async function noteInitialChatsSnapshotAnswered(requestId: string): Promise<boolean> {
+    const wait = data.initialChatsSnapshot;
+    if (!wait || !wait.requestIds.includes(requestId)) {
+      return false;
+    }
+    delete data.initialChatsSnapshot;
+    await saveOrderly();
+    return true;
+  }
+
+  function wasChatsResyncAnswered(requestId: string): boolean {
+    return !!data.answeredChatsResyncs?.[requestId];
+  }
+
+  async function noteChatsResyncAnswered(requestId: string, now = Date.now()): Promise<void> {
+    const answered: Record<string, number> = {};
+    // Pruned on every write: an ask older than this is gone from the shared
+    // inbox, so it cannot be replayed any more.
+    for (const [id, at] of Object.entries(data.answeredChatsResyncs ?? {})) {
+      if ((now - at) < ANSWERED_CHATS_RESYNC_KEEP_MILLIS) {
+        answered[id] = at;
+      }
+    }
+    answered[requestId] = now;
+    data.answeredChatsResyncs = answered;
+    await saveOrderly();
+  }
+
+  function getAppSettings(): AppSettings {
+    return { ...APP_SETTINGS_DEFAULT, ...(data.appSettings ?? {}) };
+  }
+
+  async function setAppSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
+    data.appSettings = { ...(data.appSettings ?? {}), ...patch };
+    await saveOrderly();
+    return getAppSettings();
+  }
+
+  function getAutoBackupState(): AutoBackupState {
+    return { ...(data.autoBackup ?? {}) };
+  }
+
+  async function setAutoBackupState(state: AutoBackupState): Promise<void> {
+    data.autoBackup = { ...state };
+    await saveOrderly();
+  }
+
   function getCachedBlacklist(): string[] | undefined {
     return Array.isArray(data.cachedBlacklist) ? [...data.cachedBlacklist] : undefined;
   }
@@ -286,10 +413,20 @@ export async function localDataStore(): Promise<LocalDataStore> {
     getLastReceivedMessageTimestamp,
     setLastReceivedMessageTimestamp,
     nextSyncStamp,
+    getSyncClock,
     observeSyncStamp,
     hasSeenOtherDevice,
     noteOtherDeviceSeen,
     nextCallSessionId,
+    isInitialChatsSnapshotAskDue,
+    noteInitialChatsSnapshotAsked,
+    noteInitialChatsSnapshotAnswered,
+    wasChatsResyncAnswered,
+    noteChatsResyncAnswered,
+    getAppSettings,
+    setAppSettings,
+    getAutoBackupState,
+    setAutoBackupState,
     getCachedBlacklist,
     setCachedBlacklist,
   };

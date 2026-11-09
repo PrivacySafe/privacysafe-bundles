@@ -74,6 +74,8 @@ export const fr = {
     menu: {
       makeBackup: 'Créer une sauvegarde',
       restoreBackup: 'Restaurer à partir d’une sauvegarde',
+      restoreAutoBackup: 'Restaurer à partir des sauvegardes automatiques',
+      settings: 'Paramètres',
       exit: 'Quitter',
     },
     ok: 'OK',
@@ -105,6 +107,44 @@ export const fr = {
     },
   },
 
+  autoBackup: {
+    settings: {
+      title: 'Paramètres',
+      autoBackup: 'Sauvegarde automatique',
+      autoBackupHint:
+        'Toutes les {hours} heures, si quelque chose a changé, cet appareil enregistre une copie ' +
+        'de ses discussions dans votre stockage chiffré. Les fichiers ne sont pas inclus. Une ' +
+        'nouvelle installation de l’application restaure les discussions à partir de ces copies.',
+      showRestore: 'Afficher « Restaurer à partir des sauvegardes automatiques » dans le menu',
+      on: 'Oui',
+      off: 'Non',
+      lastAt: 'Dernière sauvegarde automatique de cet appareil : {date}',
+      never: 'Cet appareil n’a pas encore fait de sauvegarde automatique',
+      inProgress: 'Sauvegarde automatique en cours…',
+      error: 'La dernière tentative a échoué ({date}) : {message}',
+      saveError: 'Le paramètre n’a pas pu être modifié',
+    },
+    restore: {
+      dialogTitle: 'Restauration à partir des sauvegardes automatiques',
+      listTitle: 'Restaurer à partir des sauvegardes automatiques',
+      loading: 'Lecture des sauvegardes automatiques…',
+      listError: 'Les sauvegardes automatiques n’ont pas pu être lues',
+      empty: 'Il n’y a pas de sauvegardes automatiques de vos autres appareils',
+      thisDeviceLast: 'Dernière sauvegarde automatique de cet appareil : {date}',
+      thisDeviceNone: 'Cet appareil n’a pas encore de sauvegarde automatique',
+      device: 'Appareil {id}',
+      written: 'Enregistrée le {date}',
+      counts: 'Discussions : {chats}, messages : {messages}',
+      unreadable: 'Fichiers illisibles, laissés de côté : {count}',
+      hint:
+        'Les discussions et messages absents ici sont ajoutés, les modifications plus récentes ' +
+        'l’emportent, rien n’est supprimé. Les fichiers des messages envoyés ne sont pas dans les ' +
+        'sauvegardes automatiques.',
+      confirmBtn: 'Restaurer',
+      success: 'Restauré à partir de {devices} sauvegarde(s) automatique(s) : {created} ajoutés, {updated} mis à jour',
+      error: 'La restauration à partir des sauvegardes automatiques a échoué',
+    },
+  },
   backup: {
     // One set of lines for both places the same fact is told: after a backup,
     // and before a restore of one.

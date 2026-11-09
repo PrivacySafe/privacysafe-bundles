@@ -306,7 +306,7 @@ Inbox — общий на всех устройствах пользовател
 
 Сразу из inbox удаляются только сообщения, которые **не** попадают в БД или заведомо непригодны:
 не прошли проверку тела, относятся к неизвестному чату, отправитель не участник группы, неизвестный
-тип ([chat-service.ts:185-257](../src-deno/services/chat-service/chat-service.ts#L185-L257)), а
+тип ([incoming-messages.ts:137-267](../src-deno/services/chat-service/incoming-messages.ts#L137-L267)), а
 также служебные WebRTC-сигналы ([05-video-calls.md](./05-video-calls.md)).
 
 ### 3.3 `thumbnails`

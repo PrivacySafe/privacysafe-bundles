@@ -71,6 +71,7 @@ export async function dataset(): Promise<DB> {
     getStuckMessagesForTargetMessageId: msgsBdSrv.getStuckMessagesForTargetMessageId,
     getStuckMessagesWithoutTarget: msgsBdSrv.getStuckMessagesWithoutTarget,
     getStuckOrphanTargets: msgsBdSrv.getStuckOrphanTargets,
+    getChatlessOrphanChatIds: msgsBdSrv.getChatlessOrphanChatIds,
     countOrphanedSyncs: msgsBdSrv.countOrphanedSyncs,
     deleteOrphanedMessage: msgsBdSrv.deleteOrphanedMessage,
     collectGarbageInAuxiliaryDB: msgsBdSrv.collectGarbageInAuxiliaryDB,

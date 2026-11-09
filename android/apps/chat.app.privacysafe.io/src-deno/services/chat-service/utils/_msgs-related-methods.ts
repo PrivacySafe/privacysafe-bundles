@@ -401,10 +401,14 @@ export function attachmentsForPhantom(
   sourceDeviceId: string,
 ): ChatMessageAttachmentsInfo[] | undefined {
   return attachments?.length
-    ? attachments.map(({ id: _id, ...rest }) => ({
+    ? attachments.map(({ id, ...rest }) => ({
         ...rest,
         hasNoLocalSource: true,
-        originDeviceId: sourceDeviceId,
+        // A file that is not here either (no id) stays attributed to the device
+        // it is on: a record passed on - by a resync answer, or by a restore
+        // from another device's automatic backup - must not send the user
+        // looking for the file on a device that never had it.
+        originDeviceId: (!id && rest.originDeviceId) ? rest.originDeviceId : sourceDeviceId,
       }))
     : undefined;
 }

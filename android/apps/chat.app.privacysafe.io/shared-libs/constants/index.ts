@@ -20,3 +20,4 @@ export * from './delivery-srv.ts';
 export * from './chat-settings.ts';
 export * from './inbox.ts';
 export * from './video-call.ts';
+export * from './auto-backup.ts';

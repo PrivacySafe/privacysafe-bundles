@@ -156,7 +156,7 @@ flowchart TB
 
 ### 2.1 Разбор сообщения чата
 
-[chat-service.ts:181-258](../src-deno/services/chat-service/chat-service.ts#L181-L258):
+[incoming-messages.ts:137-267](../src-deno/services/chat-service/incoming-messages.ts#L137-L267):
 
 ```mermaid
 flowchart TB
@@ -172,19 +172,19 @@ flowchart TB
   Chat -->|"группа, sender не участник"| Rm3["удалить из inbox"]
   Chat -->|system| Sys["handleSystemMsg() → switch по event"] --> Defer3["отложить удаление"]
   Chat -->|regular| Can{"canReceiveRegularMessages()"}
-  Can -->|нет| Skip["ничего не делаем"]
+  Can -->|нет| Skip["ничего не делаем<br/>(догрузится, когда чат начнёт принимать)"]
   Can -->|да| Reg["msgSending.handleRegularMsg()"]
 ```
 
 Ключевые точки:
 
 - Фантом от **собственного** устройства не применяется повторно, но и не удаляется мгновенно
-  ([chat-service.ts:206-212](../src-deno/services/chat-service/chat-service.ts#L206-L212)).
+  ([incoming-messages.ts:185-199](../src-deno/services/chat-service/incoming-messages.ts#L185-L199)).
 - `scheduleInboxMsgRemoval()` для системного сообщения вызывается **после** успешного применения
-  ([chat-service.ts:356-359](../src-deno/services/chat-service/chat-service.ts#L356-L359)): если
+  ([incoming-system-msgs.ts:166-169](../src-deno/services/chat-service/incoming-system-msgs.ts#L166-L169)): если
   обработчик упал, сообщение останется в inbox и будет обработано при следующем старте.
 - Маршрутизация системных событий — `switch` на 11 ветвей
-  ([chat-service.ts:267-354](../src-deno/services/chat-service/chat-service.ts#L267-L354)); каждая
+  ([incoming-system-msgs.ts:55-164](../src-deno/services/chat-service/incoming-system-msgs.ts#L55-L164)); каждая
   делегирует своему модулю (`msg-status-updating`, `msg-deletion`, `chat-members-updating`,
   `chat-renaming`, `chat-setting-up`, `chat-member-removal`, `webrtc-call-reaction`, `msg-editing`,
   `msg-reactions`).
@@ -305,7 +305,7 @@ sequenceDiagram
 
 Отмена (`cancelSendingMessage`) — `delivery.rmMsg(deliveryId, true)` + статус `canceled` + **явный**
 фантом, потому что удалённая доставка уже не пришлёт терминальный прогресс
-([chat-service.ts:477-494](../src-deno/services/chat-service/chat-service.ts#L477-L494)).
+([local-msg-actions.ts:73-98](../src-deno/services/chat-service/local-msg-actions.ts#L73-L98)).
 
 ### 3.2 Ошибки доставки
 
@@ -353,11 +353,11 @@ sequenceDiagram
 ```
 
 - Проверка адресов до создания: `ensureAllAddressesExist()`
-  ([chat-service.ts:365-373](../src-deno/services/chat-service/chat-service.ts#L365-L373),
+  ([chat-entry.ts:39-47](../src-deno/services/chat-service/chat-entry.ts#L39-L47),
   [address-checks.ts](../src-deno/utils/address-checks.ts)); при отказе бросается
   `chat-creation`-исключение со списком проблемных адресов.
 - Группа: создатель всегда добавляется в участники и админы
-  ([chat-service.ts:391-415](../src-deno/services/chat-service/chat-service.ts#L391-L415)); статус
+  ([chat-entry.ts:72-96](../src-deno/services/chat-service/chat-entry.ts#L72-L96)); статус
   проходит `initiated → partially-on → on` по мере принятия приглашений
   ([chat-creation.ts:439-456](../src-deno/services/chat-service/utils/chat-creation.ts#L439-L456)).
 - Принятие в группе рассылается всем участникам отдельным телом
@@ -417,8 +417,8 @@ sequenceDiagram
 
 | Действие | Метод | Событие участникам |
 |---|---|---|
-| Правка текста | [chat-service.ts:513-550](../src-deno/services/chat-service/chat-service.ts#L513-L550) + [msg-editing.ts](../src-deno/services/chat-service/utils/msg-editing.ts) | `update:body` |
-| Реакция | [chat-service.ts:552-593](../src-deno/services/chat-service/chat-service.ts#L552-L593) + [msg-reactions.ts](../src-deno/services/chat-service/utils/msg-reactions.ts) | `update:reactions` |
+| Правка текста | [local-msg-actions.ts:117-154](../src-deno/services/chat-service/local-msg-actions.ts#L117-L154) + [msg-editing.ts](../src-deno/services/chat-service/utils/msg-editing.ts) | `update:body` |
+| Реакция | [local-msg-actions.ts:156-197](../src-deno/services/chat-service/local-msg-actions.ts#L156-L197) + [msg-reactions.ts](../src-deno/services/chat-service/utils/msg-reactions.ts) | `update:reactions` |
 
 Оба события отправляются через `sendSystemDeletableMessage()` — то есть доставка сообщения
 удаляется из очереди сразу после завершения

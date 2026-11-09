@@ -22,6 +22,7 @@ import { useAppStore } from '@main/common/store/app.store';
 import { useChatsStore } from '@main/common/store/chats.store';
 import { useMessagesStore } from '@main/common/store/messages.store';
 import { useBackupStore } from '@main/common/store/backup.store';
+import { useSettingsStore } from '@main/common/store/settings.store';
 import { useContactsStore } from '@main/common/store/contacts.store';
 import type { UpdateEvent } from '~/services.types';
 import { SingleProc } from '@shared/processes/single';
@@ -37,6 +38,7 @@ export function useInitialize() {
   const chatsStore = useChatsStore();
   const messagesStore = useMessagesStore();
   const backupStore = useBackupStore();
+  const settingsStore = useSettingsStore();
 
   /** Reported once: it is a misconfiguration, not a passing condition. */
   let duplicateInstanceReported = false;
@@ -81,6 +83,8 @@ export function useInitialize() {
   }
 
   async function initialize() {
+    // Not awaited: the menu shows its default items until they are read.
+    settingsStore.loadSettings();
     await refreshChatList();
     await fetchRecentReactions();
 
@@ -101,6 +105,10 @@ export function useInitialize() {
         }
         if (updateEvent.updatedEntityType === 'restore-progress') {
           backupStore.onRestoreProgress(updateEvent.progress);
+          return;
+        }
+        if (updateEvent.updatedEntityType === 'auto-backup') {
+          settingsStore.applyAutoBackupInfo(updateEvent.info);
           return;
         }
         // A restore, and the receipt of a restore snapshot, swallow their

@@ -824,25 +824,33 @@ export async function msgsDb({
    * as a row of NULLs instead of null. The GUI then showed a phantom last
    * message with an empty sender for a chat whose history had just been cleared.
    */
-  function getLatestMsgInChat({ chatId }: ChatIdObj): MsgDbEntry | null {
-    const query = `--sql
-      SELECT *, groupChatId || otoPeerCAddr AS chatId
+  // Per-column equality, as getUnreadMsgsCountIn below: the (groupChatId,
+  // timestamp) and (otoPeerCAddr, timestamp) indexes answer it with one seek.
+  // It was a filter on `groupChatId || otoPeerCAddr`, which no index serves -
+  // a scan of the whole table on every findChat, and so a restore of N
+  // messages quadratic in N (50 thousand took minutes; doc/08 §11.7).
+  function getLatestMsgInChat({ isGroupChat, chatId }: ChatIdObj): MsgDbEntry | null {
+    const whereParams = queryParamsFrom<Pick<MsgDbEntry, 'groupChatId' | 'otoPeerCAddr'>>(
+      {
+        groupChatId: isGroupChat ? chatId : null,
+        otoPeerCAddr: !isGroupChat ? chatId : null,
+      },
+      msgsTabFields,
+    );
+    const [sqlValue] = sqlite.db.exec(
+      `--sql
+      SELECT *
       FROM messages
-      WHERE chatId=$chatId
+      WHERE ${andEqualExprFor(whereParams)}
       ORDER BY timestamp DESC
-      LIMIT 1
-    `;
-
-    const [sqlValue] = sqlite.db.exec(query, { $chatId: chatId });
+      LIMIT 1`,
+      whereParams,
+    );
     if (!sqlValue) {
       return null;
     }
-    const [msg] = fromQueryResult<MsgDbEntry & { chatId?: string }>(sqlValue, msgsTabFields);
-    if (!msg) {
-      return null;
-    }
-    delete msg.chatId;
-    return msg;
+    const [msg] = fromQueryResult<MsgDbEntry>(sqlValue, msgsTabFields);
+    return msg ?? null;
   }
 
   function getUnreadMsgsCountIn({ isGroupChat, chatId }: ChatIdObj): number {
@@ -1228,6 +1236,31 @@ export async function msgsDb({
         targetMessageId,
       }),
     );
+  }
+
+  /**
+   * Distinct chats that buffered phantoms wait to exist (`targetMessageId` is
+   * NULL). The work-list of the start-up 'resync:chats' ask: each one is a chat
+   * some other device of the user has and this one never got.
+   */
+  function getChatlessOrphanChatIds(): ChatIdObj[] {
+    const [sqlValue] = auxiliarySqlite.db.exec(
+      `--sql
+      SELECT DISTINCT groupChatId, otoPeerCAddr
+      FROM orphaned_messages
+      WHERE targetMessageId IS NULL`,
+    );
+
+    if (!sqlValue) {
+      return [];
+    }
+
+    type ChatRow = { groupChatId: string | null; otoPeerCAddr: string | null };
+    return objectFromQueryExecResult<ChatRow>(sqlValue)
+      .filter(({ groupChatId, otoPeerCAddr }: ChatRow) => !!(groupChatId || otoPeerCAddr))
+      .map(({ groupChatId, otoPeerCAddr }: ChatRow) => (groupChatId
+        ? { isGroupChat: true, chatId: groupChatId }
+        : { isGroupChat: false, chatId: otoPeerCAddr! }));
   }
 
   /**
@@ -1672,6 +1705,7 @@ export async function msgsDb({
     getStuckMessagesForTargetMessageId,
     getStuckMessagesWithoutTarget,
     getStuckOrphanTargets,
+    getChatlessOrphanChatIds,
     countOrphanedSyncs,
     deleteOrphanedMessage,
     collectGarbageInAuxiliaryDB,

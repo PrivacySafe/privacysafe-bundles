@@ -52,6 +52,12 @@ import type {
   RestorePreview,
 } from '../../types/backup.types.ts';
 import type { GuiLogLine } from '../../shared-libs/log-relay.ts';
+import type {
+  AppSettings,
+  AutoBackupInfo,
+  AutoBackupListing,
+  AutoBackupRestoreOutcome,
+} from '../../types/auto-backup.types.ts';
 import type { SyncPhantomReleaseResult } from '../services/mail-sending-service/sync-phantoms.ts';
 import type { ChatDbEntry, ChatSettings, GroupChatDbEntry, OTOChatDbEntry } from './chat-db.types.ts';
 import type { MsgDbEntry } from './msgs-db.types.ts';
@@ -224,6 +230,43 @@ export interface ChatSrv {
    * signalling (see msg-resync.ts and the timer in src-deno/index.ts).
    */
   requestResyncForStuckOrphans(): Promise<void>;
+
+  /**
+   * Asks the user's other devices for whole chats this device does not have:
+   * all of them on the first run of this device, and the ones buffered orphans
+   * wait for. Run in the same delayed start-up pass as the record asks (see
+   * chat-service/utils/chat-resync.ts).
+   */
+  requestChatsResyncAtStartup(): Promise<void>;
+
+  /**
+   * The first-run ask for all chats, if it is still pending. Called right at
+   * start-up: a new device shows an empty chat list until it is answered.
+   */
+  requestInitialChatsSnapshot(): Promise<void>;
+
+  /**
+   * Starts the automatic backup (see backup-service/auto-backup.ts): the
+   * first-run restore of a new installation, this device's file every
+   * AUTO_BACKUP_INTERVAL_MILLIS, the removal of dead devices' files. Called
+   * from start-up wiring once the call check below is in place.
+   */
+  startAutoBackup(isBusy: () => boolean): void;
+
+  /** Settings of the app on this device, and where its automatic backup stands. */
+  getAutoBackupInfo(): Promise<AutoBackupInfo>;
+
+  setAppSettings(patch: Partial<AppSettings>): Promise<AutoBackupInfo>;
+
+  /** Every automatic backup in the synced storage, newest first. Reads them all. */
+  listAutoBackups(): Promise<AutoBackupListing>;
+
+  /**
+   * Restores from the automatic backups of other devices - the ones named, or
+   * all of them - as a merge. Progress comes as 'restore-progress' events with
+   * `source: 'auto-backup'`, closed by this component.
+   */
+  restoreFromAutoBackups(deviceIds?: string[]): Promise<AutoBackupRestoreOutcome>;
 
   /**
    * Installs the "a call is going on" check that makes resync asks and answers

@@ -27,6 +27,7 @@ import type {
   MemberRemovalSysMsgData,
   OneToOneChatParameters,
   PhantomSyncMsgDataBasedOnRegularMsgV1,
+  ResyncChatsSysMsgData,
   ResyncMsgRecordSysMsgData,
   RestoreSnapshotSysMsgData,
   UpdateAdminsSysMsgData,
@@ -49,6 +50,7 @@ import {
   statusForSyncedOutgoingMsg,
 } from './_msgs-related-methods.ts';
 import { requestMsgRecordResync, respondToMsgRecordResync, type ResyncCtx } from './msg-resync.ts';
+import { noteChatsResyncAnswer, requestChatsResync, respondToChatsResync } from './chat-resync.ts';
 import { applyRestoreSnapshot } from './restore-snapshot.ts';
 import {
   applyIfNewer,
@@ -284,6 +286,24 @@ async function bufferOrphanedSyncAwaitingRecord(
 }
 
 /**
+ * Buffers a phantom that waits for its chat to exist, and asks the user's
+ * other devices for that chat. Waiting alone is not enough: the chat may be
+ * older than anything left in the shared inbox, and then its creation never
+ * arrives (see chat-resync.ts).
+ */
+async function bufferOrphanedSyncAwaitingChat(
+  db: DB,
+  chatId: ChatIdObj,
+  syncMsg: ChatSyncMsgV1<PhantomSyncMsgDataBasedOnRegularMsgV1 | ChatSystemMsgV1 | ChatInvitationMsgV1>,
+  resync: ResyncCtx | undefined,
+): Promise<void> {
+  await bufferOrphanedSync(db, chatId, undefined, syncMsg);
+  if (resync) {
+    await requestChatsResync(resync, [chatId]);
+  }
+}
+
+/**
  * Creates a chat based on the invitation data (for synchronization).
  * This is necessary when a ghosted invitation arrives before the chat has been created.
  */
@@ -317,6 +337,66 @@ async function createChatFromInvitationSync(
     });
     emit.chat.added(chat);
     await w3n.log('info', `Created group chat ${inviteData.groupChatId} from invitation sync`);
+  }
+}
+
+/**
+ * Treats a message the user sent from another device as proof that the chat
+ * was accepted there: a chat in 'invited' status does not let the user send
+ * anything, so such a message can only exist after an acceptance.
+ *
+ * Needed because the 'accept:invitation' phantom is the only other carrier of
+ * that fact, and it can be missing - seen on a reinstalled Android device
+ * (2026-11): the chat was recreated from the peer's invitation still sitting
+ * in the shared inbox, all of the user's own messages came in through their
+ * phantoms, the acceptance did not, and the chat stayed 'invited' for good -
+ * the peer's messages were skipped and sending was blocked.
+ *
+ * Versioned with the message's own token on the chat's 'status' aspect, the
+ * same aspect 'accept:invitation' writes, so any later status change (removal
+ * from the group, say) still wins over this inference.
+ */
+async function acceptChatProvenByOwnMsg(
+  db: DB,
+  emit: ChatSrvEmit,
+  chat: NonNullable<ReturnType<DB['findChat']>>,
+  ownAddr: string,
+  token: SyncToken,
+  chatMessageId: string,
+): Promise<void> {
+  if (chat.status !== 'invited') {
+    return;
+  }
+
+  const chatId: ChatIdObj = chat.isGroupChat
+    ? { isGroupChat: true, chatId: chat.chatId }
+    : { isGroupChat: false, chatId: chat.peerCAddr };
+
+  const applied = await applyIfNewer(
+    { db, entityType: 'chat', entityId: chatEntityId(chatId), aspect: 'status', token },
+    async () => {
+      let updatedChat;
+      if (chat.isGroupChat) {
+        const members = { ...chat.members };
+        if (members[ownAddr]) {
+          members[ownAddr] = { ...members[ownAddr], hasAccepted: true };
+        }
+        updatedChat = await db.updateGroupChatRecord(chat.chatId, { members, status: 'on' });
+      } else {
+        updatedChat = await db.updateOTOChatRecord(chat.peerCAddr, { status: 'on' });
+      }
+      if (updatedChat) {
+        emit.chat.updated(updatedChat);
+      }
+    },
+  );
+
+  if (applied) {
+    await w3n.log(
+      'info',
+      `Chat ${chatId.chatId} was 'invited', but own message ${chatMessageId} came from device `
+        + `${token.deviceId}; taking it as accepted there and switching the chat on`,
+    );
   }
 }
 
@@ -360,12 +440,17 @@ async function handleRegularSync({
     // The dependency here is the chat's existence, not a specific message: buffer
     // without a targetMessageId so it is picked up by getStuckMessagesWithoutTarget()
     // once the chat is created (see processOrphanedForChatCreation()).
-    await bufferOrphanedSync(db, chatId, undefined, syncMsg);
+    await bufferOrphanedSyncAwaitingChat(db, chatId, syncMsg, resync);
     return;
   }
 
   const syncedStatus = statusForSyncedOutgoingMsg(status);
   const token: SyncToken = { ts: syncMsg.timestamp || Date.now(), deviceId: sourceDeviceId };
+
+  if (!isIncomingMsg) {
+    await acceptChatProvenByOwnMsg(db, emit, chat, ownAddr, token, chatMessageId);
+  }
+
   const existingMsg = await db.getMessage({ chatId, chatMessageId });
 
   if (existingMsg) {
@@ -468,12 +553,16 @@ async function handleSystemSync({
   // in its envelope would be plainly wrong: the envelope's chat is the chat of
   // the chunk's first record and means nothing to this branch (it is there for
   // the benefit of older builds - see RestoreSnapshotSysMsgData).
-  const chatRequired = !['member-removed', 'resync:msg-record', 'restore:snapshot'].includes(event);
+  //
+  // 'resync:chats' asks precisely for chats this device may not have, and its
+  // envelope names at most the first of them.
+  const chatRequired = !['member-removed', 'resync:msg-record', 'resync:chats', 'restore:snapshot']
+    .includes(event);
 
   if (chatRequired && !chatExists(db, chatId)) {
     // Waiting on the chat's existence, not on a specific message; see the matching
     // comment in handleRegularSync().
-    await bufferOrphanedSync(db, chatId, undefined, syncMsg);
+    await bufferOrphanedSyncAwaitingChat(db, chatId, syncMsg, resync);
     return;
   }
 
@@ -826,6 +915,14 @@ async function handleSystemSync({
       break;
     }
 
+    case 'resync:chats': {
+      const { value } = chatSystemData as ResyncChatsSysMsgData;
+      if (resync) {
+        await respondToChatsResync(resync, value, sourceDeviceId);
+      }
+      break;
+    }
+
     case 'restore:snapshot': {
       const { value } = chatSystemData as RestoreSnapshotSysMsgData;
       // The same function the restoring device ran, with the same mode and the
@@ -845,6 +942,8 @@ async function handleSystemSync({
           // its own restore of the same archive resurrects nothing.
           ...(value.restoreToken && { restoreToken: value.restoreToken }),
           ...(value.deleted && { deleted: value.deleted }),
+          // An answer to 'resync:chats' (see chat-resync.ts).
+          ...(value.applyNewerAspects && { applyNewerAspects: true }),
         },
         {
           db,
@@ -866,11 +965,16 @@ async function handleSystemSync({
       );
       await w3n.log(
         'info',
-        `Applied restore snapshot ${value.restoreId} part ${value.part}/${value.of} (${value.mode}): `
+        `Applied ${value.applyNewerAspects ? 'chats resync' : 'restore'} snapshot ${value.restoreId} `
+          + `part ${value.part}/${value.of} (${value.mode}): `
           + `chats +${applied.chatsCreated}/~${applied.chatsUpdated}, `
           + `messages +${applied.messagesCreated}/~${applied.messagesUpdated}, `
           + `${applied.skipped} skipped`,
       );
+      // An answer to this device's ask for all chats ends its repeats.
+      if (value.applyNewerAspects && resync) {
+        await noteChatsResyncAnswer(resync, value.restoreId, sourceDeviceId);
+      }
       break;
     }
 
@@ -925,7 +1029,7 @@ async function handleInvitationSync({
     } else {
       // Waiting on the chat's existence, not on a specific message; see the matching
       // comment in handleRegularSync().
-      await bufferOrphanedSync(db, chatId, undefined, syncMsg);
+      await bufferOrphanedSyncAwaitingChat(db, chatId, syncMsg, resync);
       return;
     }
   }

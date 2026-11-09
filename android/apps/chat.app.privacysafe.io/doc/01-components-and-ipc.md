@@ -200,9 +200,29 @@ flowchart LR
 
 ### 3.1 `AppChatsInternal` (`ChatSrv`)
 
-Реализация — [chat-service.ts](../src-deno/services/chat-service/chat-service.ts), публикация —
+Реализация — [chat-service.ts](../src-deno/services/chat-service/chat-service.ts) и модули рядом
+(карта ниже), публикация —
 [ipc-expose.ts:24-66](../src-deno/services/chat-service/ipc-expose.ts#L24-L66), контракт —
 [types/chat-srv.types.ts:62-194](../src-deno/types/chat-srv.types.ts#L62-L194).
+
+Карта модулей в [src-deno/services/chat-service/](../src-deno/services/chat-service/). Каждый
+модуль — фабрика, получающая общий контекст `ChatSrvCtx`. Обработчики отдельных операций с чатами
+и сообщениями лежат в `utils/` и в контекст входят готовыми.
+
+| Модуль | Что в нём |
+|---|---|
+| [chat-service.ts](../src-deno/services/chat-service/chat-service.ts) | сборка: контекст, модули, бэкап, объект методов `ChatSrv`, обработчик изменений чёрного списка |
+| [chat-srv-ctx.ts](../src-deno/services/chat-service/chat-srv-ctx.ts) | `ChatSrvCtx` и `createChatSrvCtx()`: события, файловое хранилище, `syncActivity` и его подписка на исход проходов журнала, `resyncCtx`, `getAppDeviceId` / `nextSyncStamp`, обработчики из `utils/` |
+| [incoming-messages.ts](../src-deno/services/chat-service/incoming-messages.ts) | `handleIncomingMsg` (§2.1 в [03-message-flows.md](./03-message-flows.md)), `forceRefreshChat`, догрузка пропущенных входящих после того, как чат начал принимать, подписчики системных сообщений о звонке |
+| [incoming-system-msgs.ts](../src-deno/services/chat-service/incoming-system-msgs.ts) | `handleSystemMsg`: разбор системных событий собеседников по обработчикам |
+| [chat-entry.ts](../src-deno/services/chat-service/chat-entry.ts) | `createOneToOneChat`, `createGroupChat`, `acceptChatInvitation` |
+| [chat-queries.ts](../src-deno/services/chat-service/chat-queries.ts) | чтение чатов и сообщений в виде view для GUI, поиск |
+| [local-msg-actions.ts](../src-deno/services/chat-service/local-msg-actions.ts) | отправка, отмена отправки, правка, реакции и оповещение о них собеседников |
+| [local-system-events.ts](../src-deno/services/chat-service/local-system-events.ts) | записи, которые устройство делает само (`makeAndSaveMsgToDb`, `saveAndSyncLocalSystemMsg`), и их фантомы |
+
+`chat-entry.ts` получает от `incoming-messages.ts` две функции аргументом, а не импортом: принятие
+приглашения должно запустить догрузку того, что чат пропустил, пока не мог принимать сообщения.
+Спеки модулей приёма — [ci/invitation-sync.test.ts](../ci/invitation-sync.test.ts).
 
 Группы методов:
 
