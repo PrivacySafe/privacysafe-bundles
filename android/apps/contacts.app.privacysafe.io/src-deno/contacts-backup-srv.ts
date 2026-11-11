@@ -19,7 +19,8 @@
 // worker through URL.createObjectURL(new Blob(...)), which is not something the
 // platform's deno component can be relied on to provide. Streaming through
 // `Zip` still reports progress per entry, which a single zipSync call could not.
-import { Zip, ZipDeflate, ZipPassThrough, unzipSync, type Unzipped } from 'fflate/browser';
+import { Zip, ZipDeflate, ZipPassThrough, strFromU8, strToU8, unzipSync, type Unzipped } from 'fflate/browser';
+import { makeCancelController, type CancelController, type CancelSignal } from './utils/cancel-signal.ts';
 // @deno-types="../shared-libs/sqlite-on-3nstorage/index.d.ts"
 import { SQLiteOn3NStorage } from '../shared-libs/sqlite-on-3nstorage/index.js';
 import { sleep } from '../shared-libs/processes/sleep.ts';
@@ -70,7 +71,7 @@ export class BackupArchiveFailure extends Error {
   }
 }
 
-function checkAbortSignal(signal?: AbortSignal): void {
+function checkAbortSignal(signal?: CancelSignal): void {
   if (signal?.aborted) {
     throw new DOMException('Backup cancelled', 'AbortError');
   }
@@ -87,12 +88,14 @@ function mergeUint8Arrays(chunks: Uint8Array[]): Uint8Array {
   return res;
 }
 
+// fflate's UTF-8, not TextEncoder/TextDecoder: the bare V8 isolate the
+// component runs in on Android has neither.
 function utf8(str: string): Uint8Array {
-  return new TextEncoder().encode(str);
+  return strToU8(str);
 }
 
 function fromUtf8(bytes: Uint8Array): string {
-  return new TextDecoder().decode(bytes);
+  return strFromU8(bytes);
 }
 
 async function appVersion(): Promise<string> {
@@ -118,7 +121,7 @@ export interface ZipEntryInput {
  */
 export async function zipEntries(
   entries: ZipEntryInput[],
-  signal: AbortSignal | undefined,
+  signal: CancelSignal | undefined,
 ): Promise<Uint8Array> {
   const chunks: Uint8Array[] = [];
 
@@ -313,7 +316,7 @@ export async function contactsBackupSrv({
   ) => Promise<BackupValidationResult>;
   restoreBackupArchive: (archiveBytes: Uint8Array) => Promise<boolean>;
 }> {
-  let activeAbortController: AbortController | null = null;
+  let activeAbortController: CancelController | null = null;
 
   function emitBackupProgress(
     // No 'encrypting' here: that stage belongs to the gui, which owns the
@@ -361,7 +364,7 @@ export async function contactsBackupSrv({
   async function createBackupArchive(
     { forEncryption }: { forEncryption?: boolean } = {},
   ): Promise<{ bytes: Uint8Array; skippedImages: string[] }> {
-    const abortController = new AbortController();
+    const abortController = makeCancelController();
     activeAbortController = abortController;
     const { signal } = abortController;
 

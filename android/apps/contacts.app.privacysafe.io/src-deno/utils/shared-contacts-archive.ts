@@ -16,7 +16,7 @@
 */
 // Reading of an export file with shared contacts (.w3nec), made by
 // contacts-share-srv.ts on the sending side.
-import { unzipSync, type Unzipped } from 'fflate/browser';
+import { strFromU8, unzipSync, type Unzipped } from 'fflate/browser';
 import { canonicalMail } from '@main/common/utils/mail-address.ts';
 import { SHARE_DATA_FILE, SHARE_DATA_VERSION, SHARE_IMAGES_FOLDER } from '../constants.ts';
 import { isSafeArchivePath } from './backup-archive.ts';
@@ -58,7 +58,7 @@ export function readSharedContactsArchive(bytes: Uint8Array): ImportedContact[] 
 
   let data: SharedContactsData;
   try {
-    data = JSON.parse(new TextDecoder().decode(dataBytes)) as SharedContactsData;
+    data = JSON.parse(strFromU8(dataBytes)) as SharedContactsData;
   } catch {
     throw new SharedContactsArchiveFailure('corrupted_archive');
   }

@@ -31,6 +31,13 @@ platform adds no polyfill: it bridges its own random number generator to the
 native side and implements NaCl natively, precisely because the isolate has no
 crypto of its own.
 
+The platform's preload does bring `core-js` (timers, `URL`, `atob`/`btoa`,
+`structuredClone`, `DOMException`), but not `TextEncoder`/`TextDecoder` and not
+`AbortController`. So the component takes UTF-8 from fflate (`strToU8` /
+`strFromU8`) and cancellation from its own `utils/cancel-signal.ts` — on every
+OS, so that the code path is one (0.8.53; before it backup, restore and sharing
+threw on Android).
+
 The GUI, by contrast, has WebCrypto on both platforms: on android the webview is
 loaded over an `https` origin, and in electron the custom scheme is registered
 with `secure: true`. Both give the secure context that `crypto.subtle` requires.
@@ -185,7 +192,8 @@ Notes on packing:
   outright.
 - Ciphertext does not compress, so `payload.zip.enc` is stored, not deflated.
 - One unreadable avatar does not fail a backup — it goes into `skippedImages`.
-- Cancellation goes through an `AbortController`; the loops check it per entry,
+- Cancellation goes through `makeCancelController()` (`utils/cancel-signal.ts`,
+  not `AbortController` — see 1.1); the loops check it per entry,
   so it lands between entries rather than only at the ends.
 
 ## 4. Reading an archive

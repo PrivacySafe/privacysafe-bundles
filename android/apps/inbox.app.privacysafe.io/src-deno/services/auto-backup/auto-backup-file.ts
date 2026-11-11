@@ -17,7 +17,7 @@
 // The file of one device's automatic backup: built from the database, turned
 // into bytes and back. Pure apart from the database read, so that the specs
 // can take it apart.
-import { gunzipSync, gzipSync } from 'fflate/browser';
+import { gunzipSync, gzipSync, strFromU8, strToU8 } from 'fflate/browser';
 import type { AutoBackupFile } from '../../types/auto-backup.types.ts';
 import type { DBProvider } from '../../dataset/index.ts';
 import { isIncomingMsg } from '../sync/msg-aspects.ts';
@@ -97,10 +97,11 @@ function isGzip(bytes: Uint8Array): boolean {
 /**
  * JSON, gzip-compressed with fflate's synchronous api: on Android the deno
  * component runs in a bare V8 isolate, where neither CompressionStream nor the
- * Blob and Response a stream would be piped through can be relied on.
+ * Blob and Response a stream would be piped through can be relied on - nor
+ * even TextEncoder/TextDecoder, so the UTF-8 is fflate's too.
  */
 export function encodeAutoBackup(file: AutoBackupFile): Uint8Array {
-  return gzipSync(new TextEncoder().encode(JSON.stringify(file)), { level: 6 });
+  return gzipSync(strToU8(JSON.stringify(file)), { level: 6 });
 }
 
 export class AutoBackupFormatError extends Error {}
@@ -122,7 +123,7 @@ export function decodeAutoBackup(bytes: Uint8Array): AutoBackupFile {
 
   let parsed: Partial<AutoBackupFile>;
   try {
-    parsed = JSON.parse(new TextDecoder().decode(json));
+    parsed = JSON.parse(strFromU8(json));
   } catch {
     throw new AutoBackupFormatError('not JSON');
   }

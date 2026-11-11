@@ -6,6 +6,9 @@ allowBuilds:
   esbuild: true
   unrs-resolver: true
   vue-demi: true
+minimumReleaseAgeExclude:
+  - prettier@3.10.0
+  - sass@1.108.2
 onlyBuiltDependencies:
   - '@parcel/watcher'
   - core-js
@@ -14,3 +17,5 @@ onlyBuiltDependencies:
   - esbuild
   - unrs-resolver
   - vue-demi
+overrides:
+  rolldown: 1.2.16

@@ -5,7 +5,7 @@ import vue from '@vitejs/plugin-vue';
 import vueDevTools from 'vite-plugin-vue-devtools';
 
 function _resolve(dir: string) {
-  return resolve(__dirname, dir);
+  return resolve(import.meta.dirname, dir);
 }
 
 export const makeConfig = ({ mode }: ConfigEnv): UserConfig => {

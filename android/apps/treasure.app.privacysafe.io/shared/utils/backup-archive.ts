@@ -14,10 +14,13 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
-// Shape of a backup archive, kept free of any fflate / w3n import so that both
-// the deno service and the gui can use it. The deno side packs the files, the
-// gui side owns the container and the encryption - see doc/05-backup-and-restore.md.
+// Shape of a backup archive, kept free of w3n and of a zip implementation so
+// that both the deno service and the gui can use it. Of fflate only its UTF-8
+// encoder is taken: the bare V8 isolate the deno component runs in on Android
+// has no TextEncoder. The deno side packs the files, the gui side owns the
+// container and the encryption - see doc/05-backup-and-restore.md.
 
+import { strToU8 } from 'fflate/browser';
 /** Always stored unencrypted, so an archive can be identified without a key. */
 export const METADATA_FILE_NAME = 'treasure_app_privacysafe_io.json';
 
@@ -82,7 +85,7 @@ export function makeBackupMetadata({ version, recordsCount, groupsCount, encrypt
 export function makeBackupMetadataBytes(
   params: Parameters<typeof makeBackupMetadata>[0],
 ): Uint8Array {
-  return new TextEncoder().encode(JSON.stringify(makeBackupMetadata(params), null, 2));
+  return strToU8(JSON.stringify(makeBackupMetadata(params), null, 2));
 }
 
 /**

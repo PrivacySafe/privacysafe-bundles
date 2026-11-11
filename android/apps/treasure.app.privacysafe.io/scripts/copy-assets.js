@@ -1,10 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const srcDir = path.resolve(__dirname, '../node_modules/vue-ccard/dist');
-const destDir = path.resolve(__dirname, '../public');
+const srcDir = path.resolve(import.meta.dirname, '../node_modules/vue-ccard/dist');
+const destDir = path.resolve(import.meta.dirname, '../public');
 
 try {
   if (fs.existsSync(srcDir)) {

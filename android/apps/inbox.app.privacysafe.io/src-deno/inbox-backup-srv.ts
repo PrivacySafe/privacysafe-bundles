@@ -33,11 +33,12 @@
  * keeps one attachment in memory at a time rather than all of them.
  */
 
-import { Zip, ZipDeflate, ZipPassThrough, unzipSync, type Unzipped } from 'fflate/browser';
+import { Zip, ZipDeflate, ZipPassThrough, strFromU8, strToU8, unzipSync, type Unzipped } from 'fflate/browser';
 import { INBOX_SCAN_FLOOR_MS } from '../shared/constants/sync.ts';
 import { attachmentAvailabilityOf } from '../shared/utils/attachment-availability.ts';
 import { generateFastRandomString } from '../shared/utils/generate-random-string.ts';
 import { makeLogger } from '../shared/utils/logger.ts';
+import { makeCancelController, type CancelController, type CancelSignal } from './utils/cancel-signal.ts';
 import { randomIdStr } from '../shared/utils/random-id.ts';
 import { sleep } from '../shared/utils/processes/sleep.ts';
 import { SingleProc } from '../shared/utils/processes/single.ts';
@@ -132,7 +133,7 @@ export class BackupArchiveFailure extends Error {
   }
 }
 
-function checkAbortSignal(signal?: AbortSignal): void {
+function checkAbortSignal(signal?: CancelSignal): void {
   if (signal?.aborted) {
     throw new DOMException('Backup cancelled', 'AbortError');
   }
@@ -149,12 +150,14 @@ function mergeUint8Arrays(chunks: Uint8Array[]): Uint8Array {
   return res;
 }
 
+// fflate's UTF-8, not TextEncoder/TextDecoder: the isolate on Android has
+// neither (see the header).
 function utf8(str: string): Uint8Array {
-  return new TextEncoder().encode(str);
+  return strToU8(str);
 }
 
 function fromUtf8(bytes: Uint8Array): string {
-  return new TextDecoder().decode(bytes);
+  return strFromU8(bytes);
 }
 
 async function appVersion(): Promise<string> {
@@ -178,7 +181,7 @@ type AddEntry = (path: string, bytes: Uint8Array, store?: boolean) => void;
  */
 async function zipStreaming(
   produce: (add: AddEntry) => Promise<void>,
-  signal: AbortSignal | undefined,
+  signal: CancelSignal | undefined,
 ): Promise<Uint8Array> {
   const chunks: Uint8Array[] = [];
 
@@ -415,7 +418,7 @@ export function inboxBackupSrv({
   rescanInbox,
   ensureIncomingRecord,
 }: InboxBackupSrvDeps): InboxBackupSrv {
-  let activeAbortController: AbortController | null = null;
+  let activeAbortController: CancelController | null = null;
 
   /**
    * Restores one at a time: a manual one and one from the automatic backups
@@ -551,7 +554,7 @@ export function inboxBackupSrv({
     forEncryption,
     withAttachments = true,
   }: { forEncryption?: boolean; withAttachments?: boolean } = {}): Promise<BackupCreationResult> {
-    const abortController = new AbortController();
+    const abortController = makeCancelController();
     activeAbortController = abortController;
     const { signal } = abortController;
 

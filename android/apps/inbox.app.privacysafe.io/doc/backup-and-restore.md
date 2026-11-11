@@ -29,8 +29,11 @@ a neighbour means what `merge` meant on the source.
 
 Same as in Contacts, and for the same reason: on Android a `runtime: "deno"`
 component is executed by `androidx.javascriptengine` — a bare V8 isolate with no
-Web APIs, where `crypto` is simply absent. The GUI has WebCrypto on both
-platforms.
+Web APIs, where `crypto` is simply absent — and so are `TextEncoder`/`TextDecoder`
+(0.3.53 failed on them there): UTF-8 on this side is fflate's `strToU8`/`strFromU8`.
+No `AbortController` either (the platform's preload brings core-js, which lacks
+it): cancellation of a backup is `utils/cancel-signal.ts`, on every OS.
+The GUI has WebCrypto on both platforms.
 
 | Layer | Owns |
 |---|---|
@@ -618,7 +621,8 @@ Attachment bytes are not backed up; ids are cut out as for a phantom.
 
 gzip by fflate's **synchronous** API, not `CompressionStream`: on Android the
 component runs in a bare V8 isolate, and neither that nor the `Blob`/`Response`
-a stream would be piped through can be relied on. The reader also takes plain
+a stream would be piped through can be relied on, nor `TextEncoder` — the JSON
+is turned into bytes by fflate's `strToU8`. The reader also takes plain
 JSON (told apart by the gzip magic bytes). A file of another kind, an unknown
 `formatVersion` or a damaged one is skipped with a line in the log, never applied
 in part.

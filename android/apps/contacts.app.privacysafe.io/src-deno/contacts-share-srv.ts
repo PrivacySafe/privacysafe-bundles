@@ -14,7 +14,9 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
+import { strToU8 } from 'fflate/browser';
 import { sleep } from '../shared-libs/processes/sleep.ts';
+import { makeCancelController, type CancelController, type CancelSignal } from './utils/cancel-signal.ts';
 import { zipEntries, type ZipEntryInput } from './contacts-backup-srv.ts';
 import { callChatApp, callInboxApp } from './external-apps.ts';
 import { imageFromDataURL } from './utils/image-data-url.ts';
@@ -44,7 +46,7 @@ const YIELD_MS = 5;
  */
 const PREPARING_SHARE = 90;
 
-function checkAbortSignal(signal: AbortSignal): void {
+function checkAbortSignal(signal: CancelSignal): void {
   if (signal.aborted) {
     throw new DOMException('Sharing cancelled', 'AbortError');
   }
@@ -101,7 +103,7 @@ export async function contactsShareSrv({
     );
   }
 
-  let activeAbortController: AbortController | null = null;
+  let activeAbortController: CancelController | null = null;
   let isSharing = false;
 
   function emitShareProgress(payload: ShareProgress): void {
@@ -115,7 +117,7 @@ export async function contactsShareSrv({
   async function buildShareArchive(
     contactIds: string[],
     channel: ShareChannel,
-    signal: AbortSignal,
+    signal: CancelSignal,
   ): Promise<{ archive: Uint8Array; contactsCount: number }> {
     const totalContacts = contactIds.length;
     const contacts: SharedPerson[] = [];
@@ -165,7 +167,7 @@ export async function contactsShareSrv({
       createdAt: Date.now(),
       contacts,
     };
-    entries.unshift({ path: SHARE_DATA_FILE, bytes: new TextEncoder().encode(JSON.stringify(data)) });
+    entries.unshift({ path: SHARE_DATA_FILE, bytes: strToU8(JSON.stringify(data)) });
 
     const archive = await zipEntries(entries, signal);
     emitShareProgress({
@@ -225,7 +227,7 @@ export async function contactsShareSrv({
     }
 
     isSharing = true;
-    const abortController = new AbortController();
+    const abortController = makeCancelController();
     activeAbortController = abortController;
     const { signal } = abortController;
     const totalContacts = contactIds.length;

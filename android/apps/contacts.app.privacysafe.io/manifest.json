@@ -1,7 +1,7 @@
 {
   "name": "Contacts",
   "appDomain": "contacts.app.privacysafe.io",
-  "version": "0.8.52",
+  "version": "0.8.53",
   "description": "Private address book for your contact list.",
   "icon": "logo.png",
   "publisher": "Ivy Cyber",

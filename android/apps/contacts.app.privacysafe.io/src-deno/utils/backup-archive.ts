@@ -14,11 +14,13 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
-// Pure part of backup and restore, kept free of any fflate / sqlite / w3n
-// import so that it can be unit-tested without the ~1MB precompiled sqlite
-// runtime or a zip implementation. Everything that decides WHAT goes into an
+// Pure part of backup and restore, kept free of sqlite / w3n imports and of a
+// zip implementation, so that it can be unit-tested without the ~1MB
+// precompiled sqlite runtime. Of fflate only its UTF-8 encoder is taken: the
+// bare V8 isolate the component runs in on Android has no TextEncoder. Everything that decides WHAT goes into an
 // archive, and what a restored row must look like, lives here; the service
 // module next to it only does the io.
+import { strToU8 } from 'fflate/browser';
 import { CONTACTS_DB_FILE, IMAGES_FOLDER } from '../constants.ts';
 import { ensureUniqueContactIds } from './db-file-conflict.ts';
 import { randomStr } from '../../src/common/services/base/random.ts';
@@ -101,7 +103,7 @@ export function makeBackupMetadata({ version, skippedImages, contactsCount, encr
 export function makeBackupMetadataBytes(
   params: Parameters<typeof makeBackupMetadata>[0],
 ): Uint8Array {
-  return new TextEncoder().encode(JSON.stringify(makeBackupMetadata(params), null, 2));
+  return strToU8(JSON.stringify(makeBackupMetadata(params), null, 2));
 }
 
 /**

@@ -14,13 +14,15 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
-// Pure part of backup and restore: no fflate, no sqlite, no `w3n`. Everything
+// Pure part of backup and restore: no zip, no sqlite, no `w3n` (of fflate only
+// its UTF-8 encoder - the deno isolate on Android has no TextEncoder). Everything
 // that decides WHAT goes into an archive and what an entry name may be lives
 // here, so that it can be unit-tested on its own; the service module next to it
 // only does the io.
 //
 // Imported from the GUI as well - the container around an encrypted archive is
 // built there, and it has to name its metadata file exactly the same way.
+import { strToU8 } from 'fflate/browser';
 import type {
   BackedUpAttachment,
   BackupEncryptionParams,
@@ -120,7 +122,7 @@ export function makeBackupMetadata({
 export function makeBackupMetadataBytes(
   params: Parameters<typeof makeBackupMetadata>[0],
 ): Uint8Array {
-  return new TextEncoder().encode(JSON.stringify(makeBackupMetadata(params), null, 2));
+  return strToU8(JSON.stringify(makeBackupMetadata(params), null, 2));
 }
 
 /**

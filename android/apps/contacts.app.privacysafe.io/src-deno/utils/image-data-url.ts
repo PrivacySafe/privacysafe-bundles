@@ -16,6 +16,11 @@
 */
 // Avatars are kept in the app's storage as data-urls in text files, while an
 // export file with shared contacts carries them as ordinary image files.
+//
+// UTF-8 is fflate's: the bare V8 isolate the component runs in on Android has
+// no TextEncoder. atob/btoa are there - the platform's preload brings core-js.
+
+import { strToU8 } from 'fflate/browser';
 
 const MIME_TO_EXT: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -50,7 +55,7 @@ export function imageFromDataURL(dataURL: string): { bytes: Uint8Array; ext: str
       bytes[i] = bin.charCodeAt(i);
     }
   } else {
-    bytes = new TextEncoder().encode(decodeURIComponent(payload));
+    bytes = strToU8(decodeURIComponent(payload));
   }
 
   return { bytes, ext: MIME_TO_EXT[mime.toLowerCase()] ?? 'img' };

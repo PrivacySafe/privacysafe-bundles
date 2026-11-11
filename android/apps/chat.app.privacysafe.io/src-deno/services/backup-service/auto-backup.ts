@@ -302,7 +302,9 @@ export function autoBackupService(deps: AutoBackupDeps): AutoBackupSrv {
       snapshotTs,
       now: writtenAt,
     });
+    const encodeStart = Date.now();
     const bytes = await encodeAutoBackup(file);
+    const encodeMs = Date.now() - encodeStart;
     await storage.write(fileNameOfDevice(deviceId), bytes);
     await updateState(state => {
       state.lastAt = writtenAt;
@@ -312,7 +314,7 @@ export function autoBackupService(deps: AutoBackupDeps): AutoBackupSrv {
     });
     log.info(
       `Automatic backup written: ${file.chats.length} chat(s), ${file.msgs.length} message(s), `
-        + `${file.tombstones.length} tombstone(s), ${bytes.length} byte(s)`,
+        + `${file.tombstones.length} tombstone(s), ${bytes.length} byte(s) gzip, encoded in ${encodeMs} ms`,
     );
   }
 

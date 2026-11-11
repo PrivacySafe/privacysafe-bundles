@@ -17,6 +17,12 @@
 // The file of one device's automatic backup: built from the database, turned
 // into bytes and back. Pure apart from the database read, so that the specs
 // can take it apart (ci/auto-backup.test.ts).
+// 'fflate/browser', not 'fflate': the bundle is built for platform 'node', and
+// there fflate's node entry opens with `import { createRequire } from "module"`.
+// The platform's deno has no node built-ins, so that import failed the whole
+// component at load - nothing got exposed, and the window timed out on
+// AppChatsInternal (0.12.42). The browser entry imports nothing.
+import { gunzipSync, gzipSync, strFromU8, strToU8 } from 'fflate/browser';
 import type { AutoBackupFile } from '../../../types/auto-backup.types.ts';
 import type { BackedUpTombstone, SnapshotMsgEntry } from '../../../types/backup.types.ts';
 import type { DB } from '../../types/index.ts';
@@ -85,31 +91,21 @@ export function buildAutoBackupFile({
   };
 }
 
-async function pipeThrough(
-  bytes: Uint8Array,
-  transform: CompressionStream | DecompressionStream,
-): Promise<Uint8Array> {
-  const stream = new Blob([bytes as Uint8Array<ArrayBuffer>]).stream()
-    .pipeThrough(transform as unknown as TransformStream<Uint8Array, Uint8Array>);
-  return new Uint8Array(await new Response(stream).arrayBuffer());
-}
-
 function isGzip(bytes: Uint8Array): boolean {
   return (bytes.length >= 2) && (bytes[0] === 0x1f) && (bytes[1] === 0x8b);
 }
 
 /**
- * JSON, gzip-compressed when the runtime can do it. A runtime without
- * CompressionStream writes plain JSON under the same name, and the reader
- * tells the two apart by the gzip magic bytes - a file must never be lost to a
- * missing API.
+ * gzip-compressed JSON, made by fflate (pure JS) on every OS: the component's
+ * runtime on Android has neither TextEncoder nor, it seems, the streams API,
+ * and one code path everywhere does not depend on what a runtime adds later.
+ * The sync api is deliberate - the async one spins up workers. Plain JSON
+ * (written by older builds where CompressionStream was missing) is still read:
+ * the reader tells the two apart by the gzip magic bytes.
  */
+// deno-lint-ignore require-await
 export async function encodeAutoBackup(file: AutoBackupFile): Promise<Uint8Array> {
-  const json = new TextEncoder().encode(JSON.stringify(file));
-  if (typeof CompressionStream === 'undefined') {
-    return json;
-  }
-  return pipeThrough(json, new CompressionStream('gzip'));
+  return gzipSync(strToU8(JSON.stringify(file)));
 }
 
 export class AutoBackupFormatError extends Error {}
@@ -122,14 +118,14 @@ export class AutoBackupFormatError extends Error {}
 export async function decodeAutoBackup(bytes: Uint8Array): Promise<AutoBackupFile> {
   let json: Uint8Array;
   try {
-    json = isGzip(bytes) ? await pipeThrough(bytes, new DecompressionStream('gzip')) : bytes;
+    json = isGzip(bytes) ? gunzipSync(bytes) : bytes;
   } catch (err) {
     throw new AutoBackupFormatError(`not a readable gzip stream: ${(err as Error)?.message ?? err}`);
   }
 
   let parsed: Partial<AutoBackupFile>;
   try {
-    parsed = JSON.parse(new TextDecoder().decode(json));
+    parsed = JSON.parse(strFromU8(json));
   } catch {
     throw new AutoBackupFormatError('not JSON');
   }

@@ -14,7 +14,8 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
-import { Zip, ZipDeflate, ZipPassThrough, unzip, type Unzipped } from 'fflate/browser';
+import { Zip, ZipDeflate, ZipPassThrough, unzipSync, type Unzipped } from 'fflate/browser';
+import { makeCancelController, type CancelController, type CancelSignal } from './utils/cancel-signal.ts';
 import { GROUPS_FILE_NAME, IMAGES_FOLDER, RECENT_FILE_NAME } from '../shared/constants.ts';
 import { sleep } from '../shared/processes/sleep.ts';
 import {
@@ -39,11 +40,11 @@ interface CompressBackupParams {
   files: string[];
   /** Left out when the gui will encrypt: metadata then goes outside. */
   metadata?: BackupMetadata;
-  signal: AbortSignal;
+  signal: CancelSignal;
   emitEvent: (event: TreasureEvent) => void;
 }
 
-function checkAbortSignal(signal?: AbortSignal): void {
+function checkAbortSignal(signal?: CancelSignal): void {
   if (signal?.aborted) {
     throw new DOMException('Backup cancelled', 'AbortError');
   }
@@ -75,16 +76,14 @@ function areBytesEqual(a?: Uint8Array, b?: Uint8Array): boolean {
   return true;
 }
 
+/**
+ * The synchronous fflate api, not `unzip`: the asynchronous one hands every
+ * entry above 512KB to `new Worker(URL.createObjectURL(new Blob(...)))`, and the
+ * bare V8 isolate the component runs in on Android has none of these - a
+ * restore with a large file failed there.
+ */
 async function decompressZip(bytes: Uint8Array): Promise<Unzipped> {
-  return new Promise((resolve, reject) => {
-    unzip(bytes, (err, unzipped) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(unzipped);
-      }
-    });
-  });
+  return unzipSync(bytes);
 }
 
 async function generateBackupMetadata(
@@ -267,7 +266,7 @@ async function compressFilesToZip({
 async function collectFilesFromFS(
   fs: web3n.files.WritableFS,
   dir = '',
-  signal?: AbortSignal,
+  signal?: CancelSignal,
 ): Promise<string[]> {
   checkAbortSignal(signal);
 
@@ -304,7 +303,7 @@ export async function treasureBackupSrv({
   cancelBackupArchive: () => Promise<boolean>;
   restoreBackupArchive: (archiveBytes: Uint8Array) => Promise<boolean>;
 }> {
-  let activeAbortController: AbortController | null = null;
+  let activeAbortController: CancelController | null = null;
 
   async function cancelBackupArchive(): Promise<boolean> {
     if (activeAbortController && !activeAbortController.signal.aborted) {
@@ -325,7 +324,7 @@ export async function treasureBackupSrv({
   async function createBackupArchive(
     { forEncryption }: { forEncryption?: boolean } = {},
   ): Promise<Uint8Array> {
-    const abortController = new AbortController();
+    const abortController = makeCancelController();
     activeAbortController = abortController;
     const { signal } = abortController;
 
