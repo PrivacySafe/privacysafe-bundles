@@ -30,6 +30,7 @@ import { processOrphanedForChatCreation } from './utils/handle-incoming-sync.ts'
 import { chatBackupSrv } from '../backup-service/chat-backup-srv.ts';
 import { autoBackupService } from '../backup-service/auto-backup.ts';
 import { syncedAutoBackupStorage } from '../backup-service/auto-backup-storage.ts';
+import { hasLegacyDataOnSynced } from '../../dataset/index.ts';
 import { requestResyncForStuckOrphans } from './utils/msg-resync.ts';
 import { requestChatsResyncAtStartup, requestInitialChatsSnapshot } from './utils/chat-resync.ts';
 import type { SyncActivityTracker } from '../../utils/sync-activity.ts';
@@ -104,7 +105,9 @@ export async function chatService(
   let autoBackupBusyCheck: (() => boolean) | undefined;
   const autoBackup = autoBackupService({
     db: data,
-    storage: syncedAutoBackupStorage(),
+    storage: syncedAutoBackupStorage({
+      mayClearRoot: async fs => !(await hasLegacyDataOnSynced(fs)),
+    }),
     store: localDataStoreSrv,
     getAppVersion: () => w3n.myVersion(),
     isBusy: () => !!autoBackupBusyCheck?.(),

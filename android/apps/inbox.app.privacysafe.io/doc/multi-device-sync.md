@@ -285,6 +285,12 @@ backup archive, applied by the very function the restoring device runs. Its
 format, and the rule deciding which records travel in it, are in
 [backup-and-restore.md](./backup-and-restore.md).
 
+A restore from the automatic backups sends the same event with two optional
+fields: `applyNewerAspects` (a `merge` that applies newer aspects onto what the
+receiver has) and `fallbackTs` (the stamp of the fallback token). A build that
+predates them reads the chunk as a plain `merge` — it takes what it lacks and
+nothing more, which is a degradation, not a divergence.
+
 `v: 2` was chosen rather than a new `kind` under `v: 1` deliberately: a build
 that predates it does not recognize the body, and step 2 above then leaves the
 message alone with a **deferred** removal instead of taking a change away from a

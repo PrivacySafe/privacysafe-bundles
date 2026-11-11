@@ -91,6 +91,27 @@ export interface RestoreSnapshotInput {
   folders?: SnapshotFolderEntry[];
   /** Only in `replace`. The token is fresh, so the deletion wins everywhere. */
   deleted?: { msgIds?: string[]; folderIds?: string[]; token: SyncToken };
+  /**
+   * Only meaningful in `merge`: an entity that is here is NOT skipped, its
+   * aspects are applied each under its own token by the ordinary last-write-
+   * wins - as `replace` does, but with nothing deleted, and with a tombstone
+   * still final (merge never resurrects).
+   *
+   * What the automatic backup applies with (services/auto-backup). A new
+   * installation has its incoming messages back from the shared inbox before
+   * the backups are read, with no tokens at all; a plain `merge` would skip
+   * every one of them and leave them in the Inbox, unread, wherever the user
+   * had put them.
+   */
+  applyNewerAspects?: boolean;
+  /**
+   * The stamp of the fallback token (see fallbackTokenOf) when it should not be
+   * `snapshotTs`. The automatic backup passes the lowest there is: several
+   * files are applied one after another, and a fallback under each file's own
+   * snapshotTs would let the newest file's "no token, so as of my snapshot"
+   * beat another file's real, older change.
+   */
+  fallbackTs?: number;
 }
 
 export interface RestoreSnapshotCtx {
@@ -187,8 +208,10 @@ function emptyResult(): RestoreSnapshotResult {
  * That holds because both `snapshotTs` and the restoring device's id travel in
  * the snapshot.
  */
-export function fallbackTokenOf(input: Pick<RestoreSnapshotInput, 'snapshotTs' | 'sourceDeviceId'>): SyncToken {
-  return { ts: input.snapshotTs, deviceId: input.sourceDeviceId };
+export function fallbackTokenOf(
+  input: Pick<RestoreSnapshotInput, 'snapshotTs' | 'sourceDeviceId' | 'fallbackTs'>,
+): SyncToken {
+  return { ts: input.fallbackTs ?? input.snapshotTs, deviceId: input.sourceDeviceId };
 }
 
 function tokenFor(
@@ -355,10 +378,11 @@ async function applyFolderEntry(
 
   const token = tokenFor(entry, 'folderProps', fallback);
 
-  if (input.mode === 'merge') {
+  const isHere = !!db.getFolderById(folder.id);
+  if ((input.mode === 'merge') && !(isHere && input.applyNewerAspects)) {
     // Present, or deliberately gone: either way it is not this archive's to
     // touch. A tombstone is respected, so a deleted folder does not come back.
-    if (db.getFolderById(folder.id) || db.getSyncVersion('folder', folder.id, 'deleted')) {
+    if (isHere || db.getSyncVersion('folder', folder.id, 'deleted')) {
       return false;
     }
     await db.upsertFolder(folder);
@@ -455,10 +479,12 @@ async function applyMsgEntry(
     // The two rules of `merge`, and the whole of it: an entity that is here is
     // not touched in any aspect, and a tombstone is respected - a message the
     // user deleted after taking the backup does not come back to life.
-    if (existing) {
+    // ...unless asked to apply newer aspects onto what is here, which then
+    // goes the way of `replace` below, minus the deletions.
+    if (existing && !input.applyNewerAspects) {
       return 'skipped';
     }
-    if (db.getSyncVersion('msg', msgId, 'deleted')) {
+    if (!existing && db.getSyncVersion('msg', msgId, 'deleted')) {
       return 'skipped';
     }
   } else if (!existing) {
@@ -484,8 +510,9 @@ async function applyMsgEntry(
     return created ? 'created' : 'skipped';
   }
 
-  // `replace` over an existing record - aspect by aspect, each under its own
-  // token, so that a later local change of one of them survives the restore.
+  // `replace` (or `merge` with applyNewerAspects) over an existing record -
+  // aspect by aspect, each under its own token, so that a later local change of
+  // one of them survives the restore.
   return (await applyAspectsOnto(entry, existing, input, fallback, ctx)) ? 'updated' : 'skipped';
 }
 
@@ -690,6 +717,10 @@ export interface SnapshotChunkInput {
   msgs: SnapshotMsgEntry[];
   folders: SnapshotFolderEntry[];
   deleted?: { msgIds?: string[]; folderIds?: string[]; token: SyncToken };
+  /** Carried in every chunk; see RestoreSnapshotInput.applyNewerAspects. */
+  applyNewerAspects?: boolean;
+  /** Carried in every chunk; see RestoreSnapshotInput.fallbackTs. */
+  fallbackTs?: number;
   /** RESTORE_SNAPSHOT_CHUNK_BYTES unless a spec says otherwise. */
   maxBytes?: number;
 }
@@ -757,6 +788,8 @@ export function chunkRestoreSnapshot(input: SnapshotChunkInput): MailSyncEventV2
     of: chunks.length,
     ...(chunk.msgs.length > 0 && { msgs: chunk.msgs }),
     ...(chunk.folders.length > 0 && { folders: chunk.folders }),
+    ...(input.applyNewerAspects && { applyNewerAspects: true as const }),
+    ...((input.fallbackTs !== undefined) && { fallbackTs: input.fallbackTs }),
     // Only in the LAST chunk, and only in `replace`.
     ...((index === chunks.length - 1) && input.deleted && { deleted: input.deleted }),
   }));

@@ -31,6 +31,8 @@ export const es = {
       manageBlocks: 'Gestionar bloques',
       makeBackup: 'Crear una copia de seguridad',
       restoreBackup: 'Restaurar desde una copia de seguridad',
+      restoreAutoBackup: 'Restaurar desde copias automáticas',
+      settings: 'Ajustes',
       exit: 'Salida',
     },
     btn: {
@@ -42,6 +44,44 @@ export const es = {
     },
   },
 
+  autoBackup: {
+    settings: {
+      title: 'Ajustes',
+      autoBackup: 'Copia de seguridad automática',
+      autoBackupHint:
+        'Cada {hours} horas, si algo ha cambiado, este dispositivo guarda una copia de su buzón ' +
+        '(carpetas, mensajes enviados, borradores, dónde están los mensajes y si se han leído) en ' +
+        'su almacenamiento cifrado. Los archivos adjuntos no se incluyen. Una nueva instalación de ' +
+        'la aplicación restaura el buzón desde estas copias por sí sola.',
+      showRestore: 'Mostrar «Restaurar desde copias automáticas» en el menú',
+      on: 'Sí',
+      off: 'No',
+      lastAt: 'Última copia automática de este dispositivo: {date}',
+      never: 'Este dispositivo aún no ha hecho ninguna copia automática',
+      inProgress: 'Haciendo una copia automática…',
+      error: 'El último intento falló ({date}): {message}',
+      saveError: 'No se pudo cambiar el ajuste',
+    },
+    restore: {
+      dialogTitle: 'Restaurando desde copias automáticas',
+      listTitle: 'Restaurar desde copias automáticas',
+      loading: 'Leyendo las copias automáticas…',
+      listError: 'No se pudieron leer las copias automáticas',
+      empty: 'No hay copias automáticas de sus otros dispositivos',
+      thisDeviceLast: 'Última copia automática de este dispositivo: {date}',
+      thisDeviceNone: 'Este dispositivo aún no tiene copia automática',
+      device: 'Dispositivo {id}',
+      written: 'Guardada el {date}',
+      counts: 'Carpetas: {folders}, mensajes: {messages}',
+      unreadable: 'Archivos que no se pudieron leer y se omiten: {count}',
+      hint:
+        'Se añaden los mensajes y carpetas que no están aquí, los cambios más recientes prevalecen ' +
+        'y no se elimina nada. Los adjuntos de los mensajes enviados no están en las copias automáticas.',
+      confirmBtn: 'Restaurar',
+      success: 'Restaurado desde {devices} copia(s) automática(s): {created} añadidos, {updated} actualizados',
+      error: 'No se pudo restaurar desde las copias automáticas',
+    },
+  },
   backup: {
     // One set of lines for both places the same fact is told: after a backup,
     // and before a restore of one.

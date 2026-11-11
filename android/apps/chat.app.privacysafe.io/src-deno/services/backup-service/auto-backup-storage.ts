@@ -63,10 +63,18 @@ function isNotFound(err: unknown): boolean {
  *
  * `getFS` is called once, lazily: the app's synced FS is opened by the
  * dataset already, and this must not add a step to the start.
+ *
+ * `mayClearRoot` says whether everything in the root but the backups' folder
+ * may be removed (see clearRoot): false while the app still has data of its
+ * own to move out of this storage. Asked before every upload of the root.
  */
-export function syncedAutoBackupStorage(
-  getFS: () => Promise<web3n.files.WritableFS> = () => w3n.storage!.getAppSyncedFS(),
-): AutoBackupStorage {
+export function syncedAutoBackupStorage({
+  getFS = () => w3n.storage!.getAppSyncedFS(),
+  mayClearRoot,
+}: {
+  getFS?: () => Promise<web3n.files.WritableFS>;
+  mayClearRoot: (fs: web3n.files.WritableFS) => Promise<boolean>;
+}): AutoBackupStorage {
   let fsPromise: Promise<{ fs: web3n.files.WritableFS; sync: SyncAPI }> | undefined;
 
   function open(): Promise<{ fs: web3n.files.WritableFS; sync: SyncAPI }> {
@@ -208,8 +216,37 @@ export function syncedAutoBackupStorage(
       await sync.upload(path);
     }
     await pushFolder(sync, AUTO_BACKUP_FOLDER);
+    if (await mayClearRoot(fs)) {
+      await clearRoot(fs);
+    }
     await pushFolder(sync, '');
     return { fs };
+  }
+
+  /**
+   * Removes from the root everything but the backups' folder.
+   *
+   * The root lists every item of the app's synced storage, and the server
+   * refuses it while any of them was never uploaded (`childNeverUploaded`).
+   * Old versions of the app kept their data here and moved it to the local
+   * storage later, leaving behind folders that never left the device - and
+   * with them a root that can not be uploaded, so that the backup's folder,
+   * uploaded itself, is listed nowhere other devices look. Nothing but the
+   * backups lives in this storage any more, so whatever else is in the root
+   * is such a leftover, uploaded or not.
+   */
+  async function clearRoot(fs: web3n.files.WritableFS): Promise<void> {
+    for (const entry of await fs.listFolder('')) {
+      if (entry.name === AUTO_BACKUP_FOLDER) {
+        continue;
+      }
+      if (entry.isFolder) {
+        await fs.deleteFolder(entry.name, true);
+      } else {
+        await fs.deleteFile(entry.name);
+      }
+      w3n.log('info', `Removed a leftover of an old version from the synced storage: ${entry.name}`);
+    }
   }
 
   async function remove(name: string): Promise<void> {

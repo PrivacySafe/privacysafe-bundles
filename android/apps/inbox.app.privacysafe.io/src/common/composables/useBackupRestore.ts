@@ -17,7 +17,7 @@
 // Driving a backup and a restore from the GUI: pick the file, ask the service
 // what is in it, get the user to choose which rule to apply, then run it. A
 // composable rather than a store, because it needs the dialogs plugin.
-import { inject } from 'vue';
+import { inject, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   DIALOGS_KEY,
@@ -37,11 +37,15 @@ import BackupCreatingDialog from '@common/components/dialogs/backup-creating-dia
 import BackupPassphraseDialog from '@common/components/dialogs/backup-passphrase-dialog/backup-passphrase-dialog.vue';
 import BackupRestoringDialog from '@common/components/dialogs/backup-restoring-dialog/backup-restoring-dialog.vue';
 import RestoreOptionsDialog from '@common/components/dialogs/restore-options-dialog/restore-options-dialog.vue';
+import AutoBackupRestoreDialog from '@common/components/dialogs/auto-backup-restore-dialog/auto-backup-restore-dialog.vue';
+import { makeLogger } from '@shared/utils/logger';
 import type {
   BackupArchiveError,
   BackupValidationResult,
 } from '@deno/types/backup.types';
 import type { RestoreMode } from '@deno/types/sync-types';
+
+const log = makeLogger('BackupRestore');
 
 /** Reason the archive cannot be used → what the user is told about it. */
 const errorTextKey: Record<BackupArchiveError, string> = {
@@ -369,7 +373,93 @@ export function useBackupRestore() {
     return executeRestoration(opened.plainZipBytes, mode, opened);
   }
 
+  /**
+   * Restore from the automatic backups, asked for from the menu: the user is
+   * shown when each device last saved its copy BEFORE anything happens, and
+   * picks the devices.
+   *
+   * The progress dialog is not opened here: the background component reports
+   * the progress with `source: 'auto-backup'` and closes it itself, and
+   * watchAutoBackupRestoreProgress() below opens the dialog for it - the same
+   * one for a restore asked for here and for the one a new installation
+   * starts on its own.
+   */
+  async function runAutoBackupRestoreWorkflow(): Promise<boolean> {
+    if (!dialog) {
+      return false;
+    }
+    const res = await dialog.$openDialog<string[]>(AutoBackupRestoreDialog, {
+      dialogProps: {
+        title: t('autoBackup.restore.listTitle'),
+        icon: 'outline-cloud-download',
+        confirmButtonText: t('autoBackup.restore.confirmBtn'),
+        cancelButtonText: t('app.btn.cancel'),
+        cssStyle: { width: '570px', maxWidth: '95%' },
+        hideCloseButton: true,
+        closeOnClickOverlay: false,
+      },
+    });
+    const deviceIds = (res?.event === 'confirm') ? res.data : undefined;
+    if (!deviceIds?.length) {
+      return false;
+    }
+
+    try {
+      const outcome = await inboxSrv.restoreFromAutoBackups(deviceIds);
+      await messagesStore.getMessages();
+      $createNotice({
+        type: 'success',
+        content: t('autoBackup.restore.success', {
+          devices: outcome.devices,
+          created: outcome.created,
+          updated: outcome.updated,
+        }),
+        duration: 6000,
+      });
+      return true;
+    } catch (err) {
+      await w3n.log('error', 'Restoring from automatic backups failed', err);
+      $createNotice({ type: 'error', content: t('autoBackup.restore.error'), duration: 4000 });
+      return false;
+    }
+  }
+
+  let autoRestoreDialogOpen = false;
+
+  /**
+   * Opens the progress dialog for a restore from the automatic backups. Such
+   * a restore may be started by the background component alone (the first
+   * run of a new installation), so the dialog follows the progress events
+   * rather than a call made from here. Called once, by the app's page.
+   */
+  function watchAutoBackupRestoreProgress(): void {
+    watch(() => backupStore.restoreProgress, progress => {
+      if ((progress?.source !== 'auto-backup') || autoRestoreDialogOpen || !dialog) {
+        return;
+      }
+      autoRestoreDialogOpen = true;
+      Promise.resolve(dialog.$openDialog(BackupRestoringDialog, {
+        dialogProps: {
+          icon: 'outline-cloud-download',
+          title: t('autoBackup.restore.dialogTitle'),
+          cssStyle: { width: '570px', maxWidth: '95%' },
+          hideCloseButton: true,
+          confirmButton: false,
+          cancelButton: false,
+          closeOnClickOverlay: false,
+          closeOnEsc: false,
+        },
+      }))
+        .catch(err => log.error('The progress dialog of a restore from automatic backups failed', err))
+        .finally(() => {
+          autoRestoreDialogOpen = false;
+        });
+    });
+  }
+
   return {
+    runAutoBackupRestoreWorkflow,
+    watchAutoBackupRestoreProgress,
     pickBackupArchiveFile,
     askBackupPassphrase,
     askRestoreMode,

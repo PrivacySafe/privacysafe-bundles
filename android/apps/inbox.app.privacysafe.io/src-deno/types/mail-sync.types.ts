@@ -183,6 +183,14 @@ export type MailSyncEventV2 = {
    * an archived one: a deletion has to win on the receiving devices.
    */
   deleted?: { msgIds?: string[]; folderIds?: string[]; token: SyncToken };
+  /**
+   * `merge` that applies newer aspects onto what the receiver has - sent by the
+   * restore from automatic backups. A build that predates the field reads the
+   * chunk as a plain `merge`: it gets what it lacks, and nothing else.
+   */
+  applyNewerAspects?: true;
+  /** The stamp of the fallback token, when it is not `snapshotTs`. */
+  fallbackTs?: number;
 };
 
 /**

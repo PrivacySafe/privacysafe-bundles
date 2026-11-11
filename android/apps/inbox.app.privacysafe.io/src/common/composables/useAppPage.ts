@@ -1,4 +1,4 @@
-import { computed, inject, onBeforeMount, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, inject, onBeforeMount, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
@@ -14,6 +14,7 @@ import {
   useFoldersStore,
   useMessagesStore,
   useSendingStore,
+  useSettingsStore,
 } from '@common/store';
 import { useBackupRestore } from '@common/composables/useBackupRestore';
 import { useCreateMsgActions } from '@common/composables/useCreateMsgActions';
@@ -81,7 +82,16 @@ export function useAppPage(mobileMode?: boolean) {
   const { onBackupProgress, onRestoreProgress } = backupStore;
 
   const { saveMsgToDraft } = useCreateMsgActions();
-  const { startBackupWorkflow, runRestoreWorkflow } = useBackupRestore();
+  const settingsStore = useSettingsStore();
+  const {
+    startBackupWorkflow,
+    runRestoreWorkflow,
+    runAutoBackupRestoreWorkflow,
+    watchAutoBackupRestoreProgress,
+  } = useBackupRestore();
+  // A restore from automatic backups may be started by the background component
+  // alone (the first run of a new installation); its dialog follows the events.
+  watchAutoBackupRestoreProgress();
   const { forceRefreshData } = useForceRefreshData();
 
   // The store holds what the setting says; the plugin puts it on the document.
@@ -136,6 +146,8 @@ export function useAppPage(mobileMode?: boolean) {
           onBackupProgress(event.progress);
         } else if (event.entity === 'restore') {
           onRestoreProgress(event.progress);
+        } else if (event.entity === 'auto-backup') {
+          settingsStore.applyAutoBackupInfo(event.info);
         } else if (event.entity === 'lists') {
           // More changed than was worth reporting one by one - the backend's
           // start-up replay of a backlog of synchronization phantoms. Re-read
@@ -166,6 +178,21 @@ export function useAppPage(mobileMode?: boolean) {
     });
   }
 
+  async function openSettings(): Promise<void> {
+    const component = defineAsyncComponent(
+      () => import('@common/components/dialogs/app-settings-dialog/app-settings-dialog.vue'),
+    );
+    await $dialogs.$openDialog(component, {
+      dialogProps: {
+        title: t('autoBackup.settings.title'),
+        icon: 'outline-settings',
+        cssStyle: { width: '560px', maxWidth: '95%' },
+        confirmButton: false,
+        cancelButton: false,
+      },
+    });
+  }
+
   async function runMenuAction(action: AppMenuAction) {
     switch (action) {
       case 'refresh':
@@ -176,6 +203,10 @@ export function useAppPage(mobileMode?: boolean) {
         return startBackupWorkflow();
       case 'restore-backup':
         return void await runRestoreWorkflow();
+      case 'restore-auto-backup':
+        return void await runAutoBackupRestoreWorkflow();
+      case 'settings':
+        return openSettings();
       case 'exit':
         return appExit();
       default:
@@ -356,6 +387,8 @@ export function useAppPage(mobileMode?: boolean) {
         // before this page can subscribe, and a state nobody asked for would
         // then be missed entirely.
         getSyncActivityState().catch(err => log.error('Failed to read the sync state', err)),
+        // Errors are logged inside: until it answers the menu shows its default items.
+        settingsStore.loadSettings(),
       ]);
       phaseDone('app-data');
       // The blacklist BEFORE the message list is drawn, and from the backend:

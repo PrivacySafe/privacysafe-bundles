@@ -151,3 +151,14 @@ export const CLEAR_CONTACT_BLACKLIST_QUERY = 'DELETE FROM contact_blacklist';
 
 export const INSERT_CONTACT_BLACKLIST_QUERY =
   'INSERT OR IGNORE INTO contact_blacklist (address) VALUES ($address)';
+
+export const GET_DEVICE_SETTINGS_QUERY =
+  'SELECT appSettings, autoBackup FROM device_settings WHERE id=$id';
+
+export const UPSERT_DEVICE_SETTINGS_QUERY =
+  'INSERT INTO device_settings (id, appSettings, autoBackup) VALUES ($id, $appSettings, $autoBackup) '
+  + 'ON CONFLICT(id) DO UPDATE SET appSettings=$appSettings, autoBackup=$autoBackup';
+
+/** An incoming message is the one with a sender - see isIncomingMsg(). */
+export const GET_LATEST_INCOMING_DELIVERY_TS_QUERY =
+  "SELECT MAX(deliveryTS) AS ts FROM messages WHERE sender IS NOT NULL AND sender != ''";

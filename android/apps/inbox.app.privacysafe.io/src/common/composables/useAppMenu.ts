@@ -22,21 +22,35 @@
 // part ways on the first item added to one of them.
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { storeToRefs } from 'pinia';
+import { useSettingsStore } from '@common/store/settings.store';
 import type { AppMenuAction, AppMenuItem } from '@common/types';
 
 export function useAppMenuItems() {
   const { t } = useI18n();
+  const { autoBackupInfo } = storeToRefs(useSettingsStore());
 
   return computed<AppMenuItem[]>(() => [
     { id: 'refresh', icon: 'round-refresh', label: t('app.menu.refresh') },
     { id: 'make-backup', icon: 'outline-file-download', label: t('app.menu.makeBackup') },
     { id: 'restore-backup', icon: 'outline-file-upload', label: t('app.menu.restoreBackup') },
+    // Only when asked for in the settings: a new installation restores from
+    // the automatic backups by itself, and on a device in use this is for when
+    // something went wrong.
+    ...(autoBackupInfo.value.settings.showAutoBackupRestore
+      ? [{
+          id: 'restore-auto-backup' as const,
+          icon: 'outline-cloud-download',
+          label: t('app.menu.restoreAutoBackup'),
+        }]
+      : []),
     {
       id: 'manage-blocks',
       icon: 'settings-account-box',
       label: t('app.menu.manageBlocks'),
       isAccent: true,
     },
+    { id: 'settings', icon: 'outline-settings', label: t('app.menu.settings') },
     { id: 'exit', icon: 'round-logout', label: t('app.menu.exit') },
   ]);
 }

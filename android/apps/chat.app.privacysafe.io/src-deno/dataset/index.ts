@@ -19,6 +19,21 @@ import { chatsDb } from './chats-db.ts';
 import { setDbFlush } from './db-flush.ts';
 import { startupStage } from '../utils/startup-progress.ts';
 import type { DB } from '../types/index.ts';
+import { CHATS_DB_FNAME, MSGS_DB_FNAME_PREFIX, MSGS_DBS_DIR_NAME } from '../../shared-libs/constants/index.ts';
+
+/**
+ * True while a database file of an old version is still in the synced
+ * storage, i.e. while the move to the local storage (msgs-db.ts, chats-db.ts)
+ * has not been through. Until then nothing there may be cleared away (see
+ * backup-service/auto-backup-storage.ts).
+ */
+export async function hasLegacyDataOnSynced(fs: web3n.files.ReadonlyFS): Promise<boolean> {
+  const [chatsDb, msgsDb] = await Promise.all([
+    fs.checkFilePresence(CHATS_DB_FNAME),
+    fs.checkFilePresence(`${MSGS_DBS_DIR_NAME}/${MSGS_DB_FNAME_PREFIX}0`),
+  ]);
+  return chatsDb || msgsDb;
+}
 
 export async function dataset(): Promise<DB> {
   // Named steps, because this is where a start-up that never finishes is most

@@ -15,7 +15,8 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
 import type { DBProvider } from '../../dataset/index.ts';
-import type { SyncAspect, SyncEntityType, SyncToken } from '../../types/sync-types.ts';
+import type { SyncAspect, SyncEntityType, SyncToken, SyncVersionRow } from '../../types/sync-types.ts';
+import type { BackedUpTombstone } from '../../types/backup.types.ts';
 import { makeLogger } from '../../../shared/utils/logger.ts';
 
 const log = makeLogger('SyncVersions');
@@ -118,4 +119,46 @@ export async function recordDeletion(
     ...token,
     tombstonedAt: Date.now(),
   });
+}
+
+interface GroupedVersions {
+  /** Live aspect versions, by entity id. */
+  byEntity: Map<string, Partial<Record<SyncAspect, SyncToken>>>;
+  tombstones: BackedUpTombstone[];
+}
+
+/**
+ * The rows of sync_versions, split into the live aspect versions of messages
+ * and folders and the tombstones. What a backup archive and an automatic backup
+ * both carry.
+ */
+export function groupSyncVersions(rows: SyncVersionRow[]): {
+  msgs: GroupedVersions['byEntity'];
+  folders: GroupedVersions['byEntity'];
+  tombstones: BackedUpTombstone[];
+} {
+  const msgs: GroupedVersions['byEntity'] = new Map();
+  const folders: GroupedVersions['byEntity'] = new Map();
+  const tombstones: BackedUpTombstone[] = [];
+
+  for (const row of rows) {
+    const token: SyncToken = { ts: row.ts, deviceId: row.deviceId };
+    if (row.tombstonedAt) {
+      // Tombstones live apart: they outlive their entity, and putting one in
+      // with a live record would make that record unresurrectable.
+      tombstones.push({
+        entityType: row.entityType,
+        entityId: row.entityId,
+        token,
+        tombstonedAt: row.tombstonedAt,
+      });
+      continue;
+    }
+    const target = (row.entityType === 'folder') ? folders : msgs;
+    const versions = target.get(row.entityId) ?? {};
+    versions[row.aspect] = token;
+    target.set(row.entityId, versions);
+  }
+
+  return { msgs, folders, tombstones };
 }

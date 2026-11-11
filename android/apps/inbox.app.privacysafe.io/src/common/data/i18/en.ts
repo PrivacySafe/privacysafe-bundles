@@ -32,6 +32,8 @@ export const en = {
       manageBlocks: 'Manage blocks',
       makeBackup: 'Create a backup',
       restoreBackup: 'Restore from a backup',
+      restoreAutoBackup: 'Restore from automatic backups',
+      settings: 'Settings',
       exit: 'Exit',
     },
     notification: {
@@ -46,6 +48,44 @@ export const en = {
     },
   },
 
+  autoBackup: {
+    settings: {
+      title: 'Settings',
+      autoBackup: 'Automatic backup',
+      autoBackupHint:
+        'Every {hours} hours, if anything has changed, this device saves a copy of its mailbox ' +
+        '(folders, sent messages, drafts, where messages are and whether they are read) to your ' +
+        'encrypted storage. Attachments are not included. A new installation of the app restores ' +
+        'the mailbox from these copies by itself.',
+      showRestore: 'Show "Restore from automatic backups" in the menu',
+      on: 'On',
+      off: 'Off',
+      lastAt: 'Last automatic backup of this device: {date}',
+      never: 'This device has not made an automatic backup yet',
+      inProgress: 'Making an automatic backup…',
+      error: 'The last attempt failed ({date}): {message}',
+      saveError: 'The setting could not be changed',
+    },
+    restore: {
+      dialogTitle: 'Restoring from automatic backups',
+      listTitle: 'Restore from automatic backups',
+      loading: 'Reading the automatic backups…',
+      listError: 'The automatic backups could not be read',
+      empty: 'There are no automatic backups of your other devices',
+      thisDeviceLast: 'Last automatic backup of this device: {date}',
+      thisDeviceNone: 'This device has no automatic backup yet',
+      device: 'Device {id}',
+      written: 'Saved {date}',
+      counts: 'Folders: {folders}, messages: {messages}',
+      unreadable: 'Files that could not be read and are left out: {count}',
+      hint:
+        'Messages and folders that are not here are added, newer changes win, nothing is ' +
+        'deleted. Attachments of sent messages are not in automatic backups.',
+      confirmBtn: 'Restore',
+      success: 'Restored from {devices} automatic backup(s): {created} added, {updated} updated',
+      error: 'Restoring from automatic backups failed',
+    },
+  },
   backup: {
     // One set of lines for both places the same fact is told: after a backup,
     // and before a restore of one.
@@ -240,6 +280,7 @@ export const en = {
         download: 'Download the file',
         download_all: 'Download all files',
         view: 'View the file',
+        open_external: 'Open in external app',
         import_contacts: 'Import contacts',
         make_preview: 'Show a preview (reads the whole file)',
         reply: 'Reply',
@@ -318,6 +359,14 @@ export const en = {
       partially_downloaded: '{done} of {total} files saved; the rest are on another of your devices.',
     },
     attachment: {
+      opening: {
+        preparing: 'Preparing the file to open…',
+        unavailable: 'Opening attachments in external apps is not available on this device.',
+        error: 'Could not open the file {fileName} in an external app.',
+        prepare_timeout: 'Preparing {fileName} took too long. Please try again.',
+        mount_pending:
+          'File mounting is still waiting for a response. Try again shortly. If this continues, restart PrivacySafe.',
+      },
       import_contacts: {
         title: 'Contacts Export File',
         count: '{n} contact | {n} contacts',

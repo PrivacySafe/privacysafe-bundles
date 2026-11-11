@@ -121,6 +121,7 @@ try {
     endBulkReplay,
     persistMail,
     handleSync,
+    autoBackup,
   } = await inboxService(db, fileStore, sync, ownAddr, startup.watch, blacklist, activity, rescan);
   activity.onChange(view => emit({ entity: 'sync', event: 'activity', view }));
   inboxSrvDeferred.resolve(inboxSrv);
@@ -177,6 +178,12 @@ try {
 
   // Picks up everything the previous run left unsent.
   sync.releasePending().catch(err => log.error(`The first pass over the journal failed`, err));
+
+  // The automatic backup: a new installation restores from the files the
+  // user's devices keep in the synced storage, and every device writes its own.
+  // Started only now, so that the restore lands on top of what the start-up
+  // replay of the shared inbox brought.
+  autoBackup.start();
 
   setTimeout(
     () => {

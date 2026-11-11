@@ -40,6 +40,7 @@ import { generateFastRandomString } from '../shared/utils/generate-random-string
 import { makeLogger } from '../shared/utils/logger.ts';
 import { randomIdStr } from '../shared/utils/random-id.ts';
 import { sleep } from '../shared/utils/processes/sleep.ts';
+import { SingleProc } from '../shared/utils/processes/single.ts';
 import { SYSTEM_FOLDERS } from '../src/common/constants/mail-folders-default.ts';
 import type { AttachmentInfo, IncomingMessageView } from '../src/common/types/mail.types.ts';
 import type { DBProvider } from './dataset/index.ts';
@@ -54,7 +55,7 @@ import {
   surplusOfArchive,
   type RestorableMsg,
 } from './services/sync/restore-snapshot.ts';
-import { isNewerToken } from './services/sync/sync-versions.ts';
+import { groupSyncVersions, isNewerToken } from './services/sync/sync-versions.ts';
 import type { SyncOutbox } from './services/sync/sync-outbox.ts';
 import type {
   BackedUpAttachment,
@@ -71,12 +72,18 @@ import type {
   SkippedAttachment,
   SkippedAttachmentRecord,
 } from './types/backup.types.ts';
-import type { SnapshotFolderEntry } from './types/mail-sync.types.ts';
+import type {
+  MailSyncEventV2,
+  SnapshotFolderEntry,
+  SnapshotMsgEntry,
+} from './types/mail-sync.types.ts';
+import type { AutoBackupFile, AutoBackupRestoreOutcome } from './types/auto-backup.types.ts';
+import { AUTO_BACKUP_FALLBACK_TS } from '../shared/constants/auto-backup.ts';
+import { mergeTombstonesOfFiles } from './services/auto-backup/auto-backup-merge.ts';
 import type {
   RestoreMode,
   SyncAspect,
   SyncToken,
-  SyncVersionRow,
   SyncVersionWrite,
 } from './types/sync-types.ts';
 import {
@@ -337,43 +344,6 @@ function ageStampOf(msg: MsgView, versions: Partial<Record<SyncAspect, SyncToken
   return stamp;
 }
 
-interface GroupedVersions {
-  /** Live aspect versions, by entity id. */
-  byEntity: Map<string, Partial<Record<SyncAspect, SyncToken>>>;
-  tombstones: BackedUpTombstone[];
-}
-
-function groupSyncVersions(rows: SyncVersionRow[]): {
-  msgs: GroupedVersions['byEntity'];
-  folders: GroupedVersions['byEntity'];
-  tombstones: BackedUpTombstone[];
-} {
-  const msgs: GroupedVersions['byEntity'] = new Map();
-  const folders: GroupedVersions['byEntity'] = new Map();
-  const tombstones: BackedUpTombstone[] = [];
-
-  for (const row of rows) {
-    const token: SyncToken = { ts: row.ts, deviceId: row.deviceId };
-    if (row.tombstonedAt) {
-      // Tombstones live apart: they outlive their entity, and putting one in
-      // with a live record would make that record unresurrectable.
-      tombstones.push({
-        entityType: row.entityType,
-        entityId: row.entityId,
-        token,
-        tombstonedAt: row.tombstonedAt,
-      });
-      continue;
-    }
-    const target = (row.entityType === 'folder') ? folders : msgs;
-    const versions = target.get(row.entityId) ?? {};
-    versions[row.aspect] = token;
-    target.set(row.entityId, versions);
-  }
-
-  return { msgs, folders, tombstones };
-}
-
 export interface InboxBackupSrvDeps {
   db: DBProvider;
   fileStore: LabelledFileStore;
@@ -394,6 +364,20 @@ export interface InboxBackupSrvDeps {
    * mailbox would only come back in full at the next start of the component.
    */
   rescanInbox(): Promise<void>;
+  /**
+   * The record of an incoming message an entry of an automatic backup carries
+   * no record for: pulled out of the shared inbox, or - when it is not there -
+   * the entry is buffered until it shows up (see ensureSnapshotRecordFor).
+   */
+  ensureIncomingRecord(
+    msgId: string,
+    entry: SnapshotMsgEntry,
+    origin: {
+      sourceDeviceId: string;
+      timestamp: number;
+      event: Extract<MailSyncEventV2, { kind: 'restore-snapshot' }>;
+    },
+  ): Promise<MsgView | undefined>;
 }
 
 export interface InboxBackupSrv {
@@ -411,7 +395,13 @@ export interface InboxBackupSrv {
     mode: RestoreMode,
     outerMetadata?: BackupMetadataContent,
   ): Promise<RestoreOutcome>;
+  /** Applies automatic backups of the user's devices; see restoreFromAutoBackupFiles below. */
+  restoreFromAutoBackupFiles(files: AutoBackupFile[]): Promise<AutoBackupRestoreOutcome>;
 }
+
+/** How long a finished restore from automatic backups stays on screen before it is closed. */
+const AUTO_RESTORE_CLOSE_DELAY_MILLIS = 1500;
+const AUTO_RESTORE_ERROR_CLOSE_DELAY_MILLIS = 3000;
 
 export function inboxBackupSrv({
   db,
@@ -423,8 +413,17 @@ export function inboxBackupSrv({
   beginBulkReplay,
   endBulkReplay,
   rescanInbox,
+  ensureIncomingRecord,
 }: InboxBackupSrvDeps): InboxBackupSrv {
   let activeAbortController: AbortController | null = null;
+
+  /**
+   * Restores one at a time: a manual one and one from the automatic backups
+   * (which this component may start on its own) both raise the restore flag
+   * and open the bulk-replay window, and the end of one must not lower them
+   * under the other.
+   */
+  const restoreProc = new SingleProc();
 
   function emitBackupProgress(
     stage: BackupProgress['stage'],
@@ -439,12 +438,25 @@ export function inboxBackupSrv({
 
   function emitRestoreProgress(
     stage: RestoreProgress['stage'],
-    { totalItems = 0, processedItems = 0, currentItem, percent = 0 }: Partial<RestoreProgress> = {},
+    {
+      totalItems = 0,
+      processedItems = 0,
+      currentItem,
+      percent = 0,
+      source,
+    }: Partial<RestoreProgress> = {},
   ): void {
     emit({
       entity: 'restore',
       event: 'progress',
-      progress: { stage, totalItems, processedItems, currentItem, percent },
+      progress: {
+        stage,
+        totalItems,
+        processedItems,
+        currentItem,
+        percent,
+        ...(source && { source }),
+      },
     });
   }
 
@@ -1048,7 +1060,15 @@ export function inboxBackupSrv({
     };
   }
 
-  async function restoreBackupArchive(
+  function restoreBackupArchive(
+    archiveBytes: Uint8Array,
+    mode: RestoreMode,
+    outerMetadata?: BackupMetadataContent,
+  ): Promise<RestoreOutcome> {
+    return restoreProc.startOrChain(() => doRestoreBackupArchive(archiveBytes, mode, outerMetadata));
+  }
+
+  async function doRestoreBackupArchive(
     archiveBytes: Uint8Array,
     mode: RestoreMode,
     outerMetadata?: BackupMetadataContent,
@@ -1335,11 +1355,265 @@ export function inboxBackupSrv({
     );
   }
 
+  // ===========================================================================
+  // Restoring from the automatic backups
+  // ===========================================================================
+
+  /**
+   * The progress of a restore from automatic backups. The window opens its
+   * dialog on seeing `source: 'auto-backup'` (such a restore may be started by
+   * this component alone, on the first run of a new installation), and this
+   * side closes it with a `null` after the given delay.
+   */
+  function emitAutoRestoreProgress(
+    stage: RestoreProgress['stage'],
+    progress: Partial<RestoreProgress> = {},
+    closeAfter?: number,
+  ): void {
+    emitRestoreProgress(stage, { ...progress, source: 'auto-backup' });
+    if (closeAfter !== undefined) {
+      setTimeout(() => emit({ entity: 'restore', event: 'progress', progress: null }), closeAfter);
+    }
+  }
+
+  /** `entityType\nentityId\naspect` -> `ts\ndeviceId` of every live version row. */
+  function versionsFingerprint(): Map<string, string> {
+    const res = new Map<string, string>();
+    for (const row of db.getAllSyncVersions()) {
+      res.set(`${row.entityType}\n${row.entityId}\n${row.aspect}`, `${row.ts}\n${row.deviceId}`);
+    }
+    return res;
+  }
+
+  /**
+   * Applies the automatic backups of the user's devices (services/auto-backup):
+   * the tombstones of all the files first, then each file as a `merge` that
+   * applies newer aspects - exactly how a neighbour applies a restore snapshot
+   * of that kind, so there are no rules of merging of its own here.
+   *
+   * Two choices differ from a manual restore, and both are forced:
+   *
+   *  - `merge` with applyNewerAspects, not plain `merge`. A new installation has
+   *    its incoming messages back from the shared inbox before this runs, with
+   *    no tokens at all, and plain `merge` would skip each of them - leaving in
+   *    the Inbox, unread, everything the user had read and put away.
+   *  - the fallback token (for an aspect the file names no token for) is the
+   *    lowest there is (AUTO_BACKUP_FALLBACK_TS), not the file's snapshotTs.
+   *    Several files are applied one after another: under its own snapshotTs
+   *    the newest file's "untouched, so as of my snapshot" would beat another
+   *    file's real, older change of the same message.
+   *
+   * What this changed is then announced to the user's other devices: a file of
+   * a dead device may be the only copy of a sent message, and the neighbours
+   * never read automatic backups.
+   *
+   * The watermark is not reset (a new installation scans the inbox from zero
+   * anyway), but the receiving tract is held off as in a manual restore, and
+   * the inbox pass after it picks up whatever arrived meanwhile.
+   */
+  function restoreFromAutoBackupFiles(files: AutoBackupFile[]): Promise<AutoBackupRestoreOutcome> {
+    return restoreProc.startOrChain(() => doRestoreFromAutoBackupFiles(files));
+  }
+
+  async function doRestoreFromAutoBackupFiles(files: AutoBackupFile[]): Promise<AutoBackupRestoreOutcome> {
+    db.setRestoreInProgress(true);
+    beginBulkReplay();
+    const outcome: AutoBackupRestoreOutcome = {
+      devices: files.length,
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      foldersApplied: 0,
+    };
+
+    try {
+      emitAutoRestoreProgress('restoring-messages', { percent: 0 });
+
+      const versionsBefore = versionsFingerprint();
+      const msgsBefore = new Set(db.getMessages().map(({ msgId }) => msgId));
+      const foldersBefore = new Set(db.getFolderList().map(({ id }) => id));
+
+      // An empty set of live ids: mergeTombstonesOfFiles has already dropped
+      // every tombstone a file contradicts with a newer state, and the one that
+      // is left must win over an older file that still holds the entity.
+      const tombstonesWritten = await restoreTombstones(mergeTombstonesOfFiles(files), new Set());
+
+      const total = files.reduce((sum, file) => sum + file.folders.length + file.msgs.length, 0);
+      let doneBefore = 0;
+
+      // Oldest first only so that the log reads in order; per-aspect tokens
+      // make the result the same in any order.
+      for (const file of [...files].sort((a, b) => a.writtenAt - b.writtenAt)) {
+        const event: Extract<MailSyncEventV2, { kind: 'restore-snapshot' }> = {
+          kind: 'restore-snapshot',
+          mode: 'merge',
+          snapshotTs: file.snapshotTs,
+          restoreId: `auto-${file.deviceId}-${file.writtenAt}`,
+          part: 1,
+          of: 1,
+          applyNewerAspects: true,
+          fallbackTs: AUTO_BACKUP_FALLBACK_TS,
+        };
+        const res = await applyRestoreSnapshot(
+          {
+            mode: 'merge',
+            applyNewerAspects: true,
+            fallbackTs: AUTO_BACKUP_FALLBACK_TS,
+            snapshotTs: file.snapshotTs,
+            sourceDeviceId: file.deviceId,
+            msgs: file.msgs,
+            folders: file.folders,
+          },
+          {
+            db,
+            emit,
+            applyMsgChanges,
+            deleteMessages,
+            // As on a receiving device: the file's entries already say which
+            // incoming messages were in the shared inbox when it was written.
+            serverMsgIds: new Set<string>(),
+            serverListingAvailable: false,
+            ensureIncomingRecord: (msgId, entry) => ensureIncomingRecord(msgId, entry, {
+              sourceDeviceId: file.deviceId,
+              timestamp: file.snapshotTs,
+              event,
+            }),
+            onProgress: (done, _total, current) => {
+              const processed = doneBefore + done;
+              emitAutoRestoreProgress('restoring-messages', {
+                totalItems: total,
+                processedItems: processed,
+                currentItem: current,
+                percent: (total > 0) ? Math.floor((processed / total) * 90) : 0,
+              });
+            },
+          },
+        );
+        doneBefore += file.folders.length + file.msgs.length;
+        outcome.created += res.created;
+        outcome.updated += res.updated;
+        outcome.skipped += res.skipped;
+        outcome.foldersApplied += res.foldersApplied;
+        log.info(
+          `Automatic backup of ${file.deviceId} (written ${new Date(file.writtenAt).toISOString()}) `
+            + `applied: ${res.foldersApplied} folder(s), messages +${res.created}/~${res.updated}, `
+            + `${res.skipped} skipped, ${res.onlyInArchive} kept only by the backup`,
+        );
+      }
+
+      await db.flush();
+
+      emitAutoRestoreProgress('announcing', { totalItems: total, processedItems: total, percent: 95 });
+      await announceAutoRestore(versionsBefore, msgsBefore, foldersBefore);
+
+      log.info(
+        `Restored from automatic backups of ${files.length} device(s): ${outcome.created} created, `
+          + `${outcome.updated} updated, ${outcome.skipped} skipped, ${outcome.foldersApplied} `
+          + `folder(s) applied, ${tombstonesWritten} tombstone(s) written`,
+      );
+
+      emitAutoRestoreProgress(
+        'completed',
+        { totalItems: total, processedItems: total, percent: 100 },
+        AUTO_RESTORE_CLOSE_DELAY_MILLIS,
+      );
+      return outcome;
+    } catch (err) {
+      emitAutoRestoreProgress('error', {}, AUTO_RESTORE_ERROR_CLOSE_DELAY_MILLIS);
+      throw err;
+    } finally {
+      db.setRestoreInProgress(false);
+      // As after a manual restore, and for the same reasons: not awaited, and
+      // the bulk-replay window closes when the pass is over.
+      rescanInbox()
+        .catch(err => log.error(
+          `The inbox pass after a restore from automatic backups failed; it will run again at the next start`,
+          err,
+        ))
+        .finally(() => endBulkReplay());
+    }
+  }
+
+  /**
+   * Tells the user's other devices what the automatic backups changed here:
+   * every message and folder that is new, or whose stored versions are not
+   * what they were before. Nothing else - the neighbours have the rest.
+   *
+   * The entries are built from the database as it now stands, with the tokens
+   * the restore wrote, and under the same `merge` with applyNewerAspects, so a
+   * neighbour takes what it lacks and whatever is newer, and nothing more.
+   */
+  async function announceAutoRestore(
+    versionsBefore: Map<string, string>,
+    msgsBefore: ReadonlySet<string>,
+    foldersBefore: ReadonlySet<string>,
+  ): Promise<void> {
+    const changedMsgs = new Set<string>();
+    const changedFolders = new Set<string>();
+    for (const [key, value] of versionsFingerprint()) {
+      if (versionsBefore.get(key) === value) {
+        continue;
+      }
+      const [entityType, entityId] = key.split('\n');
+      if (entityType === 'msg') {
+        changedMsgs.add(entityId);
+      } else if (entityType === 'folder') {
+        changedFolders.add(entityId);
+      }
+    }
+
+    const grouped = groupSyncVersions(db.getAllSyncVersions());
+    const restorable: RestorableMsg[] = db.getMessages()
+      .filter(msg => !msgsBefore.has(msg.msgId) || changedMsgs.has(msg.msgId))
+      .map(msg => ({
+        msgId: msg.msgId,
+        incoming: isIncomingMsg(msg),
+        record: syncedRecordOf(msg, db.getAppDeviceId()),
+        versions: grouped.msgs.get(msg.msgId) ?? {},
+      }));
+    const folderEntries: SnapshotFolderEntry[] = db.getFolderList()
+      .filter(folder => !foldersBefore.has(folder.id) || changedFolders.has(folder.id))
+      .map(folder => ({ folder, versions: grouped.folders.get(folder.id) ?? {} }));
+
+    if ((restorable.length === 0) && (folderEntries.length === 0)) {
+      return;
+    }
+
+    // Which incoming messages travel without a record. When the inbox cannot
+    // be listed, all of them are taken as being there - the record they have
+    // here came out of that inbox or out of a file that said so - rather than
+    // sent as gone from the server, with their attachments marked unreachable.
+    const { serverMsgIds, listingAvailable } = await listSharedInbox();
+    const onServer = listingAvailable
+      ? serverMsgIds
+      : new Set(restorable.filter(({ incoming }) => incoming).map(({ msgId }) => msgId));
+
+    const restoreId = `auto-${randomIdStr(16)}`;
+    const token = db.nextSyncToken();
+    const chunks = chunkRestoreSnapshot({
+      mode: 'merge',
+      snapshotTs: token.ts,
+      restoreId,
+      msgs: snapshotEntriesOf(restorable, onServer),
+      folders: folderEntries,
+      applyNewerAspects: true,
+      fallbackTs: AUTO_BACKUP_FALLBACK_TS,
+    });
+    for (const chunk of chunks) {
+      await sync.announceSnapshotChunk({ event: chunk, token });
+    }
+    log.info(
+      `Announced what the automatic backups restored (${restorable.length} message(s), `
+        + `${folderEntries.length} folder(s)) in ${chunks.length} chunk(s), ${restoreId}`,
+    );
+  }
+
   return {
     createBackupArchive,
     cancelBackupArchive,
     validateBackupArchive,
     restoreBackupArchive,
+    restoreFromAutoBackupFiles,
   };
 }
 

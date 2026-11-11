@@ -41,7 +41,14 @@ export interface AppState {
  * What the avatar menu can ask for. One list for the desktop menu and the phone
  * drawer, so the two cannot drift apart in what they offer.
  */
-export type AppMenuAction = 'refresh' | 'manage-blocks' | 'make-backup' | 'restore-backup' | 'exit';
+export type AppMenuAction =
+  | 'refresh'
+  | 'manage-blocks'
+  | 'make-backup'
+  | 'restore-backup'
+  | 'restore-auto-backup'
+  | 'settings'
+  | 'exit';
 
 export interface AppMenuItem {
   id: AppMenuAction;

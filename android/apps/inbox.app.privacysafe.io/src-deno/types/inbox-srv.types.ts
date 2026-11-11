@@ -33,6 +33,12 @@ import type {
   RestoreProgress,
 } from './backup.types.ts';
 import type { RestoreMode } from './sync-types.ts';
+import type {
+  AppSettings,
+  AutoBackupInfo,
+  AutoBackupListing,
+  AutoBackupRestoreOutcome,
+} from './auto-backup.types.ts';
 
 export interface ItemAttrs {
   fileName?: string;
@@ -109,7 +115,14 @@ export type InboxUpdateEvent =
   | {
       entity: 'restore';
       event: 'progress';
-      progress: RestoreProgress;
+      /** `null` closes the progress dialog of a restore from automatic backups. */
+      progress: RestoreProgress | null;
+    }
+  | {
+      /** Where this device's automatic backup stands, and the app's settings. */
+      entity: 'auto-backup';
+      event: 'changed';
+      info: AutoBackupInfo;
     }
   | {
       /**
@@ -339,6 +352,22 @@ export interface InboxSrv {
     outerMetadata?: BackupMetadataContent,
   ): Promise<RestoreOutcome>;
 
+  /** Settings of the app on this device, and where its automatic backup stands. */
+  getAutoBackupInfo(): Promise<AutoBackupInfo>;
+  /**
+   * Changes settings of the app on this device. Answers the new state, and
+   * announces it to every window with an `auto-backup` event.
+   */
+  setAppSettings(patch: Partial<AppSettings>): Promise<AutoBackupInfo>;
+  /** Every automatic backup in the synced storage, newest first. Reads them all. */
+  listAutoBackups(): Promise<AutoBackupListing>;
+  /**
+   * Restores from the automatic backups of other devices - the ones named, or
+   * all of them - as a merge that applies newer aspects. Progress comes as
+   * `restore` events with `source: 'auto-backup'`, closed by this component.
+   */
+  restoreFromAutoBackups(deviceIds?: string[]): Promise<AutoBackupRestoreOutcome>;
+
   watch(obs: web3n.Observer<InboxUpdateEvent>): () => void;
   watchStartup(obs: web3n.Observer<StartupEvent>): () => void;
 }
@@ -384,6 +413,10 @@ export const INBOX_SRV_REQ_REPLY_METHODS: (keyof InboxSrv)[] = [
   'cancelBackupArchive',
   'validateBackupArchive',
   'restoreBackupArchive',
+  'getAutoBackupInfo',
+  'setAppSettings',
+  'listAutoBackups',
+  'restoreFromAutoBackups',
 ];
 
 export const INBOX_SRV_OBSERVABLE_METHODS: (keyof InboxSrv)[] = ['watch', 'watchStartup'];

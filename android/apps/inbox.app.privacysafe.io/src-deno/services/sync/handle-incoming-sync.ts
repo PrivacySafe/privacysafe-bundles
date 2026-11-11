@@ -246,6 +246,8 @@ async function applySnapshotChunk(
       msgs: event.msgs,
       folders: event.folders,
       deleted: event.deleted,
+      ...(event.applyNewerAspects && { applyNewerAspects: true }),
+      ...((typeof event.fallbackTs === 'number') && { fallbackTs: event.fallbackTs }),
     },
     {
       db,
@@ -278,8 +280,11 @@ async function applySnapshotChunk(
  * the orphan table per message, so what is buffered is a one-entry snapshot of
  * the same restore. It drains when the message shows up, and it carries the same
  * tokens, so it applies to exactly the same effect.
+ *
+ * Exported for the restore from automatic backups, whose files hold entries of
+ * exactly this form (see inbox-backup-srv.ts, restoreFromAutoBackupFiles).
  */
-async function ensureSnapshotRecordFor(
+export async function ensureSnapshotRecordFor(
   msgId: string,
   entry: SnapshotMsgEntry,
   syncMsg: MailSyncMsgV2,
@@ -319,6 +324,8 @@ async function ensureSnapshotRecordFor(
       part: event.part,
       of: event.of,
       msgs: [entry],
+      ...(event.applyNewerAspects && { applyNewerAspects: true as const }),
+      ...((typeof event.fallbackTs === 'number') && { fallbackTs: event.fallbackTs }),
     },
   };
   await bufferOrphanedSync(db, msgId, oneEntry);

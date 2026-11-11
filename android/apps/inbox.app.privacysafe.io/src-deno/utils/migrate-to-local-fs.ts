@@ -64,6 +64,24 @@ export async function migrateAppDataToLocalFS(report: ReportStartup): Promise<vo
   }
 }
 
+async function appDataOnSynced(syncedFS: web3n.files.ReadonlyFS): Promise<{ hasDb: boolean; hasFiles: boolean }> {
+  const [hasDb, hasFiles] = await Promise.all([
+    syncedFS.checkFilePresence(DB_FNAME),
+    syncedFS.checkFolderPresence(FILES_FOLDER),
+  ]);
+  return { hasDb, hasFiles };
+}
+
+/**
+ * True while the synced fs still holds data this migration has to move, i.e.
+ * until then nothing there may be cleared away (see
+ * services/auto-backup/auto-backup-storage.ts). Asks the synced fs itself.
+ */
+export async function hasAppDataOnSynced(syncedFS: web3n.files.ReadonlyFS): Promise<boolean> {
+  const { hasDb, hasFiles } = await appDataOnSynced(syncedFS);
+  return hasDb || hasFiles;
+}
+
 /**
  * @returns true if the synced fs is now empty of this app's data, i.e. there is
  * nothing left for a later start to move.
@@ -73,10 +91,7 @@ export async function migrateToLocalFS(
   localFS: WritableFS,
   report: ReportStartup,
 ): Promise<boolean> {
-  const [hasDb, hasFiles] = await Promise.all([
-    syncedFS.checkFilePresence(DB_FNAME),
-    syncedFS.checkFolderPresence(FILES_FOLDER),
-  ]);
+  const { hasDb, hasFiles } = await appDataOnSynced(syncedFS);
   if (!hasDb && !hasFiles) {
     return true;
   }

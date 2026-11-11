@@ -229,6 +229,11 @@ draft's `cTime`) stands in — see `ageStampOf()` and `surplusOfArchive()`.
   later last-write-wins works;
 - nothing is deleted.
 
+`merge` has one variant, used only by the automatic backup:
+`applyNewerAspects`. An entity that is here is then **not** skipped — its aspects
+go through `applyIfNewer()` as in `replace` — while nothing is deleted and a
+tombstone stays final. See [Automatic backup](#automatic-backup) for why.
+
 ### One listing of the shared inbox
 
 Before anything is applied, a restore makes **one**
@@ -524,6 +529,195 @@ actually rebuild a mailbox, restore an archive of one user into **another
 account** — nothing is there and no phantom in that inbox is about those records,
 so everything comes from the archive.
 
+## Automatic backup
+
+A manual archive helps only if the user made one in advance. A reinstalled
+device gets back from the shared inbox what is there — incoming messages, and the
+phantoms of the last 15 days — and nothing else: **sent mail, drafts, the user's
+folders, where older messages were put and whether they were read, incoming
+messages deleted from the server** are gone unless another device of the user
+still has them and is switched on. So every device regularly puts a snapshot of
+its mailbox into the user's synced storage, and a new installation restores from
+the snapshots of all devices. Ported from chat.app, where it was made first
+(its doc/08 §11); this section is about what is the same, and why the rest is
+not.
+
+It is **not** synchronization: changes still travel as phantoms. Moving the
+database to synced storage was rejected earlier
+([local-fs-migration](../plans/local-fs-migration-and-startup-2026-08-27.md));
+the automatic backup writes rarely, and each device writes only its own file.
+
+Code: [services/auto-backup/](../src-deno/services/auto-backup) — the scheduler
+(`auto-backup.ts`), the format (`auto-backup-file.ts`), all work with the synced
+storage (`auto-backup-storage.ts`), the tombstones of several files
+(`auto-backup-merge.ts`) — and `restoreFromAutoBackupFiles` in
+[inbox-backup-srv.ts](../src-deno/inbox-backup-srv.ts). Constants:
+[shared/constants/auto-backup.ts](../shared/constants/auto-backup.ts).
+
+### Settings and state
+
+**Per device**, in the table `device_settings` of `storage-db` — a table of its
+own for the reason given over `sync_device`: `AppState` is rebuilt whole by its
+callers. One row, two JSON columns: `appSettings` and `autoBackup` (the state:
+`lastAt`, `lastSnapshotTs`, `lastIncomingTs`, `lastError`, `lastGcAt`,
+`restorePending`). The background component reads them with no window open; the
+window reads and changes them through `getAutoBackupInfo()` / `setAppSettings()`
+and is told of changes by the `auto-backup` event.
+
+The window has a **Settings** dialog for them (menu item, the same shape as in
+chat.app and Storage: a row per setting, an Off/On switch):
+
+| Setting | Default | What it does |
+|---|---|---|
+| `autoBackup` | **on** | The device writes its file. The date of its last file and the last error are shown under the switch, live |
+| `showAutoBackupRestore` | off | The menu item "Restore from automatic backups". A new installation restores by itself; on a device in use the item is for when something went wrong |
+
+Turning it off does not remove the file already written; it is collected as a
+dead device's file after 60 days.
+
+### Where it lives
+
+Folder `auto-backup/` of the app's synced storage, a file per device,
+`<appDeviceId>.json.gz`. Rewriting one's own file changes the file's object and
+not the folder; the folder changes only when a device puts its file there for the
+first time, and on garbage collection. Everything the platform asks of a writer
+of synced storage (every upload awaited, one operation at a time, state asked
+with `status()`, folder conflicts resolved by absorbing the other side) is in
+`auto-backup-storage.ts` alone, taken over from chat.app unchanged.
+
+The deno component has `storage: {appFS: "default"}`, which includes the synced
+FS; the manifest did not change. The window never touches the folder.
+
+### Format
+
+```ts
+interface AutoBackupFile {            // src-deno/types/auto-backup.types.ts
+  kind: 'inbox-auto-backup';
+  formatVersion: 1;
+  appVersion: string;
+  deviceId: string;
+  snapshotTs: number;                 // HLC, taken BEFORE the database is read
+  writtenAt: number;                  // wall clock: shown, and what GC goes by
+  folders: SnapshotFolderEntry[];
+  msgs: SnapshotMsgEntry[];
+  tombstones: BackedUpTombstone[];
+}
+```
+
+The records are in the **wire form of a restore snapshot**, built by the same
+`snapshotEntriesOf()` — so [the rule of the carrier](#the-rule-of-the-carrier)
+applies: an incoming message that is in the shared inbox goes **without** its
+record (only `read` and `placement`), outgoing mail and drafts go whole, an
+incoming message gone from the server goes whole with `noServerCopy`. That keeps
+the bodies of received mail out of the file, and lets the file be applied the way
+a neighbour applies a snapshot. Because of that rule a pass **needs a listing of
+the shared inbox**; when the listing fails the pass fails (an empty set would
+declare every incoming message gone, its attachments unreachable).
+
+Attachment bytes are not backed up; ids are cut out as for a phantom.
+
+gzip by fflate's **synchronous** API, not `CompressionStream`: on Android the
+component runs in a bare V8 isolate, and neither that nor the `Blob`/`Response`
+a stream would be piped through can be relied on. The reader also takes plain
+JSON (told apart by the gzip magic bytes). A file of another kind, an unknown
+`formatVersion` or a damaged one is skipped with a line in the log, never applied
+in part.
+
+### When it writes
+
+- A pass 5 min after the start, then a check every 30 min. It writes when
+  `AUTO_BACKUP_INTERVAL_MILLIS` (**12 h**) have passed since the last file **and**
+  something changed: the HLC (`lastSyncClockTs`) is past the last `snapshotTs`, or
+  a newer incoming message arrived (receiving does not move the HLC).
+- A failure is retried in an hour; `concurrentTransaction` (another device writing
+  the same object at that moment) — up to three quick retries 30–90 s apart. The
+  first pass is spread by 0–30 s, so devices started together do not collide.
+- Turning the setting on — a pass in 10 s.
+
+### Restoring
+
+**A new installation.** `restorePending` is set when `storage-db` is made anew
+(no `app` row yet). The first pass, 20–50 s after the start — **after** the
+start-up replay of the shared inbox — reads the files of all **other** devices
+and applies them, clears the flag, and only then writes its own file. No files —
+the flag is cleared too. The folder cannot be read (offline) — the flag stays,
+and the next pass tries again.
+
+**From the menu** (with `showAutoBackupRestore`): a dialog lists the files —
+date, device, number of folders and messages — before anything happens; this
+device's own file is shown for its date and never applied.
+
+**How it is applied** (`restoreFromAutoBackupFiles`), under the same
+`setRestoreInProgress` and bulk-replay window as a manual restore, and with the
+same inbox pass after it (the watermark is not reset):
+
+1. **The tombstones of all files first** (`mergeTombstonesOfFiles`): the newest per
+   entity; one some file contradicts with a newer token of the entity is dropped.
+   Without this a message deleted on B would come back from A's older file if A
+   happened to be applied first.
+2. Each file — `applyRestoreSnapshot()` in **`merge` with `applyNewerAspects`**,
+   `sourceDeviceId` = the file's device, with `ensureSnapshotRecordFor` for an
+   entry without a record (pulled from the inbox, or buffered as an orphan until
+   it shows up). Two departures from a manual restore, both forced:
+   - plain `merge` would do nothing for the case the feature exists for: the
+     incoming messages of a new installation are already here, out of the shared
+     inbox — in the Inbox, unread, **with no tokens** — and plain `merge` skips an
+     entity that is here;
+   - the fallback token is `AUTO_BACKUP_FALLBACK_TS` (1), not the file's
+     `snapshotTs`. Several files go one after another, and under its own
+     `snapshotTs` a newer file's "untouched, so as of my snapshot" would beat an
+     older file's **real** change of the same message. At the lowest stamp the
+     fallback fills an aspect nobody has spoken for and loses to every real one.
+3. What changed here (new entities, or ones whose `sync_versions` differ from
+   before) is **announced** to the other devices as a `restore-snapshot` with
+   `applyNewerAspects` and the same `fallbackTs`: a dead device's file may be the
+   only copy of a sent message, and the neighbours never read automatic backups.
+   A build that predates the field reads the chunk as a plain `merge`.
+4. Progress — `restore` events with `source: 'auto-backup'`; the window opens the
+   progress dialog itself on seeing one (`watchAutoBackupRestoreProgress`), and
+   the component closes it with a `null`. So one dialog serves both the menu and
+   a new installation restoring with no window asking for it.
+
+### Garbage
+
+Every reinstall is a new `appDeviceId`, and the files of dead devices pile up.
+At most once a day, after writing its own file, a device removes the files of
+devices that have written nothing for `AUTO_BACKUP_DEAD_AFTER_MILLIS` (**60
+days**) — and only while a living file is in the folder, so the last file is
+never removed. Only a device that has finished its own first-run restore gets
+there.
+
+### Verification
+
+`tests/unit/src-deno/services/auto-backup/` — the format (carrier rule, ids cut,
+gzip and plain JSON, damaged/foreign/unknown version), the tombstone merge, the
+scheduler on a controlled clock (at once, not before 12 h, unchanged, an incoming
+message is a change, failure and the hour, quick retry, no listing — no file,
+turned off), the first run (restores others' files, stays pending offline, skips
+a damaged file), garbage (61 days removed, 59 kept, the last never), and the
+restore itself: folders, placement, read and sent mail of a "reinstalled" device
+come back; a newer local change wins; a newer untokened file does not beat an
+older real change; a tombstone keeps a message dead in both orders of files;
+what changed is announced and nothing else. Mutation-checked: without the
+"living file" rule, with the file's `snapshotTs` as the fallback, and without the
+tombstone step the specs fail.
+
+`tests/app/src/tests/auto-backup.ts`, on the platform with the real synced
+storage: the device writes its own file on its own, the settings round-trip, a
+file of a "dead device" written into the folder brings back its folder and sent
+message, the progress events carry the source and end with `null`, and a second
+restore changes nothing.
+
+### Limitations
+
+1. A file older than 15 days can **resurrect** what was deleted on another device
+   if that device's tombstone has been collected since (the same as for a manual
+   archive). For a new installation a loss is worse than a resurrection.
+2. Garbage collection does not fold a dead device's file into its own: what only
+   a device dead for 60 days had is gone after that. Restore it from the menu
+   while the file is there.
+3. Attachment bytes of sent mail are not kept.
+
 ## Deliberately out of scope
 
 - **Streaming the archive straight into a `WritableFile`.** It would lift the
@@ -539,4 +733,5 @@ so everything comes from the archive.
   restore in full** — the archive carries those. The user is told so plainly in
   the dialog for creating a backup.
 - **Restoring `thumbnails`.** A cache that rebuilds itself.
-- **Incremental and scheduled backups.**
+- **Incremental backups.** The automatic backup writes the whole mailbox each
+  time; see its volume below.

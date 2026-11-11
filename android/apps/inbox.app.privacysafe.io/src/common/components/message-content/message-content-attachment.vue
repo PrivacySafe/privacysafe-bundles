@@ -30,6 +30,8 @@
     msgId: string;
     isIncomingMessage?: boolean;
     attachment: AttachmentInfo;
+    canOpenExternally?: boolean;
+    isPreparingToOpen?: boolean;
     /** Preview made earlier and kept, if there is one. */
     cachedThumbnail?: string;
   }>();
@@ -37,6 +39,7 @@
   const emits = defineEmits<{
     (event: 'download', value: AttachmentInfo): void;
     (event: 'view', value: AttachmentInfo): void;
+    (event: 'open', value: AttachmentInfo): void;
     (event: 'import', value: AttachmentInfo): void;
     (event: 'thumbnail', value: { fileName: string; dataUrl: string }): void;
   }>();
@@ -46,8 +49,8 @@
   const appStore = useAppStore();
 
   const isProcessing = ref(false);
-  /** The file was asked for and is not there — moved, renamed or deleted. */
-  const isFileMissing = ref(false);
+  /** A thumbnail could not be created; the file may still be readable. */
+  const isPreviewUnavailable = ref(false);
   const iconSize = 88;
   const iconSizeCss = computed(() => `${iconSize}px`);
 
@@ -63,10 +66,8 @@
    * The file was attached on another device of the user, and only the record
    * travelled here.
    *
-   * Deliberately NOT folded into isBroken. That one says the file was deleted,
-   * moved or renamed — which about a whole and well file sitting on the user's
-   * phone is simply untrue, and is exactly what would be said if nothing were
-   * done here: createThumbnail returns null and isFileMissing goes true.
+   * Kept separate from isBroken: a file on another device may still be intact,
+   * even though its bytes cannot be read here.
    */
   const isOnAnotherDevice = computed(
     () =>
@@ -75,12 +76,12 @@
   );
   const isViewAvailable = computed(
     () =>
-      !isFileMissing.value &&
+      !isPreviewUnavailable.value &&
       !isOnAnotherDevice.value &&
       (isThumbnailAvailable.value ||
         (isFileAudio({ fullName: props.attachment.fileName }) && props.attachment.size)),
   );
-  const isBroken = computed(() => !isOnAnotherDevice.value && (!props.attachment.size || isFileMissing.value));
+  const isBroken = computed(() => !isOnAnotherDevice.value && !props.attachment.size);
   const brokenTitle = computed(() => t('msg.attachment.link_broken', { fileName: props.attachment.fileName }));
   const onAnotherDeviceTitle = computed(() =>
     t('msg.attachment.on_another_device', { fileName: props.attachment.fileName }),
@@ -98,7 +99,7 @@
   /** A file with contacts shared by the contacts app. */
   const isSharedContacts = computed(() => fileExt.value === SHARED_CONTACTS_FILE_EXT);
   const sharedContactsCount = computed(() =>
-    (isSharedContacts.value ? sharedContactsCountOf(props.attachment.fileName) : undefined),
+    isSharedContacts.value ? sharedContactsCountOf(props.attachment.fileName) : undefined,
   );
   /**
    * Only received contacts are offered for import: the sender's own copy holds
@@ -106,11 +107,7 @@
    */
   const isImportAvailable = computed(
     () =>
-      isSharedContacts.value &&
-      !!props.isIncomingMessage &&
-      !isOnAnotherDevice.value &&
-      !isFileMissing.value &&
-      !!props.attachment.size,
+      isSharedContacts.value && !!props.isIncomingMessage && !isOnAnotherDevice.value && !!props.attachment.size,
   );
 
   const iconName = computed(() => {
@@ -180,6 +177,9 @@
    * the user has something to fix.
    */
   const isDownloadable = computed(() => !isOnAnotherDevice.value);
+  const isExternalOpenAvailable = computed(
+    () => props.canOpenExternally && props.isIncomingMessage && !isOnAnotherDevice.value && !isBroken.value,
+  );
 
   /**
    * `.actions` is `inset: 0` with a translucent grey fill, so an empty one would
@@ -187,7 +187,23 @@
    * offer nothing.
    */
   const hasActions = computed(
-    () => isDownloadable.value || isPreviewOnDemand.value || isViewAvailable.value || isImportAvailable.value,
+    () =>
+      isDownloadable.value ||
+      isPreviewOnDemand.value ||
+      isViewAvailable.value ||
+      isImportAvailable.value ||
+      isExternalOpenAvailable.value,
+  );
+
+  const hasManyActions = computed(
+    () =>
+      [
+        isDownloadable.value,
+        isPreviewOnDemand.value,
+        isViewAvailable.value,
+        isImportAvailable.value,
+        isExternalOpenAvailable.value,
+      ].filter(Boolean).length > 3,
   );
 
   async function makeThumbnail() {
@@ -203,9 +219,9 @@
         targetSize: 128,
       });
       imageDataUrl.value = dataUrl;
-      // No thumbnail from a file that should have one means the file itself
-      // could not be read; saying so beats offering a view that shows nothing.
-      isFileMissing.value = !dataUrl;
+      // A failed preview does not prove that the file is missing. Keep download
+      // and external opening available so the file can still be used.
+      isPreviewUnavailable.value = !dataUrl;
       if (dataUrl) {
         // Kept, so that reopening the message does not read the file again.
         emits('thumbnail', { fileName: props.attachment.fileName, dataUrl });
@@ -227,14 +243,19 @@
   if (props.cachedThumbnail) {
     imageDataUrl.value = props.cachedThumbnail;
   } else if (!isOnAnotherDevice.value && (props.attachment.size ?? 0) <= THUMBNAIL_AUTO_PREVIEW_LIMIT) {
-    // Without the guard, opening the message starts a read that is bound to
-    // return null - and to leave the "deleted, moved or renamed" mark behind.
+    // Files on another device cannot supply thumbnail bytes here.
     makeThumbnail();
   }
 </script>
 
 <template>
-  <div :class="[$style.msgAttachment, appStore.isMobileMode && $style.mobileMode]">
+  <div
+    :class="[
+      $style.msgAttachment,
+      appStore.isMobileMode && $style.mobileMode,
+      hasManyActions && $style.manyActions,
+    ]"
+  >
     <div
       :class="[$style.thumbnail, !imageViewStyle && isPreviewPossible && $style.empty]"
       :style="imageViewStyle"
@@ -376,6 +397,24 @@
       </ui3n-tooltip>
 
       <ui3n-tooltip
+        v-if="isExternalOpenAvailable"
+        :content="t(isPreparingToOpen ? 'msg.attachment.opening.preparing' : 'msg.content.tooltip.open_external')"
+        placement="top"
+        position-strategy="fixed"
+        max-content-width="180"
+      >
+        <ui3n-button
+          type="icon"
+          color="color(from var(--color-bg-block-primary-default) srgb 75% 75% 75% / 0.5)"
+          icon="outline-folder-open"
+          icon-size="24"
+          icon-color="var(--color-icon-button-tritery-default)"
+          :disabled="isPreparingToOpen"
+          @click.stop.prevent="emits('open', attachment)"
+        />
+      </ui3n-tooltip>
+
+      <ui3n-tooltip
         v-if="isImportAvailable"
         :content="t('msg.content.tooltip.import_contacts')"
         placement="top"
@@ -442,6 +481,14 @@
         top: calc(var(--msg-attachment-icon-size) + var(--spacing-l));
         background-color: transparent;
       }
+
+      &.manyActions {
+        height: calc(var(--msg-attachment-mobile-height) + var(--spacing-xl) + var(--spacing-xs));
+
+        .actions {
+          height: calc(2 * var(--spacing-xl) + var(--spacing-xs));
+        }
+      }
     }
   }
 
@@ -489,7 +536,9 @@
     z-index: 3;
     justify-content: center;
     align-items: center;
-    column-gap: var(--spacing-xs);
+    flex-wrap: wrap;
+    align-content: center;
+    gap: var(--spacing-xs);
   }
 
   .onAnotherDevice {

@@ -26,6 +26,8 @@ import {
   TOMBSTONE_TTL_MS,
 } from '../../shared/constants/sync.ts';
 import { randomIdStr } from '../../shared/utils/random-id.ts';
+import { APP_SETTINGS_DEFAULT } from '../../shared/constants/auto-backup.ts';
+import type { AppSettings, AutoBackupState } from '../types/auto-backup.types.ts';
 import type {
   OrphanedSyncDbEntry,
   OrphanedSyncEntry,
@@ -82,6 +84,9 @@ import {
   GET_CONTACT_BLACKLIST_QUERY,
   CLEAR_CONTACT_BLACKLIST_QUERY,
   INSERT_CONTACT_BLACKLIST_QUERY,
+  GET_DEVICE_SETTINGS_QUERY,
+  UPSERT_DEVICE_SETTINGS_QUERY,
+  GET_LATEST_INCOMING_DELIVERY_TS_QUERY,
 } from './queries.ts';
 import {
   folderValueToSqlInsertParams,
@@ -266,6 +271,22 @@ export interface DBProvider {
   setCachedBlacklist(addresses: string[]): Promise<void>;
 
   // ---------------------------------------------------------------------------
+  // Settings of the app on this device, and its automatic backup
+  // ---------------------------------------------------------------------------
+
+  /** Absent fields take APP_SETTINGS_DEFAULT. */
+  getAppSettings(): AppSettings;
+  /** Merges the patch in, writes it to disk, and answers the settings as they now are. */
+  setAppSettings(patch: Partial<AppSettings>): Promise<AppSettings>;
+  getAutoBackupState(): AutoBackupState;
+  /** Replaces the state whole, and writes it to disk. */
+  setAutoBackupState(state: AutoBackupState): Promise<void>;
+  /** The HLC as it stands, without spending a stamp. */
+  getSyncClock(): number;
+  /** deliveryTS of the newest incoming message, or 0 when there is none. */
+  getLatestIncomingDeliveryTs(): number;
+
+  // ---------------------------------------------------------------------------
   // Restoration from a backup archive
   // ---------------------------------------------------------------------------
 
@@ -309,6 +330,13 @@ export async function dataset(): Promise<DBProvider> {
   let restoreInProgress = false;
 
   /**
+   * The row of the device_settings table, cached. Both halves are JSON: they
+   * are read whole and written whole, and only by this component.
+   */
+  let appSettings: Partial<AppSettings> = {};
+  let autoBackupState: AutoBackupState = {};
+
+  /**
    * Whether this start put any schema in. getRowsModified() is
    * sqlite3_changes(), which counts the rows of the last DML and does not react
    * to DDL at all, so the check below cannot be left to it.
@@ -345,6 +373,10 @@ export async function dataset(): Promise<DBProvider> {
     ) STRICT`);
 
     const existingState = getAppStateRaw();
+    // No `app` row means the database file was made just now: a new
+    // installation (or one whose data was wiped), which restores from the
+    // automatic backups of the user's devices - see device_settings below.
+    const isNewDatabase = !existingState;
     if (!existingState) {
       await updateAppState({ lastReceivingTimestamp: 0 }, true);
     }
@@ -427,6 +459,22 @@ export async function dataset(): Promise<DBProvider> {
 
     initializeSyncTables();
     loadSyncDeviceRow();
+
+    // Settings of the app on this device and the state of its automatic backup
+    // (services/auto-backup/auto-backup.ts). A table of its own for the reason
+    // spelled out over sync_device: AppState is rebuilt whole by its callers.
+    ensureTable('device_settings', `--sql
+      CREATE TABLE IF NOT EXISTS device_settings (
+      id TEXT PRIMARY KEY,
+      appSettings TEXT NOT NULL,
+      autoBackup TEXT NOT NULL
+    ) STRICT`);
+    loadDeviceSettingsRow();
+    if (isNewDatabase) {
+      autoBackupState = { ...autoBackupState, restorePending: true };
+      writeDeviceSettingsRow();
+      schemaChanged = true;
+    }
 
     // Only when this start actually put something in: on every later start the
     // statements above are all no-ops, and rewriting the whole file for them is
@@ -536,6 +584,54 @@ export async function dataset(): Promise<DBProvider> {
     appDeviceId = `app-${randomIdStr(20)}`;
     writeSyncDeviceRow();
     schemaChanged = true;
+  }
+
+  function loadDeviceSettingsRow(): void {
+    const [sqlValue] = sqlite.db.exec(GET_DEVICE_SETTINGS_QUERY, { $id: '0' });
+    const row = sqlValue
+      ? objectFromQueryExecResult<{ appSettings: string; autoBackup: string }>(sqlValue)[0]
+      : undefined;
+    appSettings = parseJsonObject(row?.appSettings);
+    autoBackupState = parseJsonObject(row?.autoBackup);
+  }
+
+  function writeDeviceSettingsRow(): void {
+    sqlite.db.exec(UPSERT_DEVICE_SETTINGS_QUERY, {
+      $id: '0',
+      $appSettings: JSON.stringify(appSettings),
+      $autoBackup: JSON.stringify(autoBackupState),
+    });
+  }
+
+  function getAppSettings(): AppSettings {
+    return { ...APP_SETTINGS_DEFAULT, ...appSettings };
+  }
+
+  async function setAppSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
+    appSettings = { ...appSettings, ...patch };
+    writeDeviceSettingsRow();
+    writer.scheduleSave();
+    // Flushed: a setting the user changed must not be lost to a close that
+    // follows it within the batching delay.
+    await writer.flush();
+    return getAppSettings();
+  }
+
+  function getAutoBackupState(): AutoBackupState {
+    return { ...autoBackupState };
+  }
+
+  async function setAutoBackupState(state: AutoBackupState): Promise<void> {
+    autoBackupState = { ...state };
+    writeDeviceSettingsRow();
+    writer.scheduleSave();
+    await writer.flush();
+  }
+
+  function getLatestIncomingDeliveryTs(): number {
+    const [sqlValue] = sqlite.db.exec(GET_LATEST_INCOMING_DELIVERY_TS_QUERY);
+    const ts = sqlValue?.values?.[0]?.[0];
+    return (typeof ts === 'number') ? ts : 0;
   }
 
   function writeSyncDeviceRow(): void {
@@ -1088,9 +1184,29 @@ export async function dataset(): Promise<DBProvider> {
     getCachedBlacklist,
     setCachedBlacklist,
 
+    getAppSettings,
+    setAppSettings,
+    getAutoBackupState,
+    setAutoBackupState,
+    getSyncClock: () => lastSyncClockTs,
+    getLatestIncomingDeliveryTs,
+
     isRestoreInProgress: () => restoreInProgress,
     setRestoreInProgress: value => {
       restoreInProgress = value;
     },
   };
+}
+
+/** A JSON object out of a column, or an empty one when there is none to read. */
+function parseJsonObject<T extends object>(text: string | undefined): Partial<T> {
+  if (!text) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(text);
+    return (parsed && (typeof parsed === 'object')) ? parsed : {};
+  } catch {
+    return {};
+  }
 }

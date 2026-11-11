@@ -8,3 +8,21 @@ allowBuilds:
 
 minimumReleaseAgeExclude:
   - '@v1nt1248/3nclient-lib@0.4.4'
+  - '@typescript-eslint/eslint-plugin@8.72.2'
+  - '@typescript-eslint/parser@8.72.2'
+  - '@typescript-eslint/project-service@8.72.2'
+  - '@typescript-eslint/scope-manager@8.72.2'
+  - '@typescript-eslint/tsconfig-utils@8.72.2'
+  - '@typescript-eslint/type-utils@8.72.2'
+  - '@typescript-eslint/types@8.72.2'
+  - '@typescript-eslint/typescript-estree@8.72.2'
+  - '@typescript-eslint/utils@8.72.2'
+  - '@typescript-eslint/visitor-keys@8.72.2'
+  - typescript-eslint@8.72.2
+
+# rolldown 1.2.18 dies with "Illegal instruction" on the CI runner's CPU
+# (Intel Xeon E5504, Nehalem: no AVX). 1.2.16 builds there (chat.app); vite is
+# held at 8.3.6, the last one that asks for it (~1.2.16) - without the override
+# pnpm would still take 1.2.18, which the range allows.
+overrides:
+  rolldown: 1.2.16
