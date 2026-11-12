@@ -19,20 +19,14 @@ import { useI18n } from 'vue-i18n';
 import { storeToRefs } from 'pinia';
 import { DIALOGS_KEY, type DialogsPlugin, VUEBUS_KEY, type VueBusPlugin } from '@v1nt1248/3nclient-lib/plugins';
 import type { Nullable } from '@v1nt1248/3nclient-lib';
+import { groupFsRoots } from '@shared/utils/fs-grouping';
 import { formatPath } from '@shared/utils/various';
 import { joinEntityPath } from '@shared/utils/fs-utils/entity-name';
 import { appStorageSrv } from '@/services/services-provider';
 import { type CreateLinkDialogData, getCreateLinkErrorKey } from '@/utils/create-link';
 import { useNavigation } from '@/composables/useNavigation';
 import { useAppStore, useFsStore, useFavoriteStore, useRunModeInfoStore } from '@/store';
-import {
-  USER_FS,
-  USER_DEVICE_FS,
-  START_OF_SYSTEM_FS_ID,
-  USER_LOCAL_FS,
-  USER_TRASH_FOLDER,
-  USER_TRASH_LOCAL_FOLDER,
-} from '@shared/constants';
+import { USER_FS, USER_LOCAL_FS, USER_TRASH_FOLDER, USER_TRASH_LOCAL_FOLDER } from '@shared/constants';
 import type {
   AppGlobalEvents,
   FavoriteFolder,
@@ -70,12 +64,19 @@ export function useDashboard() {
       [`${USER_FS}-root`, `${USER_LOCAL_FS}-root`, USER_TRASH_FOLDER, USER_TRASH_LOCAL_FOLDER].includes(f.id),
     ),
   );
-  const userDeviceFsFolders = computed(() =>
-    fsAvailableFolderList.value.filter(f => f.fsId.includes(USER_DEVICE_FS)),
+
+  const fsCategories = computed(() =>
+    groupFsRoots(fsAvailableFolderList.value).filter(category => category.key !== 'home'),
   );
-  const systemFsFolders = computed(() =>
-    fsAvailableFolderList.value.filter(f => f.fsId.includes(START_OF_SYSTEM_FS_ID)),
-  );
+
+  // Keep roots outside the picker's categories visible until their separate task.
+  const ungroupedFsFolders = computed(() => {
+    const groupedIds = new Set([
+      ...userFsFolders.value.map(folder => folder.id),
+      ...fsCategories.value.flatMap(category => category.roots.map(folder => folder.id)),
+    ]);
+    return fsAvailableFolderList.value.filter(folder => !groupedIds.has(folder.id));
+  });
 
   const displayedFsEntityInfo = ref<Nullable<FsEntityInfoProps>>(null);
 
@@ -300,8 +301,8 @@ export function useDashboard() {
     t,
     processedFavoriteFolders,
     userFsFolders,
-    userDeviceFsFolders,
-    systemFsFolders,
+    fsCategories,
+    ungroupedFsFolders,
     displayedFsEntityInfo,
     isFolderSelected,
     selectFolder,

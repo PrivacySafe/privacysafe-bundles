@@ -16,7 +16,10 @@ export const usePickerFsStore = defineStore('picker-fs', () => {
   const fsAvailableFolderList = computed(() =>
     fsFolderList.value.filter(
       folder =>
-        folder.fsId === USER_FS || folder.fsId === USER_DEVICE_FS || folder.id.includes(START_OF_SYSTEM_FS_ID),
+        folder.fsId === USER_FS ||
+        folder.fsId === USER_DEVICE_FS ||
+        folder.fsId.startsWith(`${USER_DEVICE_FS}-`) ||
+        folder.id.includes(START_OF_SYSTEM_FS_ID),
     ),
   );
 

@@ -307,7 +307,6 @@ export const fr = {
     },
     mount: {
       button: {
-        busy: 'Veuillez patienter…',
         mount: 'Monter',
         unmount: 'Démonter',
       },

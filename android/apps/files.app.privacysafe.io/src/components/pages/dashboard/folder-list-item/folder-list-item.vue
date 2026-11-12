@@ -18,14 +18,15 @@
   import { computed } from 'vue';
   import { useI18n } from 'vue-i18n';
   import { storeToRefs } from 'pinia';
-  import startsWith from 'lodash/startsWith';
   import { Ui3nButton, Ui3nIcon, Ui3nTooltip } from '@v1nt1248/3nclient-lib';
   import { useFsStore, useSyncQueueStore } from '@/store';
+  import { getFsRootDisplayName } from '@shared/utils/fs-grouping';
   import { USER_FS } from '@shared/constants';
   import type { RootFsFolderView } from '@shared/types';
 
   const props = defineProps<{
     folder: RootFsFolderView;
+    label?: string;
     isSelected?: boolean;
     disabled?: boolean;
   }>();
@@ -39,11 +40,10 @@
 
   const fsStore = useFsStore();
   const { fsMountStatus, fsMountBusy } = storeToRefs(fsStore);
-  const showMountStatus = computed(
+  const showMountControl = computed(
     () => props.folder.id === `${props.folder.fsId}-root` && fsStore.canMountFs(props.folder.fsId),
   );
   const isMounted = computed(() => fsMountStatus.value[props.folder.fsId] === 'mounted');
-  const showMountControl = computed(() => showMountStatus.value && props.folder.fsId === USER_FS);
   const mountBusy = computed(() => !!fsMountBusy.value[props.folder.fsId]);
   const mountDisabled = computed(() => !!(props.folder.disabled || props.disabled || mountBusy.value));
   const mountActionLabel = computed(() =>
@@ -59,14 +59,15 @@
   }
 
   const folderIcon = computed(() => {
-    if (showMountStatus.value && props.folder.fsId === USER_FS) {
+    if (showMountControl.value && props.folder.fsId === USER_FS) {
       return isMounted.value ? 'round-cloud' : 'outline-cloud';
     }
 
     return props.folder.icon;
   });
 
-  const isItemSystemFolder = computed(() => startsWith(props.folder?.id, 'system'));
+  const isItemSystemFolder = computed(() => props.folder.id.startsWith('system'));
+
   const showConflictingIcon = computed(
     () =>
       (props.folder.id === 'user-synced-root' && rootFolderSyncStatus.value?.state === 'conflicting') ||
@@ -77,7 +78,7 @@
 <template>
   <div
     :class="[
-      $style.folderListItem,
+      $style.navItem,
       isItemSystemFolder && $style.systemFolderListItem,
       isSelected && $style.selected,
       (folder.disabled || disabled) && $style.disabled,
@@ -93,7 +94,7 @@
     />
 
     <span :class="$style.name">
-      {{ t(folder.name) }}
+      {{ label ?? t(getFsRootDisplayName(folder)) }}
     </span>
 
     <ui3n-icon
@@ -134,43 +135,7 @@
 </template>
 
 <style lang="scss" module>
-  .folderListItem {
-    display: flex;
-    width: 100%;
-    height: var(--spacing-l);
-    min-height: var(--spacing-l);
-    justify-content: flex-start;
-    align-items: center;
-    column-gap: var(--spacing-s);
-    padding: 0 var(--spacing-s);
-    border-radius: var(--spacing-xs);
-    cursor: pointer;
-    margin-bottom: calc(var(--spacing-xs) / 2);
-
-    &.systemFolderListItem {
-      .name {
-        font-size: var(--font-11);
-      }
-    }
-
-    &:hover {
-      color: var(--color-text-control-primary-hover);
-      background-color: var(--color-bg-control-primary-hover);
-
-      & > div {
-        color: var(--color-text-control-accent-default) !important;
-      }
-    }
-  }
-
-  .selected {
-    color: var(--color-text-control-primary-hover);
-    background-color: var(--color-bg-control-primary-hover);
-
-    & > div {
-      color: var(--color-text-control-accent-default) !important;
-    }
-  }
+  @use '@shared/styles/fs-sidebar';
 
   .disabled {
     pointer-events: none;
@@ -212,16 +177,6 @@
 
   .mountTriggerRight {
     margin-left: auto;
-  }
-
-  .name {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: var(--font-13);
-    font-weight: 600;
-    color: var(--color-text-control-primary-default);
   }
 
   .status {

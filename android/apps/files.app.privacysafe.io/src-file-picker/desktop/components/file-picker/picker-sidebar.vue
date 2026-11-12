@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+  import { getFsRootDisplayName } from '@shared/utils/fs-grouping';
   import { usePickerState } from '@picker/common/composables/usePickerState';
   import { Ui3nIcon } from '@v1nt1248/3nclient-lib';
   import { useI18n } from 'vue-i18n';
@@ -16,17 +17,29 @@
         :key="category.key"
       >
         <div
+          v-if="category.key === 'device' && category.mode === 'single'"
+          :class="$style.sectionDivider"
+        />
+        <div
           v-if="category.mode === 'single'"
-          :class="[$style.navItem, { [$style.active]: picker.activeRootId.value === category.roots[0].id }]"
+          :class="[
+            $style.navItem,
+            category.roots[0].id.startsWith('system') && $style.systemFolderListItem,
+            { [$style.selected]: picker.activeRootId.value === category.roots[0].id },
+          ]"
           @click="picker.switchRoot(category.roots[0].id)"
         >
           <ui3n-icon
             :icon="category.roots[0].icon"
-            width="22"
-            height="22"
-            color="var(--color-icon-control-secondary-default)"
+            width="16"
+            height="16"
+            :color="
+              picker.activeRootId.value === category.roots[0].id
+                ? 'var(--color-icon-control-accent-default)'
+                : 'var(--color-icon-control-secondary-default)'
+            "
           />
-          <span>{{ t(category.labelKey) }}</span>
+          <span :class="$style.name">{{ t(category.labelKey) }}</span>
         </div>
 
         <template v-else>
@@ -37,16 +50,24 @@
           <div
             v-for="root in category.roots"
             :key="root.id"
-            :class="[$style.navItem, $style.subItem, { [$style.active]: picker.activeRootId.value === root.id }]"
+            :class="[
+              $style.navItem,
+              root.id.startsWith('system') && $style.systemFolderListItem,
+              { [$style.selected]: picker.activeRootId.value === root.id },
+            ]"
             @click="picker.switchRoot(root.id)"
           >
             <ui3n-icon
               :icon="root.icon"
-              width="22"
-              height="22"
-              color="var(--color-icon-control-secondary-default)"
+              width="16"
+              height="16"
+              :color="
+                picker.activeRootId.value === root.id
+                  ? 'var(--color-icon-control-accent-default)'
+                  : 'var(--color-icon-control-secondary-default)'
+              "
             />
-            <span>{{ root.name }}</span>
+            <span :class="$style.name">{{ getFsRootDisplayName(root) }}</span>
           </div>
         </template>
       </template>
@@ -55,57 +76,13 @@
 </template>
 
 <style lang="scss" module>
+  @use '@shared/styles/fs-sidebar';
+
   .sidebar {
     display: flex;
     flex-direction: column;
     height: 100%;
     padding: 7px;
     overflow-y: auto;
-  }
-
-  .sectionDivider {
-    height: 1px;
-    margin: 8px;
-    background-color: var(--color-border-block-primary-default);
-  }
-
-  .sectionHeader {
-    padding: 4px 12px 6px;
-    font-size: var(--font-11);
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-    color: var(--color-text-control-secondary-default);
-    cursor: default;
-    user-select: none;
-  }
-
-  .navItem {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: var(--font-13);
-    padding: 10px 12px;
-    border-radius: 5px;
-    cursor: pointer;
-    user-select: none;
-    color: var(--color-text-control-primary-default);
-    transition:
-      background-color 0.15s,
-      color 0.15s;
-
-    &:hover {
-      background-color: color-mix(in srgb, var(--color-bg-control-primary-hover) 30%, transparent);
-    }
-
-    &.active {
-      background-color: var(--color-bg-control-primary-hover);
-    }
-  }
-
-  .subItem span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 </style>

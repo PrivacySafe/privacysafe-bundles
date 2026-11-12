@@ -306,7 +306,6 @@ export const es = {
     },
     mount: {
       button: {
-        busy: 'Por favor, espera…',
         mount: 'Montar',
         unmount: 'Desmontar',
       },

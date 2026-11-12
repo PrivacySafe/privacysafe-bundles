@@ -17,7 +17,6 @@
 <script lang="ts" setup>
   import { computed } from 'vue';
   import { storeToRefs } from 'pinia';
-  import size from 'lodash/size';
   import { Ui3nButton, Ui3nIcon, Ui3nMenu } from '@v1nt1248/3nclient-lib';
   import { useNavigation } from '@/composables/useNavigation';
   import { useFsWindowState } from '@/composables/useFsWindowState';
@@ -25,7 +24,6 @@
   import { useAbilities } from '@/composables/useAbilities';
   import { useRunModeInfoStore, useSyncQueueStore } from '@/store';
   import CustomScrollBar from '@/components/common/custom-scroll-bar.vue';
-  import FsMountControl from '@/components/pages/dashboard/fs-mount-control.vue';
   import FolderListItem from '@/components/pages/dashboard/folder-list-item/folder-list-item.vue';
   import FavoriteListItem from '@/components/pages/dashboard/favorite-list-item/favorite-list-item.vue';
   import DashboardToolbar from '@/components/common/dashboard-toolbar/dashboard-toolbar.vue';
@@ -39,8 +37,8 @@
   const {
     t,
     userFsFolders,
-    userDeviceFsFolders,
-    systemFsFolders,
+    fsCategories,
+    ungroupedFsFolders,
     processedFavoriteFolders,
     displayedFsEntityInfo,
     isFolderSelected,
@@ -151,15 +149,30 @@
           </template>
 
           <div
-            v-if="size(userDeviceFsFolders)"
+            v-for="category in fsCategories"
+            :key="category.key"
             :class="$style.listBlock"
           >
+            <div
+              v-if="category.mode === 'collection'"
+              :class="$style.sectionHeader"
+            >
+              {{ t(category.labelKey) }}
+            </div>
+
             <template
-              v-for="folder in userDeviceFsFolders"
+              v-for="folder in category.roots"
               :key="folder.id"
             >
               <folder-list-item
                 :folder="folder"
+                :label="
+                  category.key === 'device'
+                    ? folder.name
+                    : category.mode === 'single'
+                      ? t(category.labelKey)
+                      : undefined
+                "
                 :is-selected="isFolderSelected(folder)"
                 @select="selectFolder"
               />
@@ -167,11 +180,11 @@
           </div>
 
           <div
-            v-if="size(systemFsFolders)"
+            v-if="ungroupedFsFolders.length"
             :class="$style.listBlock"
           >
             <template
-              v-for="folder in systemFsFolders"
+              v-for="folder in ungroupedFsFolders"
               :key="folder.id"
             >
               <folder-list-item
@@ -179,7 +192,6 @@
                 :is-selected="isFolderSelected(folder)"
                 @select="selectFolder"
               />
-              <fs-mount-control :fs-id="folder.fsId" />
             </template>
           </div>
 
@@ -307,6 +319,7 @@
 
 <style lang="scss" module>
   @use '@/assets/styles/_mixins.scss' as mixins;
+  @use '@shared/styles/fs-sidebar';
 
   .dashboard {
     --dashboard-list-width: 190px;
@@ -375,7 +388,7 @@
     padding-right: var(--spacing-xs);
     height: calc(100% - var(--dashboard-toolbar-height));
 
-    div[data-ui3n="scrollbar-vertical"] {
+    div[data-ui3n='scrollbar-vertical'] {
       div:last-child {
         right: 0 !important;
       }

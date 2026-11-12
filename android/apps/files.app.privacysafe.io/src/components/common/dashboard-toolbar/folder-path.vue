@@ -27,6 +27,7 @@
   import { useNavigation } from '@/composables/useNavigation';
   import { useFsStore } from '@/store';
   import type { AppGlobalEvents } from '@shared/types';
+  import { getFsRootDisplayName } from '@shared/utils/fs-grouping';
   import LinkBadge from '@/components/common/link-badge/link-badge.vue';
 
   const vUi3nResize = Ui3nResize;
@@ -59,12 +60,7 @@
       return '';
     }
 
-    if (rootFolder.value.name.includes('.')) {
-      return t(rootFolder.value.name);
-    }
-
-    const splittedFolderName = (rootFolder.value.name || '').split('(');
-    return splittedFolderName[0].trim() || 'Root';
+    return t(getFsRootDisplayName(rootFolder.value)) || 'Root';
   });
 
   /*
@@ -99,18 +95,15 @@
   const showScrollRightBtn = ref(true);
 
   function checkAbilityToShowRightBtn() {
-    showScrollBtns.value = pathElement.value && wrapElement.value
-      ? pathElement.value!.offsetWidth > wrapElement.value!.offsetWidth
-      : false;
-    childElements.value = pathElement.value
-      ? pathElement.value.children
-      : [] as unknown as HTMLCollection;
+    showScrollBtns.value =
+      pathElement.value && wrapElement.value
+        ? pathElement.value!.offsetWidth > wrapElement.value!.offsetWidth
+        : false;
+    childElements.value = pathElement.value ? pathElement.value.children : ([] as unknown as HTMLCollection);
 
     const rectWrapElement = wrapElement.value?.getBoundingClientRect();
     if (rectWrapElement) {
-      showScrollRightBtn.value = !(rectWrapElement.width >
-        pathElement.value!.offsetWidth + pathOffsetX.value
-      );
+      showScrollRightBtn.value = !(rectWrapElement.width > pathElement.value!.offsetWidth + pathOffsetX.value);
     }
   }
 
@@ -161,9 +154,14 @@
   }
 
   function goToFolder(index: number) {
-    if (index === size(pathItems.value) - 1) return;
+    if (index === size(pathItems.value) - 1) {
+      return;
+    }
 
-    const path = pathItems.value.slice(0, index + 1).map(i => i.name).join('/');
+    const path = pathItems.value
+      .slice(0, index + 1)
+      .map(i => i.name)
+      .join('/');
     goToPath(path);
   }
 
@@ -174,7 +172,8 @@
         pathOffsetX.value = 0;
         currentChildIndex.value = 0;
       }
-    }, {
+    },
+    {
       immediate: true,
     },
   );
@@ -200,7 +199,7 @@
       <span
         v-for="(item, index) in pathItems"
         :key="item.id"
-        :class="[$style.item, index === (size(pathItems) - 1) && $style.disabled]"
+        :class="[$style.item, index === size(pathItems) - 1 && $style.disabled]"
         @click.stop.prevent="goToFolder(index)"
       >
         <span :class="$style.itemDelimiter">/</span>
@@ -326,22 +325,14 @@
     left: 0;
     padding-left: 12px;
     justify-content: flex-start;
-    background: linear-gradient(
-        to right,
-        var(--color-bg-block-primary-default) 50%,
-        transparent
-    );
+    background: linear-gradient(to right, var(--color-bg-block-primary-default) 50%, transparent);
   }
 
   .btnRight {
     right: 0;
     padding-right: 12px;
     justify-content: flex-end;
-    background: linear-gradient(
-        to left,
-        var(--color-bg-block-primary-default) 50%,
-        transparent
-    );
+    background: linear-gradient(to left, var(--color-bg-block-primary-default) 50%, transparent);
   }
 
   .disabled {

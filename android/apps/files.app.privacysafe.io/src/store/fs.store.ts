@@ -240,7 +240,7 @@ export const useFsStore = defineStore('fs', () => {
       return (
         f.fsId === USER_FS ||
         (localFoldersDisplaying && f.fsId === USER_LOCAL_FS) ||
-        (deviceFoldersDisplaying && f.fsId === USER_DEVICE_FS) ||
+        (deviceFoldersDisplaying && (f.fsId === USER_DEVICE_FS || f.fsId.startsWith(`${USER_DEVICE_FS}-`))) ||
         (systemFoldersDisplaying && f.id.includes(START_OF_SYSTEM_FS_ID))
       );
     }),
