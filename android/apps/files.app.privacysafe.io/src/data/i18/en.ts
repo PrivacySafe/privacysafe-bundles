@@ -203,6 +203,9 @@ export const en = {
   },
 
   fs: {
+    category: {
+      local: 'Local',
+    },
     create_link_error: "Couldn't create the SymLink '{name}'.",
     name_taken: "The name '{name}' is already taken in this folder.",
     create_link_error_not_allowed:

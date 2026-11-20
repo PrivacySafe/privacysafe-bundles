@@ -62,7 +62,7 @@ async function connectToContactsApp(): Promise<ContactsService> {
           'changeContactBlockingSettings',
           'prepareSharedContactsImport',
         ],
-        ['watchContactBlacklistChanging'],
+        ['watchContactBlacklistChanging', 'watchContactListChanging'],
       ) as ContactsService;
     } catch (err) {
       lastErr = err;

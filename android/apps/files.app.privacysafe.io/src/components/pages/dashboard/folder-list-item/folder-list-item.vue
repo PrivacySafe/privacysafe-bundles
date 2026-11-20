@@ -34,7 +34,12 @@
     (event: 'select', value: RootFsFolderView): void;
   }>();
 
-  const { t } = useI18n();
+  const { t, te } = useI18n();
+
+  const folderName = computed(() => {
+    const name = getFsRootDisplayName(props.folder);
+    return props.label ?? (te(name) ? t(name) : name);
+  });
 
   const { rootFolderSyncStatus, trashFolderSyncStatus } = storeToRefs(useSyncQueueStore());
 
@@ -94,7 +99,7 @@
     />
 
     <span :class="$style.name">
-      {{ label ?? t(getFsRootDisplayName(folder)) }}
+      {{ folderName }}
     </span>
 
     <ui3n-icon

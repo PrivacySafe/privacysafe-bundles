@@ -56,7 +56,6 @@ export default [
       'no-console': 'off',
       'no-debugger': 'off',
       'no-undef': 'off',
-      'import/prefer-default-export': 'off',
       'default-case': 'off',
       'lines-between-class-members': 'off',
       'no-param-reassign': 'off',

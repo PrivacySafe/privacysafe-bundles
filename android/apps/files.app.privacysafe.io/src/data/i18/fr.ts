@@ -198,6 +198,9 @@ export const fr = {
   },
 
   fs: {
+    category: {
+      local: 'Local',
+    },
     create_link_error: "Impossible de créer le SymLink '{name}'.",
     name_taken: "Le nom '{name}' est déjà utilisé dans ce dossier.",
     create_link_error_not_allowed:

@@ -72,20 +72,14 @@
 
 <template>
   <div :class="[$style.dashboardToolbar, activeWindow === '2' && $style.reverse]">
-    <div
-      :class="[
-        $style.block,
-        activeWindow === '2' && $style.reverse,
-        $style.breadcrumbsBlock,
-        isTileView && $style.tileBreadcrumbsBlock,
-        isCurrentRootFsFolderTrash && $style.breadcrumbsBlockLong,
-      ]"
-    >
-      <fs-systems-selector
-        :model-value="currentRootFsFolder"
-        :available-fs-folders="availableFsFolders"
-        @update:model-value="changeFsFolder"
-      />
+    <div :class="[$style.block, activeWindow === '2' && $style.reverse, $style.breadcrumbsBlock]">
+      <div :class="$style.fsSelector">
+        <fs-systems-selector
+          :model-value="currentRootFsFolder"
+          :available-fs-folders="availableFsFolders"
+          @update:model-value="changeFsFolder"
+        />
+      </div>
 
       <div :class="$style.path">
         <folder-path
@@ -155,6 +149,7 @@
 
   .block {
     display: flex;
+    flex-shrink: 0;
     justify-content: flex-start;
     align-items: center;
     height: 100%;
@@ -165,24 +160,20 @@
   }
 
   .breadcrumbsBlock {
-    width: calc(100% - 64px);
-
-    &.tileBreadcrumbsBlock {
-      width: calc(100% - 210px);
-    }
+    flex: 1;
+    min-width: 0;
   }
 
-  .breadcrumbsBlockLong {
-    width: calc(100% - 32px);
-
-    &.tileBreadcrumbsBlock {
-      width: calc(100% - 180px);
-    }
+  .fsSelector {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 60%;
   }
 
   .path {
     position: relative;
-    width: calc(100% - 220px);
+    flex: 1;
+    min-width: 0;
     height: 100%;
     margin-left: var(--spacing-xs);
   }

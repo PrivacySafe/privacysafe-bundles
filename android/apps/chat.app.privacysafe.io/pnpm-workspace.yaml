@@ -2,6 +2,7 @@ strictDepBuilds: false
 
 allowBuilds:
   '@parcel/watcher': true
+  core-js-pure: set this to true or false
   electron: true
   esbuild: true
   unrs-resolver: true
@@ -20,3 +21,8 @@ minimumReleaseAgeExclude:
   - '@vue/shared@3.5.45'
   - vite@8.3.6
   - vue@3.5.45
+  - '@intlify/core-base@11.4.23'
+  - '@intlify/devtools-types@11.4.23'
+  - '@intlify/message-compiler@11.4.23'
+  - '@intlify/shared@11.4.23'
+  - vue-i18n@11.4.23

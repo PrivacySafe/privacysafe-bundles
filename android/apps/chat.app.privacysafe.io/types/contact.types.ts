@@ -50,6 +50,12 @@ export interface ContactsService {
     value: boolean;
   }) => Promise<Person>;
   watchContactBlacklistChanging: (obs: web3n.Observer<Person[]>) => () => void;
+  /**
+   * The contact list now, then again on every change a subscriber can see
+   * (Name, mail, avatar, settings, added or removed). Only in contacts apps
+   * that have it (added on the `date_field` branch); older ones do not expose it.
+   */
+  watchContactListChanging: (obs: web3n.Observer<Person[]>) => () => void;
 }
 
 export interface PersonView {

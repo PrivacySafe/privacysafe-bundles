@@ -34,14 +34,18 @@ export const useContactsStore = defineStore('contacts', () => {
     blacklist.value.map(contact => toCanonicalAddress(contact.mail).toLowerCase()),
   );
 
+  function setContactList(list: PersonView[]): void {
+    contactList.value = list
+      .map(contact => ({
+        ...contact,
+        displayName: contact.name || contact.mail || ' ',
+      }))
+      .sort((a, b) => (a.displayName > b.displayName ? 1 : -1));
+  }
+
   async function fetchContacts() {
     try {
-      contactList.value = (await (await contactsSrv()).getContactList())
-        .map(contact => ({
-          ...contact,
-          displayName: contact.name || contact.mail || ' ',
-        }))
-        .sort((a, b) => (a.displayName > b.displayName ? 1 : -1));
+      setContactList(await (await contactsSrv()).getContactList());
     } catch (e) {
       log.error('Error contacts fetching. ', e);
     }
@@ -81,7 +85,88 @@ export const useContactsStore = defineStore('contacts', () => {
     }
   }
 
+  /**
+   * Follows edits made in the contacts app while this one runs - without it a
+   * Name given to somebody there never reached the chat, and senders kept
+   * showing as bare addresses until a restart.
+   */
+  let stopContactListWatch: (() => void) | undefined = undefined;
+
+  async function startContactListWatch(): Promise<void> {
+    if (stopContactListWatch) {
+      return;
+    }
+    try {
+      const srv = await contactsSrv();
+      stopContactListWatch = srv.watchContactListChanging({
+        next: (list: Person[]) => {
+          setContactList(list ?? []);
+        },
+        error: (err: unknown) => {
+          // Expected with a contacts app older than this method; the refresh on
+          // focus below still covers that case.
+          log.info('watchContactListChanging is not available or failed. ', err);
+          stopContactListWatch = undefined;
+        },
+        complete: () => {
+          stopContactListWatch = undefined;
+        },
+      });
+    } catch (e) {
+      log.info('Failed to start watchContactListChanging. ', e);
+    }
+  }
+
+  /**
+   * Re-reads the contact list whenever this window comes back to the front.
+   *
+   * The fallback for a contacts app that does not offer watchContactListChanging
+   * yet. Kept with the watch, too: it costs one request per return to the
+   * window, and coming back from the contacts app is exactly when an edit can
+   * have happened.
+   */
+  let stopRefreshOnFocus: (() => void) | undefined = undefined;
+  let refreshInFlight: Promise<unknown> | undefined = undefined;
+
+  function refreshContactsOnce(): void {
+    if (refreshInFlight) {
+      return;
+    }
+    refreshInFlight = fetchContacts().finally(() => {
+      refreshInFlight = undefined;
+    });
+  }
+
+  function startRefreshOnFocus(): void {
+    if (stopRefreshOnFocus || typeof window === 'undefined') {
+      return;
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshContactsOnce();
+      }
+    };
+    window.addEventListener('focus', refreshContactsOnce);
+    document.addEventListener('visibilitychange', onVisibility);
+    stopRefreshOnFocus = () => {
+      window.removeEventListener('focus', refreshContactsOnce);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }
+
   function stopWatching(): void {
+    if (stopContactListWatch) {
+      try {
+        stopContactListWatch();
+      } catch {
+        // ignore
+      }
+      stopContactListWatch = undefined;
+    }
+    if (stopRefreshOnFocus) {
+      stopRefreshOnFocus();
+      stopRefreshOnFocus = undefined;
+    }
     if (stopBlacklistWatch) {
       try {
         stopBlacklistWatch();
@@ -123,6 +208,8 @@ export const useContactsStore = defineStore('contacts', () => {
     await primeBlacklistFromBackend();
     await Promise.all([fetchContacts(), fetchBlacklist()]);
     startBlacklistWatch().catch(() => {});
+    startContactListWatch().catch(() => {});
+    startRefreshOnFocus();
   }
 
   async function addContact(mail: string): Promise<void> {

@@ -22,6 +22,7 @@
   import { useFsWindowState } from '@/composables/useFsWindowState';
   import { useDashboard } from '@/composables/useDashboard';
   import { useAbilities } from '@/composables/useAbilities';
+  import { getFsFolderLabel } from '@/utils/group-storage-fs-roots';
   import { useRunModeInfoStore, useSyncQueueStore } from '@/store';
   import CustomScrollBar from '@/components/common/custom-scroll-bar.vue';
   import FolderListItem from '@/components/pages/dashboard/folder-list-item/folder-list-item.vue';
@@ -36,6 +37,7 @@
 
   const {
     t,
+    te,
     userFsFolders,
     fsCategories,
     ungroupedFsFolders,
@@ -153,10 +155,7 @@
             :key="category.key"
             :class="$style.listBlock"
           >
-            <div
-              v-if="category.mode === 'collection'"
-              :class="$style.sectionHeader"
-            >
+            <div :class="$style.sectionHeader">
               {{ t(category.labelKey) }}
             </div>
 
@@ -166,13 +165,7 @@
             >
               <folder-list-item
                 :folder="folder"
-                :label="
-                  category.key === 'device'
-                    ? folder.name
-                    : category.mode === 'single'
-                      ? t(category.labelKey)
-                      : undefined
-                "
+                :label="getFsFolderLabel(folder, category.labelKey, t, te)"
                 :is-selected="isFolderSelected(folder)"
                 @select="selectFolder"
               />

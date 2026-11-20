@@ -19,7 +19,9 @@
   import { useI18n } from 'vue-i18n';
   import { storeToRefs } from 'pinia';
   import { Ui3nButton, Ui3nMenu } from '@v1nt1248/3nclient-lib';
+  import CustomScrollBar from '@/components/common/custom-scroll-bar.vue';
   import { useFsStore } from '@/store';
+  import { groupStorageFsRoots, getFsFolderLabel } from '@/utils/group-storage-fs-roots';
   import type { RootFsFolderView } from '@shared/types';
 
   const props = defineProps<{
@@ -31,11 +33,29 @@
     (event: 'update:modelValue', value: string): void;
   }>();
 
-  const { t } = useI18n();
+  const { t, te } = useI18n();
 
   const { fsFolderList } = storeToRefs(useFsStore());
 
   const isMenuOpen = ref(false);
+
+  const fsSections = computed(() => {
+    const { userFsFolders, fsCategories, ungroupedFsFolders } = groupStorageFsRoots(props.availableFsFolders);
+    return [
+      { key: 'home', labelKey: '', roots: userFsFolders },
+      ...fsCategories,
+      { key: 'other', labelKey: '', roots: ungroupedFsFolders },
+    ]
+      .filter(section => section.roots.length > 0)
+      .map(({ key, labelKey, roots }) => ({
+        key,
+        labelKey,
+        roots: roots.map(folder => ({
+          id: folder.id,
+          label: getFsFolderLabel(folder, labelKey, t, te),
+        })),
+      }));
+  });
 
   const selectedFsFolderName = computed(() => {
     if (!props.modelValue) {
@@ -43,13 +63,15 @@
     }
 
     const fsFolder = fsFolderList.value.find(f => f.id === props.modelValue);
-    return fsFolder?.name || '-';
+    const name = fsFolder?.name || '-';
+    return te(name) ? t(name) : name;
   });
 
   function selectItem(id: string) {
     if (id !== props.modelValue) {
       emits('update:modelValue', id);
     }
+    isMenuOpen.value = false;
   }
 </script>
 
@@ -58,41 +80,106 @@
     v-model="isMenuOpen"
     :offset-x="-4"
     :offset-y="4"
+    :content-border-radius="16"
+    :close-on-click="false"
+    :class="$style.fsSystemsMenu"
   >
     <ui3n-button
       type="custom"
       color="var(--color-bg-control-secondary-default)"
       text-color="var(--color-text-control-primary-default)"
-      :icon="isMenuOpen ? 'round-keyboard-arrow-up': 'round-keyboard-arrow-down'"
+      :icon="isMenuOpen ? 'round-keyboard-arrow-up' : 'round-keyboard-arrow-down'"
       icon-color="var(--color-icon-button-tritery-default)"
       icon-position="right"
       :class="$style.fsSystemsSelector"
+      :title="selectedFsFolderName"
     >
-      {{ t(selectedFsFolderName) }}
+      {{ selectedFsFolderName }}
     </ui3n-button>
 
     <template #menu>
-      <div
-        v-for="fsFolder in availableFsFolders"
-        :key="fsFolder.id"
-        :class="[$style.item, fsFolder.id === modelValue && $style.selected]"
-        @click="selectItem(fsFolder.id)"
-      >
-        {{ t(fsFolder.name) }}
+      <div :class="$style.menuContent">
+        <custom-scroll-bar :class="$style.menuScroll">
+          <div>
+            <div
+              v-for="section in fsSections"
+              :key="section.key"
+              :class="$style.section"
+            >
+              <div
+                v-if="section.labelKey"
+                :class="$style.sectionHeader"
+                @click.stop
+              >
+                {{ t(section.labelKey) }}
+              </div>
+
+              <div
+                v-for="fsFolder in section.roots"
+                :key="fsFolder.id"
+                :class="[$style.item, fsFolder.id === modelValue && $style.selected]"
+                :title="fsFolder.label"
+                @click="selectItem(fsFolder.id)"
+              >
+                <span :class="$style.itemName">
+                  {{ fsFolder.label }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </custom-scroll-bar>
       </div>
     </template>
   </ui3n-menu>
 </template>
 
 <style lang="scss" module>
-  .fsSystemsSelector {
-    --selector-width: 210px;
+  @use '@shared/styles/fs-sidebar';
 
+  .menuContent {
+    padding: var(--spacing-xs);
+  }
+
+  .menuScroll {
+    height: auto;
+    max-height: 60vh;
+    max-height: round(down, 60vh, 1px);
+
+    & > div:first-child {
+      max-height: inherit;
+    }
+  }
+
+  .section + .section {
+    margin-top: var(--spacing-s);
+    padding-top: var(--spacing-s);
+    border-top: 1px solid var(--color-border-control-secondary-default);
+  }
+
+  .fsSystemsMenu {
+    max-width: 100%;
+  }
+
+  .fsSystemsSelector {
     position: relative;
     justify-content: space-between !important;
-    width: var(--selector-width) !important;
+    width: max-content !important;
+    min-width: min(210px, 100%);
+    max-width: min(320px, 100%);
     padding-left: var(--spacing-s) !important;
     font-size: var(--font-11) !important;
+    text-align: left;
+
+    & > span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    & > [data-ui3n='icon'] {
+      flex-shrink: 0;
+    }
   }
 
   .item {
@@ -102,17 +189,22 @@
     justify-content: flex-start;
     align-items: center;
     padding: 0 var(--spacing-s);
+    border-radius: 12px;
     font-size: var(--font-13);
     color: var(--color-text-control-primary-default);
 
-    &:hover {
+    &:hover,
+    &.selected {
       background-color: var(--color-bg-control-primary-hover);
-      color: var(--color-text-control-accent-default);
+      color: var(--color-text-control-primary-hover);
       cursor: pointer;
     }
   }
 
-  .selected {
-    color: var(--color-text-control-accent-default);
+  .itemName {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 </style>

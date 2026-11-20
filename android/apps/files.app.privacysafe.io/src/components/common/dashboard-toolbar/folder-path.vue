@@ -39,7 +39,7 @@
   }>();
 
   const bus = inject<VueBusPlugin<AppGlobalEvents>>(VUEBUS_KEY)!;
-  const { t } = useI18n();
+  const { t, te } = useI18n();
 
   const { isSplittedMode, activeWindow, navigateToRouteSingle, navigateToRouteDouble } = useNavigation();
 
@@ -60,7 +60,8 @@
       return '';
     }
 
-    return t(getFsRootDisplayName(rootFolder.value)) || 'Root';
+    const name = getFsRootDisplayName(rootFolder.value);
+    return (te(name) ? t(name) : name) || 'Root';
   });
 
   /*

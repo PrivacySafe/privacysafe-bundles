@@ -197,6 +197,9 @@ export const es = {
   },
 
   fs: {
+    category: {
+      local: 'Local',
+    },
     create_link_error: "No se pudo crear el SymLink '{name}'.",
     name_taken: "El nombre '{name}' ya existe en esta carpeta.",
     create_link_error_not_allowed:
