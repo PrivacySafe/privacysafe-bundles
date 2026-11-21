@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": ["jasmine", "node"],
+    "paths": {
+      "@main/*": ["../../src/*"],
+      "@shared/*": ["../../shared-libs/*"],
+      "@deno/*": ["../../src-deno/*"],
+      "@tests/*": ["./src/*"]
+    }
+  },
+  "include": [
+    "vite.config.ts",
+    "src/**/*",
+    "../../src/**/*",
+    "../../shared-libs/**/*",
+    "../../src-deno/**/*",
+    "../../@types/**/*"
+  ],
+  "exclude": ["build", "public", "node_modules", "test-ext-apps"]
+}

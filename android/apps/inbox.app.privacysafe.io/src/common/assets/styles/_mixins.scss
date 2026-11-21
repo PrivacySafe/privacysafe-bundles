@@ -1,0 +1,97 @@
+@mixin text-overflow-ellipsis($width: 100%) {
+  max-width: $width;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+@mixin block-shadow {
+  box-shadow: 0 3px 3px -2px var(--shadow-key-1),
+  0 3px 4px 0 var(--shadow-key-2),
+  0 1px 8px 0 var(--shadow-key-3),
+}
+
+@mixin elevation($number: 1) {
+  @if $number == 3 {
+    box-shadow: 0 3px 3px -2px var(--shadow-key-1),
+    0 3px 4px 0 var(--shadow-key-2),
+    0 1px 8px 0 var(--shadow-key-3),
+  } @else if $number == 2 {
+    box-shadow: 0 2px 1px -2px var(--shadow-key-1),
+    0 2px 2px 0 var(--shadow-key-2),
+    0 1px 5px 0 var(--shadow-key-3),
+  } @else {
+    box-shadow: 0 2px 1px -1px var(--shadow-key-1),
+    0 1px 1px 0 var(--shadow-key-2),
+    0 1px 3px 0 var(--shadow-key-3),
+  }
+}
+
+@mixin dropShadow() {
+  box-shadow: 0 0 2px 0 var(--shadow-key-1), 0 2px 5px 0 var(--shadow-key-2);
+}
+
+@mixin ripple($color) {
+  @if & {
+    background-position: center;
+    transition: background 0.35s ease-in-out;
+
+    &:not([disabled]) {
+      cursor: pointer;
+
+      &:hover {
+        background: $color radial-gradient(circle, transparent 1%, $color 1%) center/15000%;
+      }
+
+      &:active {
+        opacity: 1;
+        background-color: var(--grey-20);
+        background-size: 100%;
+        transition: background 0s;
+      }
+    }
+  }
+}
+
+
+/* stylelint-disable nesting-selector-no-missing-scoping-root */
+@mixin scrollbar($size: 200px) {
+  :global(::-webkit-scrollbar-track) {
+    background-color: transparent;
+  }
+
+  :global(::-webkit-scrollbar-thumb) {
+    background-color: var(--color-bg-control-accent-default);
+    border-radius: 4px;
+  }
+
+  :global(::-webkit-scrollbar-thumb:hover) {
+    background-color: var(--color-bg-control-accent-hover);
+    cursor: pointer;
+  }
+}
+
+@mixin scrollbar-vertical($size: 200px) {
+  :global(::-webkit-scrollbar) {
+    width: 6px;
+  }
+  @include scrollbar($size);
+
+  :global(::-webkit-scrollbar-thumb) {
+    min-height: 24px;
+  }
+}
+
+@mixin scrollbar-horizontal($size: 200px) {
+  :global(::-webkit-scrollbar) {
+    height: 6px;
+  }
+  @include scrollbar($size);
+
+  :global(::-webkit-scrollbar-thumb) {
+    min-width: 48px;
+  }
+}
+
+/* stylelint-enable */
+

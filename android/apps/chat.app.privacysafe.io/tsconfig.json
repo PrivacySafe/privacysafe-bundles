@@ -1,0 +1,53 @@
+{
+  "compilerOptions": {
+    "noEmit": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "target": "esnext",
+    "module": "esnext",
+    "useDefineForClassFields": true,
+    "strictNullChecks": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "jsxImportSource": "vue",
+    "noImplicitThis": true,
+    "strict": true,
+    "importHelpers": true,
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "useUnknownInCatchVariables": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": [
+      "vite/client",
+      "@types/node",
+      "@types/lodash",
+      "@types/jasmine"
+    ],
+    "paths": {
+      "@main/*": ["./src-main/*"],
+      "@video/*": ["./src-video/*"],
+      "@shared/*": ["./shared-libs/*"],
+      "@deno/*": ["./src-deno/*"],
+      "~/*": ["./types/*"]
+    }
+  },
+  "vueCompilerOptions": {
+    "strictTemplates": true,
+    "target": 3.5
+  },
+  "include": [
+    "vite.config.ts",
+    "src-main/**/*",
+    "src-video/**/*",
+    "shared-libs/**/*",
+    "src-deno/**/*",
+    "types/**/*",
+    "@types/**/*"
+  ],
+  "exclude": ["node_modules", "public", "app", "doc/**/*", "node_modules/.deno"]
+}

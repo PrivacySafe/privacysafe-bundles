@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <link rel="icon" href="./logo.png">
+    <link rel="stylesheet" href="./jasmine/jasmine.css">
+    <script src="./setup-w3n.bundle.js"></script>
+    <title>Contacts app control functionality testing</title>
+  </head>
+  <body>
+
+    <h2>Tests of chat app</h2>
+    <div id="test-out"></div>
+
+    <div>
+      <button onclick="w3n.testStand.exitAll()">Exit All</button>
+      <button id="cancel-autoclose" hidden="true" onclick="(function () {
+        window.closeW3NAfterTests = undefined;
+        document.getElementById('cancel-autoclose').hidden = true;
+      })()">Cancel autoclose</button>
+    </div>
+
+    <br>
+    <br>
+
+    <!-- load Jasmine -->
+    <script src="./jasmine/jasmine.js"></script>
+    <script src="./jasmine/jasmine-html.js"></script>
+    <script src="./jasmine/boot0.js"></script>
+    <script src="./jasmine/boot1.js"></script>
+
+    <!-- load test specs -->
+    <script type="module" src="./src/load-test.ts"></script>
+
+  </body>
+</html>

@@ -1,0 +1,59 @@
+.sectionDivider {
+  height: 1px;
+  margin: 8px;
+  background-color: var(--color-border-block-primary-default);
+}
+
+.sectionHeader {
+  padding: 4px 12px 6px;
+  font-size: var(--font-11);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-text-control-secondary-default);
+  cursor: default;
+  user-select: none;
+}
+
+.navItem {
+  display: flex;
+  width: 100%;
+  height: var(--spacing-l);
+  min-height: var(--spacing-l);
+  justify-content: flex-start;
+  align-items: center;
+  column-gap: var(--spacing-s);
+  padding: 0 var(--spacing-s);
+  border-radius: var(--spacing-xs);
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: calc(var(--spacing-xs) / 2);
+
+  & > :first-child {
+    flex-shrink: 0;
+  }
+
+  &:hover,
+  &.selected {
+    color: var(--color-text-control-primary-hover);
+    background-color: var(--color-bg-control-primary-hover);
+
+    & > div {
+      color: var(--color-text-control-accent-default) !important;
+    }
+  }
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-13);
+  font-weight: 600;
+  color: var(--color-text-control-primary-default);
+}
+
+.systemFolderListItem .name {
+  font-size: var(--font-11);
+}

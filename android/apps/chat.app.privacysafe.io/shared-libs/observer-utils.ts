@@ -1,0 +1,84 @@
+/*
+ Copyright (C) 2024 3NSoft Inc.
+
+ This program is free software: you can redistribute it and/or modify it under
+ the terms of the GNU General Public License as published by the Free Software
+ Foundation, either version 3 of the License, or (at your option) any later
+ version.
+
+ This program is distributed in the hope that it will be useful, but
+ WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ See the GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License along with
+ this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any */
+
+type Observer<T> = web3n.Observer<T>;
+
+export class ObserversSet<T> implements Observer<T> {
+
+  private readonly observers = new Set<Observer<T>>();
+
+  add(obs: Observer<T>): void {
+    this.observers.add(obs);
+  }
+
+  readonly next = (value: T): void => {
+    for (const obs of this.observers) {
+      try {
+        const res = obs.next?.(value);
+        if (res && typeof (res as Promise<unknown>).catch === 'function') {
+          (res as Promise<unknown>).catch(err => {
+            console.error('ObserversSet.next unhandled async rejection in observer:', err);
+          });
+        }
+      } catch (err) {
+        console.error('ObserversSet.next synchronous error in observer:', err);
+      }
+    }
+  };
+
+  readonly error = (err: any): void => {
+    for (const obs of this.observers) {
+      try {
+        const res = obs.error?.(err);
+        if (res && typeof (res as Promise<unknown>).catch === 'function') {
+          (res as Promise<unknown>).catch(asyncErr => {
+            console.error('ObserversSet.error unhandled async rejection in observer:', asyncErr);
+          });
+        }
+      } catch (syncErr) {
+        console.error('ObserversSet.error synchronous error in observer:', syncErr);
+      }
+    }
+    this.observers.clear();
+  };
+
+  readonly complete = (): void => {
+    for (const obs of this.observers) {
+      try {
+        const res = obs.complete?.();
+        if (res && typeof (res as Promise<unknown>).catch === 'function') {
+          (res as Promise<unknown>).catch(asyncErr => {
+            console.error('ObserversSet.complete unhandled async rejection in observer:', asyncErr);
+          });
+        }
+      } catch (syncErr) {
+        console.error('ObserversSet.complete synchronous error in observer:', syncErr);
+      }
+    }
+    this.observers.clear();
+  };
+
+  delete(obs: Observer<T>): void {
+    this.observers.delete(obs);
+  }
+
+  isEmpty(): boolean {
+    return (this.observers.size === 0);
+  }
+}

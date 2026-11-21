@@ -1,0 +1,294 @@
+package app.privacysafe.utils
+
+import android.Manifest
+import android.app.ActivityManager
+import android.app.Service
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
+import android.os.Binder
+import android.os.IBinder
+import android.webkit.PermissionRequest
+import app.privacysafe.CoreRunnerService
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import java.io.BufferedReader
+import java.io.InputStream
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.StandardOpenOption
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.Executor
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
+import kotlin.io.encoding.Base64
+import kotlin.io.path.ExperimentalPathApi
+import kotlin.io.path.OnErrorResult
+import kotlin.io.path.Path
+import kotlin.io.path.absolutePathString
+import kotlin.io.path.copyToRecursively
+import kotlin.io.path.deleteIfExists
+import kotlin.io.path.deleteRecursively
+import kotlin.io.path.isDirectory
+import kotlin.io.path.isRegularFile
+import kotlin.io.path.listDirectoryEntries
+import kotlin.io.path.name
+import kotlin.io.path.readBytes
+
+fun makeSequentialStringIdGenerator(): () -> String {
+	val idCount = AtomicLong(0)
+	return {
+		val id = idCount.addAndGet(1)
+		id.toString()
+	}
+}
+
+fun makeSequentialIntegerIdGenerator(): () -> Int {
+	val idCount = AtomicInteger(0)
+	return {
+		idCount.addAndGet(1)
+	}
+}
+
+fun String.decodeBase64(): ByteArray {
+	return Base64.decode(this)
+}
+
+fun ByteArray.toBase64(): String {
+	return Base64.encode(this)
+}
+
+private val extToMime = mapOf<String, String>(
+	Pair(".js", "text/javascript"),
+	Pair(".mjs", "text/javascript"),
+	Pair(".css", "text/css"),
+	Pair(".html", "text/html"),
+	Pair(".svg", "image/svg+xml"),
+	Pair(".png", "image/png"),
+	Pair(".webp", "image/webp"),
+	Pair(".jpeg", "image/jpeg"),
+	Pair(".jpg", "image/jpeg"),
+	Pair(".gif", "image/gif"),
+)
+
+fun mimeFromFileExt(path: String): String? {
+	val indOfDot = path.lastIndexOf(".")
+	if (indOfDot < 0) {
+		return null
+	}
+	val ext = path.slice(indOfDot..<path.length)
+	return extToMime[ext]
+}
+
+fun InputStream.readToString(): String {
+	return this.bufferedReader().use(BufferedReader::readText)
+}
+
+fun String.reverseDomain(): String {
+	return this.split(".").reversed().joinToString(".")
+}
+
+abstract class RuntimeException : Throwable() {
+	abstract fun toJSON(): String
+}
+
+fun <T> CoroutineScope.execBlocking(code: suspend () -> T): T {
+	val deferred = CompletableFuture<T>()
+	this.launch {
+		try {
+			deferred.complete(code())
+		} catch (exc: Throwable) {
+			deferred.completeExceptionally(exc)
+		}
+	}
+	try {
+		return deferred.get()
+	} catch (exc: ExecutionException) {
+		throw exc.cause ?: exc
+	}
+}
+
+suspend fun <T> Executor.computeAsync(code: () -> T): T {
+	val deferred = CompletableDeferred<T>()
+	this.execute {
+		try {
+			deferred.complete(code())
+		} catch (exc: Throwable) {
+			deferred.completeExceptionally(exc)
+		}
+	}
+	return deferred.await()
+}
+
+/**
+ * Systematic collection of constants, relevant to bundling and usage of bundled assets.
+ */
+interface Bundled {
+
+	interface Path {
+		companion object {
+			const val webviewPreload = "scripts-webview"
+			const val apps = "bundled-apps"
+			const val preloadUrl = "/setup-w3n.bundle.js"
+			const val startupPreloadUrl = "/setup-w3n-for-startup.bundle.js"
+		}
+	}
+
+	companion object {
+		const val startupDomain = "startup.app.privacysafe.io"
+		const val launcherDomain = "launcher.app.privacysafe.io"
+		const val contactsDomain = "contacts.app.privacysafe.io"
+		const val inboxDomain = "inbox.app.privacysafe.io"
+		const val chatDomain = "chat.app.privacysafe.io"
+		const val storageDomain = "files.app.privacysafe.io"
+		const val treasureDomain = "treasure.app.privacysafe.io"
+	}
+
+}
+
+interface Permission {
+
+	companion object {
+		const val POST_NOTIFICATIONS = "android.permission.POST_NOTIFICATIONS"
+		const val CAMERA = Manifest.permission.CAMERA
+		const val RECORD_AUDIO = Manifest.permission.RECORD_AUDIO
+
+		const val WEBKIT_RESOURCE_AUDIO_CAPTURE = PermissionRequest.RESOURCE_AUDIO_CAPTURE
+		const val WEBKIT_RESOURCE_VIDEO_CAPTURE = PermissionRequest.RESOURCE_VIDEO_CAPTURE
+	}
+
+}
+
+fun Context.getActivityManager(): ActivityManager {
+	return getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+}
+
+fun Context.customIntentAction(action: String): String {
+	return "$packageName/$action"
+}
+
+fun Context.customActionIn(intent: Intent): String? {
+	val action = intent.action
+	return if (action?.startsWith("$packageName/") == true) {
+		action.substring(packageName.length+1)
+	} else {
+		null
+	}
+}
+
+private const val APP_DATA_FOLDER_NAME = ".PrivacySafe"
+
+fun Context.appDataDir(): String {
+	return getExternalFilesDir(APP_DATA_FOLDER_NAME)!!.absolutePath
+}
+
+@OptIn(ExperimentalPathApi::class)
+fun Context.migrateDataIfAnyOldPresent() {
+	if (Files.isDirectory(Path("${ appDataDir() }/util"))) {
+		return
+	}
+	val oldDataDir = dataDir.absolutePath
+	if (!Files.isDirectory(Path("$oldDataDir/util"))) {
+		return
+	}
+	val toRm = mutableListOf<Path>()
+	val toCopy = Path(oldDataDir).listDirectoryEntries().filter { entry ->
+		entry.isDirectory() && (
+			(entry.name == "util") ||
+			try {
+				val userId = entry.name.decodeBase64().decodeToString()
+				userId.contains("@")
+			} catch (_: Throwable) {
+				false
+			}
+		)
+	}
+	for (entry in toCopy) {
+		if (entry.name == "util") {
+			val autologinPath = Path("$oldDataDir/util/autologin.json")
+			if (autologinPath.isRegularFile()) {
+				val content = autologinPath.readBytes()
+				writeFileIntoAndroidUtil("autologin.json", content)
+				autologinPath.deleteIfExists()
+			}
+		}
+		val dst = Files.createDirectory( Path("${appDataDir()}/${entry.name}"))
+		entry.copyToRecursively(dst, { _, _, _ -> OnErrorResult.SKIP_SUBTREE }, false, true)
+		toRm.add(entry)
+	}
+	for (entry in toRm) {
+		entry.deleteRecursively()
+	}
+}
+
+private const val ANDROID_UTIL_FOLDER = "util-android"
+
+fun Context.utilAndroidDir(): String {
+	return Path("${dataDir.absolutePath}/${ANDROID_UTIL_FOLDER}").absolutePathString()
+}
+
+fun Context.pathInAndroidUtilFolder(pathInUtil: String): Path {
+	return Path("${utilAndroidDir()}/${pathInUtil}")
+}
+
+fun Context.readFileBytesFromAndroidUtil(pathInUtil: String): ByteArray? {
+	val fPath = pathInAndroidUtilFolder(pathInUtil)
+	return if (Files.isRegularFile(fPath)) {
+		Files.readAllBytes(fPath)
+	} else { null }
+}
+
+fun Context.writeFileIntoAndroidUtil(pathInUtil: String, content: ByteArray) {
+	val fPath = pathInAndroidUtilFolder(pathInUtil)
+	Files.createDirectories(fPath.parent)
+	Files.write(fPath, content, StandardOpenOption.CREATE)
+}
+
+fun Context.readFileFromAndroidUtil(pathInUtil: String): String? {
+	val binaryContent = readFileBytesFromAndroidUtil(pathInUtil)
+	return if (binaryContent != null) {
+		String(binaryContent, Charsets.UTF_8)
+	} else { null }
+}
+
+inline fun <reified T> Context.readJsonFileFromAndroidUtil(pathInUtil: String): T? {
+	val txtContent = readFileFromAndroidUtil(pathInUtil)
+	return if (txtContent != null) {
+		Json.decodeFromString<T>(txtContent)
+	} else { null }
+}
+
+inline fun <reified T> Context.writeJsonFileIntoAndroidUtil(pathInUtil: String, json: T) {
+	val txtContent = Json.encodeToString(json)
+	writeFileIntoAndroidUtil(pathInUtil, txtContent.encodeToByteArray())
+}
+
+suspend fun <T : Binder, C : Service> Context.connectToService(
+	srvClass: Class<C>,
+	onDisconnect: ((name: ComponentName?) -> Unit)?,
+	setupIntent: (intent: Intent) -> Unit
+): Pair<T, () -> Unit> {
+	val deferred = CompletableDeferred<T>()
+	val srvConn = object : ServiceConnection {
+		override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+			@Suppress("UNCHECKED_CAST")
+			deferred.complete(service as T)
+		}
+		override fun onServiceDisconnected(name: ComponentName?) {
+			if (onDisconnect != null) {
+				onDisconnect(name)
+			}
+		}
+	}
+	val intent = Intent(this, srvClass)
+	setupIntent(intent)
+	this.bindService(intent, srvConn, 0)
+	val srv = deferred.await()
+	val disconnect = { this.unbindService(srvConn) }
+	return Pair(srv, disconnect)
+}
