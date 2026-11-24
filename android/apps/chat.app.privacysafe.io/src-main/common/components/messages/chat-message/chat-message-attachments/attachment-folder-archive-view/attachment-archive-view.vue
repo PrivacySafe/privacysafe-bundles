@@ -93,6 +93,11 @@ onMounted(async () => {
       // Only the archive's table of contents is needed here. The filter runs
       // for every central directory entry, and returning false from it keeps
       // fflate from inflating any of the content.
+      //
+      // SECURITY(CVE-2026-122146): not affected, and only because of that
+      // `return false` - fflate allocates an entry's declared size only for
+      // entries the filter accepts. Should this ever unpack anything, the
+      // filter has to come from makeZipSizeGuard (see zip-size-guard.ts).
       unzipSync(uint8Array, {
         filter: ({ name }) => {
           handleZipEntry(name, name.endsWith('/') || name.endsWith('\\'));

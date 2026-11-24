@@ -43,10 +43,10 @@ export default defineConfig({
     // Pure logic runs in node; anything touching pinia stores, composables or
     // components needs a DOM. Split by directory so a jsdom-only helper can
     // never silently leak into a node-environment spec.
+    // Inline projects inherit the plugins and resolve options declared above,
+    // so repeating `vue()`/`alias` here makes the plugin run twice per file.
     projects: [
       {
-        plugins: [vue()],
-        resolve: { alias },
         test: {
           name: 'node',
           globals: true,
@@ -55,8 +55,6 @@ export default defineConfig({
         },
       },
       {
-        plugins: [vue()],
-        resolve: { alias },
         test: {
           name: 'dom',
           globals: true,

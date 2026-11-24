@@ -197,6 +197,29 @@ describe('record.store', () => {
       expect(store.records).toHaveLength(2);
     });
 
+    it('counts as loaded only once the first reading has finished', async () => {
+      const store = setup();
+      expect(store.areRecordsLoaded).toBe(false);
+
+      await store.getAllRecords();
+
+      expect(store.areRecordsLoaded).toBe(true);
+      expect(store.recordsLoadFailed).toBe(false);
+    });
+
+    it('marks a failed reading, and still counts it as finished', async () => {
+      getAllRecords.mockRejectedValueOnce(new Error('boom'));
+      const store = setup();
+
+      await expect(store.getAllRecords()).rejects.toThrow('boom');
+
+      expect(store.areRecordsLoaded).toBe(true);
+      expect(store.recordsLoadFailed).toBe(true);
+
+      await store.getAllRecords();
+      expect(store.recordsLoadFailed).toBe(false);
+    });
+
     it('adds a record under the id the service minted', async () => {
       const store = setup();
 

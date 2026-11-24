@@ -30,6 +30,7 @@
     customLogoSrc,
     appElement,
     appVersion,
+    connectivityStatus,
     connectivityStatusText,
     isSyncRunning,
     syncStatusText,
@@ -82,7 +83,13 @@
           <div :class="$style.status">
             <span>{{ t('app.status.label') }}</span>
 
-            <b :class="connectivityStatusText.includes(t('app.status.connected.online')) && $style.ok">
+            <b
+              :class="{
+                [$style.ok]: connectivityStatus === 'online',
+                [$style.warn]: connectivityStatus === 'server-unreachable',
+                [$style.error]: connectivityStatus === 'offline',
+              }"
+            >
               {{ connectivityStatusText }}
             </b>
           </div>
@@ -240,6 +247,14 @@
 
     .ok {
       color: var(--success-content-default);
+    }
+
+    .warn {
+      color: var(--warning-content-default);
+    }
+
+    .error {
+      color: var(--error-content-default);
     }
   }
 

@@ -23,6 +23,17 @@ export const en = {
       connected: {
         online: 'online',
         offline: 'offline',
+        'server-unreachable': 'server unavailable',
+      },
+    },
+    info: {
+      status: {
+        online:
+          'You are currently online. Messages and changes made meanwhile will be sent and synchronized.',
+        offline:
+          'You are currently offline. Messages and changes will stay on this device till it gets connected.',
+        'server-unreachable':
+          'The server is unavailable. Messages and changes will stay on this device till it can be reached.',
       },
     },
     sync: {

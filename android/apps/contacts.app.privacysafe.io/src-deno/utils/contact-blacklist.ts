@@ -105,15 +105,42 @@ export interface BlacklistBroadcaster {
  * awaited insert per row, so a recomputation deferred past an await could read
  * an empty table and tell every subscriber that nobody is blocked.
  */
-export function makeBlacklistBroadcaster({ listContacts, broadcast, onError }: {
+export function makeBlacklistBroadcaster(params: {
   listContacts: () => Pick<PersonView, 'id' | 'mail' | 'name' | 'avatarId' | 'settings'>[];
+  broadcast: (list: Person[]) => void;
+  onError: (err: unknown) => void;
+}): BlacklistBroadcaster {
+  return makeContactsBroadcaster({ ...params, select: selectBlacklisted });
+}
+
+/**
+ * Keeps the observers of the WHOLE contact list in step with the contacts
+ * table - what other apps need to show a contact's Name in place of the bare
+ * address, and to follow it when it is edited while they run.
+ *
+ * Same machinery as the blacklist, for the same reasons (see
+ * makeBlacklistBroadcaster): synchronous, and announcing only what a
+ * subscriber can see change. A save that merely restamps `timestamp` stays
+ * quiet.
+ */
+export function makeContactListBroadcaster(params: {
+  listContacts: () => Pick<PersonView, 'id' | 'mail' | 'name' | 'avatarId' | 'settings'>[];
+  broadcast: (list: Person[]) => void;
+  onError: (err: unknown) => void;
+}): BlacklistBroadcaster {
+  return makeContactsBroadcaster({ ...params, select: list => list });
+}
+
+function makeContactsBroadcaster({ listContacts, select, broadcast, onError }: {
+  listContacts: () => Pick<PersonView, 'id' | 'mail' | 'name' | 'avatarId' | 'settings'>[];
+  select: <T extends Pick<PersonView, 'settings'>>(contacts: T[]) => T[];
   broadcast: (list: Person[]) => void;
   onError: (err: unknown) => void;
 }): BlacklistBroadcaster {
   let lastBroadcast: string | undefined;
 
   function current(): Person[] {
-    return selectBlacklisted(listContacts()) as Person[];
+    return select(listContacts()) as Person[];
   }
 
   function prime(): void {

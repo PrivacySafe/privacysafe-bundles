@@ -637,7 +637,8 @@ declare namespace web3n.files {
 		status(skipServerCheck?: boolean): Promise<SyncStatus>;
 
 		/**
-		 * Returns a state of on-disk cache.
+		 * Returns a state of on-disk cache of file, also checking on-disk state of base version(s), when
+		 * given one has it.
 		 * @param version 
 		 */
 		isRemoteVersionOnDisk(
@@ -1208,7 +1209,7 @@ declare namespace web3n.files {
 		syncStatus: ItemSyncStatus;
 	}
 
-	type UploadEvent = UploadStartEvent | UploadProgressEvent | UploadDisconnectedEvent | UploadDoneEvent;
+	type UploadEvent = UploadStartEvent | UploadProgressEvent | UploadDisconnectedEvent | UploadErredEvent | UploadDoneEvent;
 
 	interface UploadEventBase extends FSEvent {
 		uploadTaskId: number;
@@ -1230,6 +1231,11 @@ declare namespace web3n.files {
 
 	interface UploadDisconnectedEvent extends UploadEventBase {
 		type: 'upload-disconnected';
+	}
+
+	interface UploadErredEvent extends UploadEventBase {
+		type: 'upload-erred';
+		error: any;
 	}
 
 	interface UploadDoneEvent extends UploadEventBase {
@@ -1438,7 +1444,8 @@ declare namespace web3n.files {
 		status(path: string, skipServerCheck?: boolean): Promise<SyncStatus>;
 
 		/**
-		 * Returns a state of on-disk cache of an item in fs.
+		 * Returns a state of on-disk cache of an item in fs, also checking on-disk state of base version(s), when
+		 * given one has it.
 		 * @param version 
 		 */
 		isRemoteVersionOnDisk(path: string, version: number): Promise<'partial'|'complete'|'none'>;

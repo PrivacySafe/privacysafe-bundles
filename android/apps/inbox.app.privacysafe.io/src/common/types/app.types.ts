@@ -3,7 +3,11 @@ import type { PreparedMessageData } from './mail.types';
 
 export type AvailableLanguage = 'en';
 
-export type ConnectivityStatus = 'offline' | 'online';
+/**
+ * What the status line shows. 'online' means the inbox server answers, not
+ * only that the device has a network; see src/common/utils/connectivity-status.ts.
+ */
+export type ConnectivityStatus = 'offline' | 'server-unreachable' | 'online';
 
 export interface AppConfig {
   lang: AvailableLanguage;

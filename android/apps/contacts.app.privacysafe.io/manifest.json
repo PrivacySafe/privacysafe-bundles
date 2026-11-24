@@ -1,7 +1,7 @@
 {
   "name": "Contacts",
   "appDomain": "contacts.app.privacysafe.io",
-  "version": "0.8.53",
+  "version": "0.8.54",
   "description": "Private address book for your contact list.",
   "icon": "logo.png",
   "publisher": "Ivy Cyber",
@@ -56,6 +56,9 @@
         "add-contact": {
           "otherApps": "*"
         },
+        "open-contact": {
+          "thisAppComponents": ["/contactDenoServices.js"]
+        },
         "import-contacts": {
           "otherApps": ["chat.app.privacysafe.io", "inbox.app.privacysafe.io"]
         }
@@ -99,6 +102,9 @@
         "add-contact": {
           "otherApps": "*"
         },
+        "open-contact": {
+          "thisAppComponents": ["/contactDenoServices.js"]
+        },
         "import-contacts": {
           "otherApps": ["chat.app.privacysafe.io", "inbox.app.privacysafe.io"]
         }
@@ -131,7 +137,7 @@
         },
         "shell": {
           "startAppCmds": {
-            "thisApp": ["add-contact"]
+            "thisApp": ["add-contact", "open-contact"]
           },
           "userNotifications": true,
           "fsResource": {

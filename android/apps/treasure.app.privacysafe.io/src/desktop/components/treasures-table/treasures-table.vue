@@ -17,26 +17,28 @@
 <script setup lang="ts">
   import { computed, ComputedRef, ref } from 'vue';
   import { useRoute } from 'vue-router';
-  import { useI18n } from 'vue-i18n';
   import { storeToRefs } from 'pinia';
   import { Ui3nTable, type Nullable, type Ui3nTableExpose } from '@v1nt1248/3nclient-lib';
   import { useSyncStore } from '@/common/stores/sync.store';
   import { useTreasuresTable } from './use-treasures-table';
   import type { SyncType, TreasureRecord } from '@shared/@types';
+  import type { RecordListPlaceholder } from '@/common/utils';
   import TreasuresTableRow from './treasures-table-row.vue';
   import ImagesSlider from '@/desktop/components/images-slider.vue';
   import CustomScrollBar from '@/common/components/custom-scroll-bar.vue';
+  import RecordListPlaceholderView from '@/common/components/record-list-placeholder/record-list-placeholder.vue';
 
   const props = defineProps<{
     selectedGroup: string;
     records: TreasureRecord[];
+    placeholder?: RecordListPlaceholder | null;
+    searchText?: string;
   }>();
   const emits = defineEmits<{
     (event: 'edit', value: TreasureRecord): void;
     (event: 'set:favorite', value: TreasureRecord): void;
   }>();
 
-  const { t } = useI18n();
   const route = useRoute();
   const { syncProcesses } = storeToRefs(useSyncStore());
 
@@ -93,18 +95,17 @@
             @show:images="(v: string[]) => (optionsOfShowingImages = v)"
           />
         </template>
-
-        <template #unused-place>
-          <div
-            v-if="!sortedTableData.length"
-            :class="$style.noData"
-          >
-            <span :class="$style.noDataText">
-              {{ t('treasuresTable.nodata') }}
-            </span>
-          </div>
-        </template>
       </ui3n-table>
+
+      <!--
+        Below the table, not in its unused-place slot: the table here is sized
+        by its rows, so that slot gets no height of its own to show anything in.
+      -->
+      <record-list-placeholder-view
+        v-if="placeholder"
+        :state="placeholder"
+        :search-text="searchText"
+      />
     </custom-scroll-bar>
 
     <teleport
@@ -128,23 +129,6 @@
     div[class*='ui3nTable'] {
       height: auto;
       overflow: visible !important;
-    }
-  }
-
-  .noData {
-    position: relative;
-    width: 100%;
-    height: 100%;
-
-    .noDataText {
-      padding-top: var(--spacing-xxl);
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-start;
-      align-items: center;
-      font-size: var(--font-16);
-      font-weight: 500;
-      color: var(--color-text-control-secondary-default);
     }
   }
 </style>

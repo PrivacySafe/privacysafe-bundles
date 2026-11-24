@@ -39,6 +39,7 @@ import { attachmentAvailabilityOf } from '../shared/utils/attachment-availabilit
 import { generateFastRandomString } from '../shared/utils/generate-random-string.ts';
 import { makeLogger } from '../shared/utils/logger.ts';
 import { makeCancelController, type CancelController, type CancelSignal } from './utils/cancel-signal.ts';
+import { makeZipSizeGuard, type ZipEntryInfo } from './utils/zip-size-guard.ts';
 import { randomIdStr } from '../shared/utils/random-id.ts';
 import { sleep } from '../shared/utils/processes/sleep.ts';
 import { SingleProc } from '../shared/utils/processes/single.ts';
@@ -283,11 +284,13 @@ interface OpenedArchive {
 function openArchive(
   archiveBytes: Uint8Array,
   outerMetadata?: BackupMetadataContent,
-  filter?: (file: { name: string }) => boolean,
+  filter?: (file: ZipEntryInfo) => boolean,
 ): OpenedArchive {
   let entries: Unzipped;
   try {
-    entries = filter ? unzipSync(archiveBytes, { filter }) : unzipSync(archiveBytes);
+    // SECURITY(CVE-2026-122146): see zip-size-guard.ts. A size over the limit
+    // throws, and lands in 'corrupted_archive' below.
+    entries = unzipSync(archiveBytes, { filter: makeZipSizeGuard(filter) });
   } catch {
     throw new BackupArchiveFailure('corrupted_archive');
   }

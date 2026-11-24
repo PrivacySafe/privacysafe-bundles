@@ -11,3 +11,5 @@ Inbox is a 3NWeb app that sends messages via ASMail messaging protocol, implemen
 [Backup and restore](./backup-and-restore.md) — the archive format, the two modes a restore can follow, and why a restore invents no merge rules of its own but is expressed in the ones synchronization already has; also the automatic backup into the synced storage, from which a new installation restores itself.
 
 [Contact blocking](./contact-blocking.md) — the blacklist belongs to the contacts app; what this one does with it, where mail from a blocked sender is dropped, and why mail received before a blocking is never touched.
+
+[fflate CVE-2026-122146](./security/fflate-cve-2026-122146.md) — how `unzipSync` and `gunzipSync` are kept from allocating whatever size a forged archive declares.

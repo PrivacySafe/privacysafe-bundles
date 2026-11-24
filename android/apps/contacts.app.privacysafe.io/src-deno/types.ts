@@ -2,6 +2,7 @@ import type {
   AddressCheckResult,
   BackupValidationResult,
   ContactEvent,
+  ContactsAppSettings,
   ImportedContact,
   Person,
   RawPerson,
@@ -15,6 +16,7 @@ export interface ContactsDenoSrv {
   emitStorageEvent: (event: ContactEvent) => void;
   watchEvent: (obs: web3n.Observer<ContactEvent>) => () => void;
   watchContactBlacklistChanging: (obs: web3n.Observer<Person[]>) => () => void;
+  watchContactListChanging: (obs: web3n.Observer<Person[]>) => () => void;
 
   addImage: ({
     base64,
@@ -101,6 +103,14 @@ export interface ContactsDenoSrv {
   saveTutorialState: (key: string, state: TutorialState) => Promise<void>;
 
   /**
+   * Settings of the app on this device, in the app's LOCAL fs. A save merges
+   * the given fields into the stored ones, resolves with the result and
+   * broadcasts it as a 'settings' event to every window.
+   */
+  getAppSettings: () => Promise<ContactsAppSettings>;
+  saveAppSettings: (patch: Partial<ContactsAppSettings>) => Promise<ContactsAppSettings>;
+
+  /**
    * Sharing of contacts with another user. The export file is made here and
    * handed over to the chat or inbox app as an attachment of a message draft,
    * whose id the gui passes to that app in its start command.
@@ -126,6 +136,14 @@ export interface ContactsDenoSrv {
 
   removeUnnecessaryImageFiles: () => Promise<void>;
   initialSyncProcess: () => Promise<void>;
+
+  /**
+   * Whether the storage server answered the latest request the service made to
+   * it: 'unknown' before any. The same outcome is sent as server:reachability
+   * events, but the first of them is sent during the service's start, before
+   * any window can listen - so a window asks for it once it has connected.
+   */
+  getServerReachability: () => Promise<'unknown' | 'up' | 'down'>;
 }
 
 export type ContactsDenoSrvInternal = Omit<
@@ -143,5 +161,6 @@ export type ContactsDenoSrvExternal = Pick<
   | 'getContactBlacklist'
   | 'changeContactBlockingSettings'
   | 'watchContactBlacklistChanging'
+  | 'watchContactListChanging'
   | 'prepareSharedContactsImport'
 >;

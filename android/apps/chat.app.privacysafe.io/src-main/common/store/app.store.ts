@@ -18,7 +18,7 @@ this program. If not, see <http://www.gnu.org/licenses/>.
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
 import type { ThemeId } from '@v1nt1248/3nclient-lib/plugins';
-import { AvailableLanguage } from '~/app.types';
+import { AvailableLanguage, ConnectivityStatus } from '~/app.types';
 import { useSystemLevelAppConfig } from './app/system-level-app-config';
 import { useConnectivityStatus } from './app/connectivity';
 import { useMediaRecordingSupport } from './app/media-recording';
@@ -35,7 +35,7 @@ export interface AppStoreState {
   commonLoading: boolean;
   isMobileMode: boolean;
   appVersion: string;
-  connectivityStatus: string;
+  connectivityStatus: ConnectivityStatus;
   user: string;
   lang: AvailableLanguage;
   colorTheme: ThemeId;
@@ -73,7 +73,7 @@ export const useAppStore = defineStore('app', () => {
   });
 
   const connectivity = useConnectivityStatus();
-  const { connectivityStatus } = connectivity;
+  const { connectivityStatus, isConnectivitySettled, reportServerReachability } = connectivity;
 
   const commonAppConfs = useSystemLevelAppConfig();
   const { appVersion, user, lang, colorTheme, customLogoSrc } = commonAppConfs;
@@ -154,6 +154,8 @@ export const useAppStore = defineStore('app', () => {
     colorTheme,
     customLogoSrc,
     connectivityStatus,
+    isConnectivitySettled,
+    reportServerReachability,
     canRecordAudio,
     canRecordVideo,
     canRecord,

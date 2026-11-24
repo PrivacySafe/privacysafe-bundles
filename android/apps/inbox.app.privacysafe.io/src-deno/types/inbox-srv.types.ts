@@ -62,6 +62,9 @@ export interface FolderInfo extends ItemInfo {
   isFolder: true;
 }
 
+/** What the service last learned about the inbox server; 'unknown' until it asked. */
+export type ServerReachability = 'unknown' | 'up' | 'down';
+
 export type InboxUpdateEvent =
   | {
       entity: 'message';
@@ -111,6 +114,15 @@ export type InboxUpdateEvent =
       entity: 'backup';
       event: 'progress';
       progress: BackupProgress;
+    }
+  | {
+      /**
+       * The outcome of the service's own request to the inbox server. Lets the
+       * window tell "online" from "the network is up, the server is not".
+       */
+      entity: 'server';
+      event: 'reachability';
+      reachable: boolean;
     }
   | {
       entity: 'restore';
@@ -174,6 +186,12 @@ export interface InboxSrv {
    * the GUI subscribes. The monotonic `seq` settles the race between the two.
    */
   getSyncActivityState(): Promise<SyncActivityView>;
+  /**
+   * The latest outcome of the service's own requests to the inbox server. A
+   * window that subscribes after the start-up scan has missed its event, and
+   * reads the outcome here instead.
+   */
+  getServerReachability(): Promise<ServerReachability>;
   /**
    * Addresses this component is dropping mail from, right now.
    *
@@ -376,6 +394,7 @@ export const INBOX_SRV_REQ_REPLY_METHODS: (keyof InboxSrv)[] = [
   'getAppState',
   'getAppDeviceId',
   'getSyncActivityState',
+  'getServerReachability',
   'getBlacklistedAddresses',
   'getFolderList',
   'addFolder',

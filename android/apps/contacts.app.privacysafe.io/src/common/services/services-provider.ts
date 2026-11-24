@@ -16,12 +16,25 @@
 */
 import { makeServiceCaller } from '@shared/ipc/ipc-service-caller';
 import type { ContactsDenoSrvInternal } from '@deno/types';
+import { connectToContactsService } from './connect-with-retries';
 
 export let appContactsSrvProxy: ContactsDenoSrvInternal;
 
-export async function initializeServices() {
+/**
+ * Why the service could not be reached at start-up, when it could not. The
+ * window asks for it rather than making attempts of its own: that would double
+ * the wait for an answer already known.
+ */
+export let servicesInitError: unknown;
+
+/**
+ * @param quiet leaves a failure out of the log. For the window's reconnection
+ * loop, which retries for as long as the window is open: one line per attempt
+ * would bury everything else, and the first failure is logged already.
+ */
+export async function initializeServices({ quiet }: { quiet?: boolean } = {}) {
   try {
-    const srvConn = await w3n.rpc!.thisApp!('AppContactsInternal');
+    const srvConn = await connectToContactsService();
     appContactsSrvProxy = makeServiceCaller<ContactsDenoSrvInternal>(
       srvConn, [
         'addImage',
@@ -39,6 +52,9 @@ export async function initializeServices() {
         'getTutorialState',
         'saveTutorialState',
 
+        'getAppSettings',
+        'saveAppSettings',
+
         'createBackupArchive',
         'cancelBackupArchive',
         'validateBackupArchive',
@@ -52,20 +68,24 @@ export async function initializeServices() {
 
         'removeUnnecessaryImageFiles',
         'initialSyncProcess',
+        'getServerReachability',
       ],
       ['watchContactBlacklistChanging'],
     ) as ContactsDenoSrvInternal;
 
     console.info('<- SERVICES ARE INITIALIZED ->');
   } catch (e) {
+    servicesInitError = e;
     // Deliberately swallowed, and that is load-bearing: main.ts mounts the app
     // in the .then() of this call, so a rethrow would leave no window at all -
     // and no way to tell the user why. The window's own mounting handler asks
     // what went wrong and reports it; see reportWhyServiceIsUnavailable in
     // useAppView. Kept at `info` for that reason, and routed through w3n.log
     // rather than the console, which never reaches the platform's log files.
-    await w3n.log(
-      'info', 'Contacts service is not available at start-up; the window reports the reason', e,
-    );
+    if (!quiet) {
+      await w3n.log(
+        'info', 'Contacts service is not available at start-up; the window reports the reason', e,
+      );
+    }
   }
 }

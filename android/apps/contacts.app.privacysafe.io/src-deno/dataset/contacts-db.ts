@@ -18,12 +18,13 @@
 
 /* eslint-disable @typescript-eslint/no-empty-function */
 import { SQLiteOn3NStorage } from '../../shared-libs/sqlite-on-3nstorage/index.js';
-import type { Person, PersonSettings, PersonView, RawPerson } from '../../src/types/index.ts';
+import type { ContactDate, Person, PersonSettings, PersonView, RawPerson } from '../../src/types/index.ts';
 import { randomStr } from '../../src/common/services/base/random.ts';
 import { makeContactsException } from '../utils/exceptions.ts';
 import { safeJsonParse } from '../utils/obj-processing.ts';
 import { isNewContactId } from '@main/common/constants/index.ts';
 import { canonicalMail } from '@main/common/utils/mail-address.ts';
+import { sanitizeContactDates } from '@main/common/utils/contact-dates.ts';
 import {
   objectFromQueryExecResult,
   personValueToSqlInsertParams,
@@ -55,7 +56,11 @@ export interface ContactDB {
     withoutSaveToFile?: boolean,
   ) => Promise<boolean>;
   getIdsOfAllFilesInUse: () => string[];
+  listContactsWithDates: () => ContactWithDates[];
 }
+
+/** What the reminders need to know of a contact that has dates. */
+export type ContactWithDates = Pick<Person, 'id' | 'name' | 'mail'> & { dates: ContactDate[] };
 
 export async function contactDb(
   sqlite: SQLiteOn3NStorage,
@@ -71,6 +76,32 @@ export async function contactDb(
    */
   afterSave?: () => Promise<void>,
 ): Promise<ContactDB> {
+  function hasDatesColumn(): boolean {
+    const [sqlValue] = sqlite.db.exec('PRAGMA table_info(contacts)');
+    // A row of table_info is [cid, name, type, notnull, dflt_value, pk].
+    return !!sqlValue && sqlValue.values.some(column => column[1] === 'dates');
+  }
+
+  /**
+   * Adds the `dates` column if the table lacks it. Checked before EVERY write,
+   * not only at start: reloadDb brings in whatever file synchronisation has
+   * adopted, and a device still on an older version of the app uploads a table
+   * without the column. Inserting into it would fail. The change is in memory
+   * only and reaches the file with the write that needed it.
+   */
+  function ensureDatesColumn(): boolean {
+    if (hasDatesColumn()) {
+      return false;
+    }
+
+    sqlite.db.exec(
+      `--sql
+      ALTER TABLE contacts
+      ADD COLUMN dates TEXT`,
+    );
+    return true;
+  }
+
   async function saveDbToFile(): Promise<void> {
     await sqlite.saveToFile({ skipUpload: true });
     // Failures here (e.g. offline) must not fail the local save: write
@@ -99,10 +130,11 @@ export async function contactDb(
     }
 
     const params = personValueToSqlInsertParams(contactData as Omit<Person, 'avatarImage'> | RawPerson);
+    ensureDatesColumn();
     sqlite.db.exec(
       `--sql
-    INSERT INTO contacts (id, name, mail, avatarId, timestamp, notice, phone, activities, settings)
-    VALUES ($id, $name, $mail, $avatarId, $timestamp, $notice, $phone, $activities, $settings)
+    INSERT INTO contacts (id, name, mail, avatarId, timestamp, notice, phone, activities, settings, dates)
+    VALUES ($id, $name, $mail, $avatarId, $timestamp, $notice, $phone, $activities, $settings, $dates)
     ON CONFLICT(id) DO NOTHING`,
       params,
     );
@@ -188,10 +220,11 @@ export async function contactDb(
     } as RawPerson | Omit<Person, 'avatarImage'>;
     const params = personValueToSqlInsertParams(updatedContact);
 
+    ensureDatesColumn();
     sqlite.db.exec(
       `--sql
       UPDATE contacts
-      SET name=$name, mail=$mail, avatarId=$avatarId, timestamp=$timestamp, notice=$notice, phone=$phone, activities=$activities, settings=$settings
+      SET name=$name, mail=$mail, avatarId=$avatarId, timestamp=$timestamp, notice=$notice, phone=$phone, activities=$activities, settings=$settings, dates=$dates
       WHERE id = $id`,
       params,
     );
@@ -216,7 +249,7 @@ export async function contactDb(
           sqlite.db.exec(
             `--sql
             UPDATE contacts
-            SET name=$name, mail=$mail, avatarId=$avatarId, timestamp=$timestamp, notice=$notice, phone=$phone, activities=$activities, settings=$settings
+            SET name=$name, mail=$mail, avatarId=$avatarId, timestamp=$timestamp, notice=$notice, phone=$phone, activities=$activities, settings=$settings, dates=$dates
             WHERE id = $id`,
             personValueToSqlInsertParams(contactBeforeUpdate),
           );
@@ -239,6 +272,7 @@ export async function contactDb(
           : typeof updatedContact.settings === 'string'
             ? safeJsonParse<PersonSettings>(updatedContact.settings)
             : updatedContact.settings,
+      dates: sanitizeContactDates(updatedContact.dates),
     };
   }
 
@@ -258,10 +292,11 @@ export async function contactDb(
       } catch (err) {
         // Restore the in-memory row: the deletion never reached disk.
         if (contactBeforeDelete) {
+          ensureDatesColumn();
           sqlite.db.exec(
             `--sql
-          INSERT INTO contacts (id, name, mail, avatarId, timestamp, notice, phone, activities, settings)
-          VALUES ($id, $name, $mail, $avatarId, $timestamp, $notice, $phone, $activities, $settings)
+          INSERT INTO contacts (id, name, mail, avatarId, timestamp, notice, phone, activities, settings, dates)
+          VALUES ($id, $name, $mail, $avatarId, $timestamp, $notice, $phone, $activities, $settings, $dates)
           ON CONFLICT(id) DO NOTHING`,
             personValueToSqlInsertParams(contactBeforeDelete),
           );
@@ -291,6 +326,26 @@ export async function contactDb(
         : {};
     }
     return rows;
+  }
+
+  function listContactsWithDates(): ContactWithDates[] {
+    if (!hasDatesColumn()) {
+      return [];
+    }
+
+    const [sqlValue] = sqlite.db.exec(
+      `--sql
+      SELECT id, name, mail, dates
+      FROM contacts
+      WHERE dates IS NOT NULL AND dates <> ''`,
+    );
+    if (!sqlValue || !sqlValue.values) {
+      return [];
+    }
+
+    return objectFromQueryExecResult<Pick<RawPerson, 'id' | 'name' | 'mail' | 'dates'>>(sqlValue)
+      .map(row => ({ id: row.id, name: row.name, mail: row.mail, dates: sanitizeContactDates(row.dates) }))
+      .filter(row => row.dates.length > 0);
   }
 
   function getIdsOfAllFilesInUse(): string[] {
@@ -326,7 +381,8 @@ export async function contactDb(
           notice      TEXT,
           phone       TEXT,
           activities  TEXT,
-          settings    TEXT
+          settings    TEXT,
+          dates       TEXT
         )`,
     );
   }
@@ -408,7 +464,9 @@ export async function contactDb(
       );
     }
 
-    if (!isThereTimestampField || !isThereAvatarIdField || !isThereSettingsField) {
+    const isDatesFieldAdded = ensureDatesColumn();
+
+    if (!isThereTimestampField || !isThereAvatarIdField || !isThereSettingsField || isDatesFieldAdded) {
       await sqlite.saveToFile({ skipUpload: true });
     }
   }
@@ -424,5 +482,6 @@ export async function contactDb(
     listAllContactsFrom,
     updateContactsTable,
     getIdsOfAllFilesInUse,
+    listContactsWithDates,
   };
 }

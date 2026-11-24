@@ -487,6 +487,17 @@ deletion token is fresh — greater than any archived token — so the deletion 
 whenever it arrives. A chunk delivered twice is harmless for the general reason:
 an equal token loses in `isNewerToken()`.
 
+## Sizes declared by the archive
+
+Every `unzipSync` that unpacks a backup (`openBackupContainer` in the GUI,
+`openArchive` in the service) passes a filter from
+[`src-deno/utils/zip-size-guard.ts`](../src-deno/utils/zip-size-guard.ts), and
+`decodeAutoBackup` checks the size a gzip stream declares before `gunzipSync`.
+An archive declaring an entry over 256 MiB, or more than `BACKUP_MAX_BYTES` +
+256 MiB altogether, is `corrupted_archive`; an automatic-backup file declaring
+over 256 MiB is skipped. fflate would otherwise allocate whatever the file says.
+Details: [security/fflate-cve-2026-122146.md](./security/fflate-cve-2026-122146.md).
+
 ## A known limitation
 
 A message deleted on another device longer than `TOMBSTONE_TTL_MS` (16 days) ago,

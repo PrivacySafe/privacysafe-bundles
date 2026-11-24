@@ -7,7 +7,7 @@
   import { useAppMenuItems } from '@common/composables/useAppMenu';
   import ContactIcon from '@common/components/contact-icon/contact-icon.vue';
   import { Ui3nBadge, Ui3nButton, Ui3nIcon } from '@v1nt1248/3nclient-lib';
-  import type { AppMenuAction, MailFolder } from '@common/types';
+  import type { AppMenuAction, ConnectivityStatus, MailFolder } from '@common/types';
   import { SYSTEM_FOLDERS } from '@common/constants';
   import size from 'lodash/size';
   import get from 'lodash/get';
@@ -15,6 +15,7 @@
   defineProps<{
     appVersion: string;
     user: string;
+    connectivityStatus: ConnectivityStatus;
     connectivityStatusText: string;
   }>();
   const emits = defineEmits<{
@@ -73,8 +74,14 @@
 
         <div :class="$style.status">
           {{ t('app.status.label') }}:
-          <span :class="connectivityStatusText === 'app.status.connected.online' && $style.ok">
-            {{ t(connectivityStatusText) }}
+          <span
+            :class="{
+              [$style.ok]: connectivityStatus === 'online',
+              [$style.warn]: connectivityStatus === 'server-unreachable',
+              [$style.error]: connectivityStatus === 'offline',
+            }"
+          >
+            {{ connectivityStatusText }}
           </span>
         </div>
       </div>
@@ -173,6 +180,14 @@
 
   .ok {
     color: var(--success-content-default);
+  }
+
+  .warn {
+    color: var(--warning-content-default);
+  }
+
+  .error {
+    color: var(--error-content-default);
   }
 
   .appMenuBody {

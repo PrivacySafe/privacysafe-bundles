@@ -34,6 +34,14 @@ export const useRecordStore = defineStore('records', () => {
   const idsOfRecentRecords = ref<string[]>([]);
 
   const records = ref<TreasureRecord[]>([]);
+  /**
+   * False until the first reading of the records has finished. Every record is
+   * a file of its own, so that reading takes a while, and the list shows that
+   * it is under way rather than looking empty.
+   */
+  const areRecordsLoaded = ref(false);
+  /** The latest reading of the records failed. */
+  const recordsLoadFailed = ref(false);
   const groups = ref<Record<string, TreasureGroup>>({});
 
   const allGroupsNames = computed(() => Object.values(groups.value).map(gr => gr.name));
@@ -179,8 +187,16 @@ export const useRecordStore = defineStore('records', () => {
   }
 
   async function getAllRecords() {
-    const res = await appTreasureDenoSrv.getAllRecords();
-    records.value = res.records;
+    try {
+      const res = await appTreasureDenoSrv.getAllRecords();
+      records.value = res.records;
+      recordsLoadFailed.value = false;
+    } catch (err) {
+      recordsLoadFailed.value = true;
+      throw err;
+    } finally {
+      areRecordsLoaded.value = true;
+    }
   }
 
   async function getRecord(recordId: string) {
@@ -246,6 +262,8 @@ export const useRecordStore = defineStore('records', () => {
     allGroupsNames,
 
     records,
+    areRecordsLoaded,
+    recordsLoadFailed,
     favoritesRecords,
     recordsByGroups,
 

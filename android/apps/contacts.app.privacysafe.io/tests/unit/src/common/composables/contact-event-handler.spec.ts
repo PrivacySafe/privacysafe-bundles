@@ -25,6 +25,7 @@ function setup(over: Partial<Record<string, unknown>> = {}) {
     removeFromSyncList: vi.fn(),
     cleanSyncList: vi.fn(),
     setSyncStuck: vi.fn(),
+    setServerReachable: vi.fn(),
     emitContactListUpdated: vi.fn(),
     fetchContacts: vi.fn(async () => undefined),
     currentRouteName: vi.fn(() => 'contacts' as string | undefined),
@@ -34,6 +35,7 @@ function setup(over: Partial<Record<string, unknown>> = {}) {
     onBackupProgress: vi.fn(),
     onRestoreProgress: vi.fn(),
     onShareProgress: vi.fn(),
+    onSettingsChanged: vi.fn(),
     ...over,
   };
   return { deps, handle: makeContactEventHandler(deps as never) };
@@ -204,6 +206,21 @@ describe('contact event handler', () => {
 
   });
 
+  describe('server:reachability', () => {
+
+    it('passes the reachability of the server on', async () => {
+      const { deps, handle } = setup();
+
+      await handle({ event: 'server:reachability', payload: { reachable: false } } as ContactEvent);
+      await handle({ event: 'server:reachability', payload: { reachable: true } } as ContactEvent);
+
+      expect(deps.setServerReachable).toHaveBeenNthCalledWith(1, false);
+      expect(deps.setServerReachable).toHaveBeenNthCalledWith(2, true);
+      expect(deps.setSyncStuck).not.toHaveBeenCalled();
+    });
+
+  });
+
   describe('update:contact-list', () => {
 
     it('refreshes the list', async () => {
@@ -334,6 +351,20 @@ describe('contact event handler', () => {
       await handle({ event: 'update:contact-list' } as ContactEvent);
 
       expect(deps.goToContactList).toHaveBeenCalled();
+    });
+
+  });
+
+  describe('settings', () => {
+
+    it('passes the new settings on, without refetching the list', async () => {
+      const { deps, handle } = setup();
+      const payload = { dateFormat: 'DD.MM.YYYY' };
+
+      await handle({ event: 'settings', payload } as ContactEvent);
+
+      expect(deps.onSettingsChanged).toHaveBeenCalledWith(payload);
+      expect(deps.fetchContacts).not.toHaveBeenCalled();
     });
 
   });

@@ -18,7 +18,11 @@ import type { ThemeId } from '@v1nt1248/3nclient-lib/plugins';
 
 export type AvailableLanguage = 'en';
 
-export type ConnectivityStatus = 'offline' | 'online';
+/**
+ * What the status line shows. 'online' means the storage server answers, not
+ * only that the device has a network; see src/common/utils/connectivity-status.ts.
+ */
+export type ConnectivityStatus = 'offline' | 'server-unreachable' | 'online';
 
 export interface AppConfig {
   lang: AvailableLanguage;

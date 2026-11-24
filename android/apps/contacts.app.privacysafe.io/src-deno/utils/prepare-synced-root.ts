@@ -16,6 +16,7 @@
 */
 import type { ContactEvent } from '../../src/types/index.ts';
 import { syncAdopt } from './sync-adopt.ts';
+import { SERVER_REQUEST_TIMEOUT_MS, withTimeout } from './storage-connection.ts';
 
 export interface RootReadiness {
   /**
@@ -58,6 +59,9 @@ export interface RootReadiness {
  * covers a device that has run the app online at least once, and that is the
  * state the live test of 2026-08-22 exercised.
  *
+ * @param fs the app's synced FS, whose root folder is brought in line.
+ * @param emitStorageEvent takes the sync events of adopting a remote root, and
+ * a server:reachability event with the outcome of asking the server.
  * @param resolveConflict is called for a `conflicting` root. When it is not
  * given, the conflict is reported back through RootReadiness.conflict instead,
  * so that the caller can resolve it once the db handle it needs exists.
@@ -65,12 +69,19 @@ export interface RootReadiness {
  * caller retries this in a loop, and one identical line per attempt buries
  * everything else - eleven of them in six minutes was the live test of
  * 2026-08-22.
+ * @param statusTimeoutMs caps the wait for the server's answer. A server that
+ * does not answer in time is treated as out of reach, exactly as offline: the
+ * startup awaits this call before the app's ipc is exposed, and the windows
+ * must not be kept waiting on the platform's network timeouts.
  */
-export async function prepareSyncedRoot({ fs, emitStorageEvent, resolveConflict, quiet }: {
+export async function prepareSyncedRoot({
+  fs, emitStorageEvent, resolveConflict, quiet, statusTimeoutMs = SERVER_REQUEST_TIMEOUT_MS,
+}: {
   fs: web3n.files.WritableFS;
   emitStorageEvent: (event: ContactEvent) => void;
   resolveConflict?: () => Promise<void>;
   quiet?: boolean;
+  statusTimeoutMs?: number;
 }): Promise<RootReadiness> {
   const sync = fs.v?.sync;
   if (!sync) {
@@ -81,12 +92,15 @@ export async function prepareSyncedRoot({ fs, emitStorageEvent, resolveConflict,
 
   let status: web3n.files.SyncStatus;
   try {
-    status = await sync.status('');
+    status = await withTimeout(sync.status(''), statusTimeoutMs);
+    emitStorageEvent({ event: 'server:reachability', payload: { reachable: true } });
   } catch (err) {
-    // status() talks to the server, and offline it throws `connect`. Told apart
-    // from other failures on purpose: syncStatusOf() swallows everything, which
-    // here would be read as "no sync api" and let uploads through.
+    // status() talks to the server, and offline it throws `connect` - as does
+    // withTimeout, for a server that does not answer. Told apart from other
+    // failures on purpose: syncStatusOf() swallows everything, which here would
+    // be read as "no sync api" and let uploads through.
     if ((err as web3n.ConnectException).type === 'connect') {
+      emitStorageEvent({ event: 'server:reachability', payload: { reachable: false } });
       if (!quiet) {
         await w3n.log('info', 'Root folder is not verified against the server: offline');
       }

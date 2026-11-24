@@ -139,8 +139,20 @@ div {
   width: 100%;
   height: 100%;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
+}
+
+/* Filled by startup-status.ts while the window waits for the service. */
+.app-init-status {
+  max-width: 420px;
+  padding: 0 16px;
+  margin-top: 16px;
+  font-size: 14px;
+  line-height: 20px;
+  text-align: center;
+  color: var(--color-text-block-secondary-default, #9aa4b2);
 }
 
 .app-init-stage {

@@ -32,6 +32,7 @@
     router,
     user,
     appVersion,
+    connectivityStatus,
     connectivityStatusText,
     syncStatusText,
     persistentWarning,
@@ -114,7 +115,14 @@
           <div :class="$style.status">
             <span>{{ t('app.status.label') }}</span>
 
-            <b :class="connectivityStatusText.includes(t('app.status.connected.online')) && $style.ok" />
+            <b
+              :title="connectivityStatusText"
+              :class="{
+                [$style.ok]: connectivityStatus === 'online',
+                [$style.warn]: connectivityStatus === 'server-unreachable',
+                [$style.error]: connectivityStatus === 'offline',
+              }"
+            />
           </div>
 
           <div :class="$style.status">
@@ -323,6 +331,14 @@
 
     .ok {
       background-color: var(--success-content-default);
+    }
+
+    .warn {
+      background-color: var(--warning-content-default);
+    }
+
+    .error {
+      background-color: var(--error-content-default);
     }
   }
 

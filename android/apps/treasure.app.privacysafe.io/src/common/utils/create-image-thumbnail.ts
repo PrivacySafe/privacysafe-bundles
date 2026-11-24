@@ -16,11 +16,19 @@
 */
 import { appTreasureDenoSrv } from '@/common/services/service-provider';
 
-export async function createImageThumbnail(imageId: string, size = 44): Promise<string> {
-  const imageBytes = await appTreasureDenoSrv.loadImage(imageId);
-  if (!imageBytes) {
-    return '';
+/** A thumbnail as a data url, or why there is none (see ImageLoadResult). */
+export type ImageThumbnail = { state: 'loaded'; url: string } | { state: 'missing' } | { state: 'pending' };
+
+export async function createImageThumbnail(imageId: string, size = 44): Promise<ImageThumbnail> {
+  const res = await appTreasureDenoSrv.loadImage(imageId);
+  if (res.state !== 'loaded') {
+    return res;
   }
+
+  return { state: 'loaded', url: await renderThumbnail(res.bytes, size) };
+}
+
+async function renderThumbnail(imageBytes: Uint8Array, size: number): Promise<string> {
 
   const blob = new Blob([imageBytes as BlobPart]);
 

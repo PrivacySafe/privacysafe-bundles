@@ -21,14 +21,15 @@
   import { storeToRefs } from 'pinia';
   import { Ui3nButton, Ui3nMobileMenu, Ui3nMobileMenuItem } from '@v1nt1248/3nclient-lib';
   import { useRecordStore } from '@/common/stores/record.store';
-  import type { TreasureGroup } from '@shared/@types';
+  import type { ConnectivityStatus, TreasureGroup } from '@shared/@types';
   import ContactIcon from '@/common/components/ui/contact-icon.vue';
   import CustomScrollBar from '@/common/components/custom-scroll-bar.vue';
 
   defineProps<{
     isMenuOpen: boolean;
     user: string;
-    connectivityStatus: string;
+    connectivityStatus: ConnectivityStatus;
+    connectivityStatusText: string;
   }>();
   const emits = defineEmits<{
     (event: 'update:modelValue', value: boolean): void;
@@ -99,7 +100,14 @@
           <div :class="$style.status">
             <span>{{ t('app.status.label') }}</span>
 
-            <b :class="connectivityStatus === 'online' && $style.ok" />
+            <b
+              :title="connectivityStatusText"
+              :class="{
+                [$style.ok]: connectivityStatus === 'online',
+                [$style.warn]: connectivityStatus === 'server-unreachable',
+                [$style.error]: connectivityStatus === 'offline',
+              }"
+            />
           </div>
         </div>
       </div>
@@ -185,6 +193,14 @@
 
     .ok {
       background-color: var(--success-content-default);
+    }
+
+    .warn {
+      background-color: var(--warning-content-default);
+    }
+
+    .error {
+      background-color: var(--error-content-default);
     }
   }
 

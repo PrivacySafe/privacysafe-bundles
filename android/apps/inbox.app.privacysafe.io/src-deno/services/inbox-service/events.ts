@@ -15,15 +15,15 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
 import { ObserversSet } from '../../../shared/utils/observer-utils.ts';
-import type { InboxUpdateEvent, StartupEvent } from '../../types/inbox-srv.types.ts';
+import type { InboxUpdateEvent, ServerReachability, StartupEvent } from '../../types/inbox-srv.types.ts';
 
 /**
  * Entities a single `lists`/`reload` event covers, and which therefore need not
  * be reported one by one while a bulk replay is going on.
  *
- * `sending`, `app-state` and `sync` are deliberately absent: the synchronization
- * indicator and the list of messages being sent have to keep working during the
- * replay - the indicator above all, since the replay is exactly what it is
+ * `sending`, `app-state`, `sync` and `server` are deliberately absent: the
+ * synchronization indicator, the connection status and the list of messages
+ * being sent have to keep working during the replay - the indicator above all, since the replay is exactly what it is
  * there to explain.
  */
 const COALESCED_ENTITIES: ReadonlySet<InboxUpdateEvent['entity']> = new Set([
@@ -42,7 +42,13 @@ export function createInboxEvents() {
   let bulkReplayDepth = 0;
   let heldBackAnything = false;
 
+  /** Kept off the server/reachability events; see InboxSrv.getServerReachability. */
+  let serverReachability: ServerReachability = 'unknown';
+
   function emit(event: InboxUpdateEvent): void {
+    if (event.entity === 'server') {
+      serverReachability = event.reachable ? 'up' : 'down';
+    }
     if ((bulkReplayDepth > 0) && COALESCED_ENTITIES.has(event.entity)) {
       heldBackAnything = true;
       return;
@@ -87,7 +93,11 @@ export function createInboxEvents() {
     return () => observers.delete(obs);
   }
 
-  return { emit, watch, beginBulkReplay, endBulkReplay };
+  function getServerReachability(): ServerReachability {
+    return serverReachability;
+  }
+
+  return { emit, watch, beginBulkReplay, endBulkReplay, getServerReachability };
 }
 
 export type InboxEvents = ReturnType<typeof createInboxEvents>;

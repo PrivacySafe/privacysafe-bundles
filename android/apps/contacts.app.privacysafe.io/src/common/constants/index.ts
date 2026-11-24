@@ -24,6 +24,7 @@ export const EMPTY_CONTACT: Person = {
   avatarImage: undefined,
   notice: '',
   phone: '',
+  dates: [],
   timestamp: 0,
 };
 

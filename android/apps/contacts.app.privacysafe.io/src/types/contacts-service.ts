@@ -14,6 +14,8 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
+import type { ContactsAppSettings } from './common-app.ts';
+
 export interface ContactSyncStartEvent {
   event: 'sync:start';
   payload: {
@@ -47,6 +49,20 @@ export interface ContactSyncStuckEvent {
   payload: {
     isStuck: boolean;
     reason?: string;
+  };
+}
+
+/**
+ * Outcome of the service's latest request to the storage server: whether it
+ * answered. Sent with every such outcome rather than on change, and read by
+ * the window together with the platform's storage socket events - the socket
+ * alone is not enough, since the platform does not restart it after a
+ * graceful close, and from then on it reports nothing at all.
+ */
+export interface ContactServerReachabilityEvent {
+  event: 'server:reachability';
+  payload: {
+    reachable: boolean;
   };
 }
 
@@ -161,18 +177,26 @@ export interface BackupValidationResult {
   error?: BackupArchiveError;
 }
 
+/** The app settings were changed, from this window or from another one. */
+export interface ContactSettingsEvent {
+  event: 'settings';
+  payload: ContactsAppSettings;
+}
+
 export type ContactEvent =
   | ContactSyncStartEvent
   | ContactSyncEndEvent
   | ContactSyncCleanEvent
   | ContactSyncStuckEvent
+  | ContactServerReachabilityEvent
   | ContactListUpdate
   | ContactAddEvent
   | ContactRemoveEvent
   | ContactUpdateEvent
   | ContactBackupEvent
   | ContactRestoreEvent
-  | ContactShareEvent;
+  | ContactShareEvent
+  | ContactSettingsEvent;
 
 export interface PersonView {
   id: string;
@@ -189,10 +213,33 @@ export interface PersonSettings {
   [key: string]: unknown;
 }
 
+/** Kinds of dates a contact can carry. Only birthdays so far. */
+export type ContactDateType = 'birthday';
+
+/**
+ * A date of a contact, e.g. a birthday. Kept as plain numbers rather than a
+ * Date or an ISO string: a birthday is a calendar day, not a moment, and must
+ * not move with the time zone of the device it is read on.
+ */
+export interface ContactDate {
+  /** Unique within the contact, so that a date can be told apart in a list. */
+  id: string;
+  type: ContactDateType;
+  /** 1 - 12 */
+  month: number;
+  /** 1 - 31 */
+  day: number;
+  /** Absent when only the day and the month are known. */
+  year?: number;
+  /** Whether to show a system notification at 08:00 of that day. */
+  notify?: boolean;
+}
+
 export interface Person extends PersonView {
   notice?: string;
   phone?: string;
   activities?: string[] | null;
+  dates?: ContactDate[] | null;
 }
 
 /**
@@ -221,9 +268,10 @@ export interface SharedContactsData {
   contacts: SharedPerson[];
 }
 
-export interface RawPerson extends Omit<Person, 'activities' | 'settings' | 'avatarImage'> {
+export interface RawPerson extends Omit<Person, 'activities' | 'settings' | 'dates' | 'avatarImage'> {
   activities?: string | null;
   settings?: string | null;
+  dates?: string | null;
 }
 
 export type ContactListItem = PersonView & { displayName: string };

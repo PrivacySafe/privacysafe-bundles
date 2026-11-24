@@ -23,6 +23,17 @@ export const fr = {
       connected: {
         online: 'En ligne',
         offline: 'Hors ligne',
+        'server-unreachable': 'Serveur indisponible',
+      },
+    },
+    info: {
+      status: {
+        online:
+          'Vous êtes actuellement en ligne. Les messages et modifications effectués entre-temps seront envoyés et synchronisés.',
+        offline:
+          'Vous êtes actuellement hors ligne. Les messages et modifications resteront sur cet appareil jusqu’à ce qu’il soit connecté.',
+        'server-unreachable':
+          'Le serveur est indisponible. Les messages et modifications resteront sur cet appareil jusqu’à ce qu’il soit joignable.',
       },
     },
     sync: {

@@ -40,6 +40,7 @@ import {
 import { mailService } from './services/mail-service/mail-service.ts';
 import { setPhantomReleaseBusyCheck } from './services/mail-sending-service/index.ts';
 import type { ChatSrv, VideoChatSrv } from './types/index.ts';
+import { watchServerReachability } from './utils/check-server-reachability.ts';
 
 setupGlobalReportingOfUnhandledErrors(true);
 
@@ -119,6 +120,14 @@ try {
   blacklistTracker.start();
   // From here on the GUI's queued calls can run.
   chatSrvDeferred.resolve(chatsSrv);
+
+  // Not awaited: the status line wants an answer from the server as early as
+  // possible, and nothing of the start-up depends on it.
+  watchServerReachability(ownAddr, reachable => chatsSrv.emitEventsOutward.common({
+    updatedEntityType: 'server',
+    event: 'reachability',
+    reachable,
+  }));
 
   // Maintenance failures must not reach the outer catch: the service is already
   // resolved and working, and nothing after these passes depends on their

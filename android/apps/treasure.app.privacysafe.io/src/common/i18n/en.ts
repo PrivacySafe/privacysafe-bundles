@@ -22,10 +22,26 @@ export const en = {
       uploadBackup: 'Upload Backup',
       exit: 'Exit',
     },
+    sync: {
+      status: 'Sync Status',
+    },
     status: {
       label: 'Status',
-      online: 'Online',
-      offline: 'Offline',
+      connected: {
+        online: 'online',
+        offline: 'offline',
+        'server-unreachable': 'server unavailable',
+      },
+      synced: 'synced',
+      unsynced: 'unsynced',
+    },
+    info: {
+      status: {
+        online: 'You are currently online. All previously made changes will be synchronized.',
+        offline: 'You are currently offline. All changes will stay on this device till it gets connected.',
+        'server-unreachable':
+          'The server is unavailable. All changes will stay on this device till it can be reached.',
+      },
     },
     btn: {
       close: 'Close',
@@ -54,7 +70,14 @@ export const en = {
     cards: 'Custom Cards',
     favorites: 'Favorites',
     search: 'Search records',
-    noData: 'No records here',
+    placeholder: {
+      loading: 'Reading records…',
+      failed: 'Could not read the records. Try reopening the app.',
+      noMatches: 'Nothing matches “{text}”.',
+      noRecords: 'There are no records yet.',
+      noRecordsHint: 'Create the first one with the “New Record” button.',
+      groupEmpty: 'There are no records in this group.',
+    },
     notifications: {
       success: {
         saving: 'The {entity} was saved successfully.',
@@ -157,6 +180,8 @@ export const en = {
         upload_area: 'Click this area to upload images',
         info: 'No more than 10 image files of supported formats (png, jpeg, jpg)',
         uploading: 'Uploading',
+        unavailable: 'Image unavailable',
+        pending: 'Waiting for synchronization…',
         message: {
           unsupported: 'These are unsupported files: {list}',
           limit: 'The total number of images will exceed the allowed limit. Some new images will not be uploaded.',
@@ -222,7 +247,6 @@ export const en = {
       password: 'Password / CVV',
       cvv: 'CVV',
     },
-    nodata: 'No records in current group.',
     row: {
       copiedBtn: 'Copied',
       duplicateTooltip: 'There is another record with the same `resource` and `username` values',

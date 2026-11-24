@@ -22,10 +22,27 @@ export const es = {
       uploadBackup: 'Cargar copia de seguridad',
       exit: 'Salir',
     },
+    sync: {
+      status: 'Estado de sincronización',
+    },
     status: {
       label: 'Estado',
-      online: 'En línea',
-      offline: 'Desconectado',
+      connected: {
+        online: 'en línea',
+        offline: 'desconectado',
+        'server-unreachable': 'servidor no disponible',
+      },
+      synced: 'sincronizado',
+      unsynced: 'no sincronizado',
+    },
+    info: {
+      status: {
+        online: 'Actualmente estás en línea. Todos los cambios realizados anteriormente se sincronizarán.',
+        offline:
+          'Actualmente estás sin conexión. Todos los cambios permanecerán en este dispositivo hasta que se conecte.',
+        'server-unreachable':
+          'El servidor no está disponible. Todos los cambios permanecerán en este dispositivo hasta que se pueda acceder a él.',
+      },
     },
     btn: {
       close: 'Cerrar',
@@ -54,7 +71,14 @@ export const es = {
     cards: 'Tarjetas personalizadas',
     favorites: 'Favoritos',
     search: 'Buscar registros',
-    noData: 'No hay registros aquí',
+    placeholder: {
+      loading: 'Leyendo los registros…',
+      failed: 'No se pudieron leer los registros. Intente volver a abrir la aplicación.',
+      noMatches: 'Nada coincide con «{text}».',
+      noRecords: 'Todavía no hay registros.',
+      noRecordsHint: 'Cree el primero con el botón «Nuevo registro».',
+      groupEmpty: 'No hay registros en este grupo.',
+    },
     notifications: {
       success: {
         saving: 'El {entity} se guardó correctamente.',
@@ -157,6 +181,8 @@ export const es = {
         upload_area: 'Haz clic en esta área para subir imágenes',
         info: 'Máximo 10 archivos de imagen en formatos compatibles (png, jpeg, jpg)',
         uploading: 'Subiendo',
+        unavailable: 'Imagen no disponible',
+        pending: 'Esperando la sincronización…',
         message: {
           unsupported: 'Estos archivos no son compatibles: {list}',
           limit:
@@ -223,7 +249,6 @@ export const es = {
       password: 'Contraseña / CVV',
       cvv: 'CVV',
     },
-    nodata: 'No hay registros en el grupo actual.',
     row: {
       copiedBtn: 'Copiado',
       duplicateTooltip: 'Hay otro registro con los mismos valores de `resource` y `username`.',

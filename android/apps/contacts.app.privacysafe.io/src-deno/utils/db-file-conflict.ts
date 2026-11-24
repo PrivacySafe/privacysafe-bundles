@@ -50,9 +50,13 @@ export const validatedContactFields: ValidatedContactField[] = [
   {
     field: 'settings',
     extraCheck: true,
+  },
+  {
+    field: 'dates',
+    extraCheck: true,
   }];
 
-const jsonFields = ['activities', 'settings'];
+const jsonFields = ['activities', 'settings', 'dates'];
 
 /**
  * Copies a contact row read out of sqlite, passing the JSON-ish columns through

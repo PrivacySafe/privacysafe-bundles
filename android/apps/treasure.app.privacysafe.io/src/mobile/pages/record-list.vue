@@ -26,10 +26,11 @@
   import { useSyncStore } from '@/common/stores/sync.store';
   import { useSort } from '@/common/composables/use-sort';
   import { APP_ROUTES } from '@/common/constants';
-  import { prepareRecordList } from '@/common/utils';
+  import { getRecordListPlaceholder, prepareRecordList } from '@/common/utils';
   import RecordListItem from '@/mobile/components/record-list-item.vue';
   import ImagesSlider from '@/desktop/components/images-slider.vue';
   import CustomScrollBar from '@/common/components/custom-scroll-bar.vue';
+  import RecordListPlaceholderView from '@/common/components/record-list-placeholder/record-list-placeholder.vue';
 
   const route = useRoute();
   const router = useRouter();
@@ -37,7 +38,8 @@
 
   const { syncProcesses } = storeToRefs(useSyncStore());
   const recordStore = useRecordStore();
-  const { sortedGroupsAll, records, recordsByGroups } = storeToRefs(recordStore);
+  const { sortedGroupsAll, records, recordsByGroups, areRecordsLoaded, recordsLoadFailed } =
+    storeToRefs(recordStore);
   const { updateRecordList, updateRecord } = recordStore;
 
   const { sortTreasuresTableData } = useSort();
@@ -65,6 +67,16 @@
       sortTreasuresTableData,
     );
   });
+
+  const listPlaceholder = computed(() =>
+    getRecordListPlaceholder({
+      areRecordsLoaded: areRecordsLoaded.value,
+      recordsLoadFailed: recordsLoadFailed.value,
+      totalRecords: records.value.length,
+      shownRecords: filteredRecords.value.length,
+      searchText: searchText.value,
+    }),
+  );
 
   const editingGroupsBan = computed(
     () =>
@@ -156,12 +168,11 @@
           />
         </template>
 
-        <span
-          v-else
-          :class="$style.noData"
-        >
-          {{ t('list.noData') }}
-        </span>
+        <record-list-placeholder-view
+          v-else-if="listPlaceholder"
+          :state="listPlaceholder"
+          :search-text="searchText"
+        />
       </custom-scroll-bar>
     </div>
 
@@ -251,15 +262,6 @@
       );
       padding-top: var(--spacing-xs);
       margin-bottom: var(--spacing-s);
-
-      .noData {
-        display: block;
-        padding: var(--spacing-l) var(--spacing-m) var(--spacing-m) var(--spacing-m);
-        text-align: center;
-        font-size: var(--font-16);
-        font-weight: 500;
-        color: var(--color-text-control-secondary-default);
-      }
 
       div[class*='scrollbarContainer'] {
         padding-top: var(--spacing-xs);

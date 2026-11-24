@@ -98,7 +98,7 @@ describe('mergeContact', () => {
   it('takes chosen fields from their chosen side', () => {
     const res = mergeContact(existing(), incoming(), {
       kind: 'fields',
-      fields: { avatar: 'current', name: 'incoming', phone: 'current', notice: 'incoming' },
+      fields: { avatar: 'current', name: 'incoming', phone: 'current', notice: 'incoming', birthday: 'current' },
     });
 
     expect(res?.avatarSource).toBe('current');
@@ -113,18 +113,62 @@ describe('mergeContact', () => {
   it('changes nothing when every chosen field is the current one', () => {
     expect(mergeContact(existing(), incoming(), {
       kind: 'fields',
-      fields: { avatar: 'current', name: 'current', phone: 'current', notice: 'current' },
+      fields: { avatar: 'current', name: 'current', phone: 'current', notice: 'current', birthday: 'current' },
     })).toBeUndefined();
   });
 
   it('takes only the avatar, when only it is chosen', () => {
     const res = mergeContact(existing(), incoming(), {
       kind: 'fields',
-      fields: { avatar: 'incoming', name: 'current', phone: 'current', notice: 'current' },
+      fields: { avatar: 'incoming', name: 'current', phone: 'current', notice: 'current', birthday: 'current' },
     });
 
     expect(res?.avatarSource).toBe('incoming');
     expect(res?.contact).toMatchObject({ name: 'Ann', phone: '111', notice: 'met at work' });
+  });
+
+});
+
+describe('birthday on import', () => {
+
+  const current = { id: 'b-cur', type: 'birthday' as const, month: 3, day: 15, year: 1990, notify: true };
+  const other = { id: 'b-in', type: 'birthday' as const, month: 3, day: 16 };
+
+  it('is a field to choose in when the dates differ', () => {
+    const fields = differingFields(existing({ dates: [current] }), incoming({ dates: [other] }));
+    expect(fields).toContain('birthday');
+  });
+
+  it('is not one when only the reminder differs', () => {
+    const fields = differingFields(
+      existing({ dates: [current] }),
+      incoming({ dates: [{ ...current, notify: undefined }] }),
+    );
+    expect(fields).not.toContain('birthday');
+  });
+
+  it('takes the incoming date and keeps the user own reminder', () => {
+    const res = mergeContact(existing({ dates: [current] }), incoming({ dates: [other] }), { kind: 'incoming' });
+
+    expect(res?.contact.dates).toEqual([{ id: 'b-cur', type: 'birthday', month: 3, day: 16, notify: true }]);
+  });
+
+  it('keeps the current date when it is chosen', () => {
+    const res = mergeContact(existing({ dates: [current] }), incoming({ dates: [other] }), {
+      kind: 'fields',
+      fields: { avatar: 'current', name: 'incoming', phone: 'current', notice: 'current', birthday: 'current' },
+    });
+
+    expect(res?.contact.dates).toEqual([current]);
+  });
+
+  it('changes the contact when only the birthday is taken', () => {
+    const res = mergeContact(existing({ dates: [] }), incoming({ dates: [other] }), {
+      kind: 'fields',
+      fields: { avatar: 'current', name: 'current', phone: 'current', notice: 'current', birthday: 'incoming' },
+    });
+
+    expect(res?.contact.dates).toEqual([other]);
   });
 
 });

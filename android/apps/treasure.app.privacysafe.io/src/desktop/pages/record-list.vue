@@ -27,7 +27,7 @@
   import { useSort } from '@/common/composables/use-sort';
   import type { TreasureGroup, TreasurePasswordRecord, TreasureRecord } from '@shared/@types';
   import { useRecordStore } from '@/common/stores/record.store';
-  import { prepareRecordList } from '@/common/utils';
+  import { getRecordListPlaceholder, prepareRecordList } from '@/common/utils';
   import EditRecordDialog from '@/desktop/components/edit-record-dialog.vue';
   import EditGroupDialog from '@/desktop/components/edit-group-dialog.vue';
   import TreasureGroups from '@/desktop/components/groups.vue';
@@ -41,7 +41,8 @@
   const { $createNotice } = inject<NotificationsPlugin>(NOTIFICATIONS_KEY)!;
 
   const recordStore = useRecordStore();
-  const { sortedGroups, records, recordsByGroups, numOfRecentRecords } = storeToRefs(recordStore);
+  const { sortedGroups, records, recordsByGroups, numOfRecentRecords, areRecordsLoaded, recordsLoadFailed } =
+    storeToRefs(recordStore);
   const { upsertGroup, deleteGroup, updateRecordList, addRecord, updateRecord, removeRecord, addRecordToRecent } =
     recordStore;
 
@@ -66,6 +67,16 @@
       sortTreasuresTableData,
     );
   });
+
+  const listPlaceholder = computed(() =>
+    getRecordListPlaceholder({
+      areRecordsLoaded: areRecordsLoaded.value,
+      recordsLoadFailed: recordsLoadFailed.value,
+      totalRecords: records.value.length,
+      shownRecords: filteredRecords.value.length,
+      searchText: searchText.value,
+    }),
+  );
 
   function selectGroup(gr: string) {
     if (selectedGroup.value !== gr) {
@@ -239,6 +250,8 @@
       <treasures-table
         :selected-group="selectedGroup"
         :records="filteredRecords"
+        :placeholder="listPlaceholder"
+        :search-text="searchText"
         @edit="(r: TreasureRecord) => openEditRecordDialog(r.id)"
         @set:favorite="setFavorite"
       />

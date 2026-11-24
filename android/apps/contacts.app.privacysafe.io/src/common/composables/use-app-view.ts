@@ -30,20 +30,34 @@ import {
   DIALOGS_KEY,
 } from '@v1nt1248/3nclient-lib/plugins';
 import { makeServiceCaller } from '@shared/ipc/ipc-service-caller';
-import { appContactsSrvProxy } from '@main/common/services/services-provider';
+import {
+  appContactsSrvProxy,
+  initializeServices,
+  servicesInitError,
+} from '@main/common/services/services-provider';
+import { connectToContactsService } from '@main/common/services/connect-with-retries';
 import { useAppStore } from '@main/common/store/app.store';
 import { useSyncStore } from '@main/common/store/sync.store';
 import { useContactsStore } from '@main/common/store/contacts.store';
 import { useTutorialStore } from '@main/common/store/tutorial.store';
-import { useConnectivityStatus } from '@main/common/composables/use-connectivity-status';
+import { useSettingsStore } from '@main/common/store/settings.store';
+import {
+  reportServerReachability,
+  useConnectivityStatus,
+} from '@main/common/composables/use-connectivity-status';
 import type { AppGlobalEvents, AppMenuAction } from '@main/types';
 import type { ContactsDenoSrv } from '@deno/types';
 import { useCommandHandler } from '@main/common/composables/use-command-handler';
 import { makeContactEventHandler } from '@main/common/composables/contact-event-handler';
 import { useBackupRestore } from '@main/common/composables/use-backup-restore';
+import { syncStuckWarningKey } from '@main/common/utils/sync-stuck-warning';
 import BackupCreatingDialog from '@main/common/components/dialogs/backup-creating-dialog.vue';
+import AppSettingsDialog from '@main/common/components/dialogs/app-settings-dialog.vue';
 
 export type AppViewInstance = ReturnType<typeof useAppView>;
+
+/** Pause between attempts to reach the service after the window gave up on it. */
+const SERVICE_RECONNECT_PAUSE_MS = 15000;
 
 export function useAppView() {
   const { t } = useI18n();
@@ -55,7 +69,7 @@ export function useAppView() {
   const { $createNotice } = inject<NotificationsPlugin>(NOTIFICATIONS_KEY)!;
   const dialog = inject<DialogsPlugin>(DIALOGS_KEY);
 
-  const { connectivityStatus } = useConnectivityStatus();
+  const { connectivityStatus, isConnectivitySettled } = useConnectivityStatus();
 
   const appStore = useAppStore();
   const { user, appElement, appVersion, colorTheme, customLogoSrc, globalLoading } = storeToRefs(appStore);
@@ -72,10 +86,9 @@ export function useAppView() {
   const { fetchContacts } = contactsStore;
 
   const tutorialStore = useTutorialStore();
+  const settingsStore = useSettingsStore();
 
-  const connectivityStatusText = computed(() =>
-    connectivityStatus.value === 'online' ? t('app.status.connected.online') : t('app.status.connected.offline'),
-  );
+  const connectivityStatusText = computed(() => t(`app.status.connected.${connectivityStatus.value}`));
 
   const syncStatusText = computed(() => (isSyncRunning.value ? t('app.status.unsynced') : t('app.status.synced')));
 
@@ -88,11 +101,13 @@ export function useAppView() {
   const persistentWarning = ref<string | undefined>(undefined);
 
   /**
-   * The two reasons need different words because the remedy differs. A root
-   * that will not verify usually clears itself once the server answers, while
-   * changes that cannot be published stay unpublished for the life of the
-   * process: the platform keeps a failed upload task in its map and refuses
-   * every later upload of that file, so only a restart resumes publishing.
+   * The reasons need different words because the remedy differs. A root that
+   * will not verify means the server does not answer, and that clears itself
+   * once it does - telling the user to restart, as this used to, sent them to
+   * a remedy that cannot help while the server is down. Changes that cannot
+   * be published stay unpublished for the life of the process: the platform
+   * keeps a failed upload task in its map and refuses every later upload of
+   * that file, so only a restart resumes publishing.
    */
   function setSyncStuck(isStuck: boolean, reason?: string) {
     if (!isStuck) {
@@ -100,10 +115,7 @@ export function useAppView() {
       return;
     }
 
-    persistentWarning.value =
-      reason === 'local-version-not-published'
-        ? t('app.warning.changes-not-published')
-        : t('app.warning.sync-stuck');
+    persistentWarning.value = t(syncStuckWarningKey(reason));
   }
 
   /**
@@ -165,6 +177,24 @@ export function useAppView() {
     });
   }
 
+  async function openSettings() {
+    // The desktop menu stays open by itself; the mobile one is closed already.
+    if (route.query.isMenuOpen === 'on') {
+      await router.push({ query: { ...route.query, isMenuOpen: 'off' } });
+    }
+
+    await dialog?.$openDialog(AppSettingsDialog, {
+      dialogProps: {
+        title: t('settings.title'),
+        icon: 'outline-settings',
+        cssStyle: { width: '560px', maxWidth: '95%' },
+        confirmButton: false,
+        cancelButton: false,
+        closeOnClickOverlay: true,
+      },
+    });
+  }
+
   async function runMenuAction(action: AppMenuAction) {
     switch (action) {
       case 'tutorial': {
@@ -179,6 +209,8 @@ export function useAppView() {
         return makeBackup();
       case 'upload-backup':
         return void (await runRestoreWorkflow());
+      case 'settings':
+        return openSettings();
       case 'exit':
         return appExit();
       default:
@@ -188,25 +220,20 @@ export function useAppView() {
 
   const { start: startHandlingCommands } = useCommandHandler();
 
+  // Announced only between readings that are both real: the first one, which
+  // replaces the initial guess, is not news to the user.
   watch(
-    connectivityStatus,
-    async (val, oVal) => {
-      if (val === 'online' && oVal === 'offline') {
-        $createNotice({
-          type: 'info',
-          content: t('app.info.status.online'),
-          duration: 4000,
-        });
-      } else if (val === 'offline' && oVal === 'online') {
-        $createNotice({
-          type: 'warning',
-          content: t('app.info.status.offline'),
-          duration: 4000,
-        });
+    [connectivityStatus, isConnectivitySettled],
+    ([val, isSettled], [oVal, wasSettled]) => {
+      if (!isSettled || !wasSettled || (val === oVal)) {
+        return;
       }
-    },
-    {
-      immediate: true,
+
+      $createNotice({
+        type: val === 'online' ? 'info' : 'warning',
+        content: t(`app.info.status.${val}`),
+        duration: 4000,
+      });
     },
   );
 
@@ -217,6 +244,7 @@ export function useAppView() {
     removeFromSyncList,
     cleanSyncList,
     setSyncStuck,
+    setServerReachable: reportServerReachability,
     emitContactListUpdated: () => $emitter.emit('contact-list:updated', void 0),
     fetchContacts: () => fetchContacts({}),
     currentRouteName: () => route.name as string | undefined,
@@ -226,48 +254,112 @@ export function useAppView() {
     onBackupProgress,
     onRestoreProgress,
     onShareProgress,
+    onSettingsChanged: settingsStore.applySettings,
   });
 
   let tu: ReturnType<typeof setInterval> | null = null;
 
+  /** Set once the parts of the window that do not need the service are up. */
+  let isWindowStateInitialized = false;
+
+  /** Set by unmounting, to end the reconnection loop below. */
+  let isUnmounted = false;
+
+  async function initializeWithService(): Promise<void> {
+    // The start-up attempts already failed: the caller tells the user at once.
+    if (!appContactsSrvProxy) {
+      throw servicesInitError ?? new Error('Contacts service is not connected');
+    }
+    const contactsSrvConnection = await connectToContactsService();
+    const contactsDenoSrv = makeServiceCaller(contactsSrvConnection, [], ['watchEvent']) as ContactsDenoSrv;
+
+    // Once only: a reconnection after a failed start must not subscribe to the
+    // launcher's settings a second time.
+    if (!isWindowStateInitialized) {
+      await appStore.initialize();
+      // Before the contacts: the form shows dates in the format set here.
+      await settingsStore.loadSettings();
+      isWindowStateInitialized = true;
+    }
+
+    contactsDenoSrv.watchEvent({
+      next: handleContactEvent,
+      error: (e: unknown) => {
+        // A closed connection is what a normal shutdown looks like from here:
+        // the service goes away and this observable errors. Logged as an
+        // error it buried real failures under one such entry per app close.
+        if ((e as web3n.rpc.RPCException).connectionClosed) {
+          return;
+        }
+
+        w3n.log('error', 'Error watching contact events. ', e);
+      },
+      complete: () => contactsSrvConnection.close(),
+    });
+
+    // The service learns this during its start, before the window can listen
+    // to its events, so the first reading is asked for. Not worth failing the
+    // window over: the socket events of the platform tell the same, later.
+    try {
+      reportServerReachability(await appContactsSrvProxy.getServerReachability());
+    } catch (err) {
+      await w3n.log('info', 'Could not ask the contacts service whether the server is reachable', err);
+    }
+
+    await fetchContacts({ withFullOverload: true });
+
+    tu = setInterval(() => {
+      appContactsSrvProxy.removeUnnecessaryImageFiles();
+    }, 86400000); // every 24 hours
+
+    await startHandlingCommands();
+  }
+
+  /**
+   * Keeps trying to reach the service after the window has given up on it at
+   * start, so that the user does not have to close and reopen the window once
+   * the service is up. The service exposes its ipc only at the end of its own
+   * start, which can outlast the start-up attempts of the window.
+   */
+  async function reconnectInBackground(): Promise<void> {
+    while (!isUnmounted) {
+      await new Promise(resolve => setTimeout(resolve, SERVICE_RECONNECT_PAUSE_MS));
+      if (isUnmounted) {
+        return;
+      }
+
+      await initializeServices({ quiet: true });
+      if (!appContactsSrvProxy) {
+        continue;
+      }
+
+      try {
+        await initializeWithService();
+        persistentWarning.value = undefined;
+        await w3n.log('info', 'Contacts service connected after the window had started without it');
+        return;
+      } catch (err) {
+        await w3n.log('info', 'Contacts service connected, but the window could not start on it', err);
+        return;
+      }
+    }
+  }
+
   async function doBeforeMount() {
     setGlobalLoading(true);
     try {
-      const contactsSrvConnection = await w3n.rpc!.thisApp!('AppContactsInternal');
-      const contactsDenoSrv = makeServiceCaller(contactsSrvConnection, [], ['watchEvent']) as ContactsDenoSrv;
-
-      await appStore.initialize();
-
-      contactsDenoSrv.watchEvent({
-        next: handleContactEvent,
-        error: (e: unknown) => {
-          // A closed connection is what a normal shutdown looks like from here:
-          // the service goes away and this observable errors. Logged as an
-          // error it buried real failures under one such entry per app close.
-          if ((e as web3n.rpc.RPCException).connectionClosed) {
-            return;
-          }
-
-          w3n.log('error', 'Error watching contact events. ', e);
-        },
-        complete: () => contactsSrvConnection.close(),
-      });
-
-      await fetchContacts({ withFullOverload: true });
-
-      tu = setInterval(() => {
-        appContactsSrvProxy.removeUnnecessaryImageFiles();
-      }, 86400000); // every 24 hours
-
-      await startHandlingCommands();
+      await initializeWithService();
     } catch (e) {
       await reportWhyServiceIsUnavailable(e);
+      void reconnectInBackground();
     } finally {
       setGlobalLoading(false);
     }
   }
 
   function doBeforeUnmount() {
+    isUnmounted = true;
+
     if (tu) {
       clearInterval(tu);
       tu = null;
@@ -281,6 +373,7 @@ export function useAppView() {
     route,
     router,
     user,
+    connectivityStatus,
     customLogoSrc,
     appElement,
     appVersion,

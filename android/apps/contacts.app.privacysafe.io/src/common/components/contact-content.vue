@@ -17,10 +17,23 @@
 <script lang="ts" setup>
   import { computed, onBeforeMount, onBeforeUnmount, ref, watch, WatchHandle } from 'vue';
   import { useI18n } from 'vue-i18n';
+  import { storeToRefs } from 'pinia';
   import isEmpty from 'lodash/isEmpty';
   import get from 'lodash/get';
-  import { Ui3nInput, Ui3nText } from '@v1nt1248/3nclient-lib';
-  import type { ContactContent, ContactTextField, Person } from '@main/types';
+  import { Ui3nCheckbox, Ui3nInput, Ui3nInputDate, Ui3nText } from '@v1nt1248/3nclient-lib';
+  import { useAppStore } from '@main/common/store/app.store';
+  import { useSettingsStore } from '@main/common/store/settings.store';
+  import { randomStr } from '@main/common/services/base/random';
+  import {
+    contactDateToDate,
+    dateToContactDate,
+    getBirthday,
+    isValidCalendarDay,
+    withBirthday,
+  } from '@main/common/utils/contact-dates';
+  import { makeDateLocaleConfig } from '@main/common/utils/date-locale';
+  import { isPhoneMaskApplicable, PHONE_MASK } from '@main/common/utils/phone-mask';
+  import type { ContactContent, ContactDate, ContactTextField, Person } from '@main/types';
 
   const props = defineProps<{
     contact: ContactContent | Person;
@@ -34,9 +47,12 @@
   const emits = defineEmits<{
     (event: 'update:valid', value: boolean): void;
     (event: 'update:field', value: { field: ContactTextField; val: string }): void;
+    (event: 'update:dates', value: ContactDate[]): void;
   }>();
 
   const { t } = useI18n();
+  const { lang } = storeToRefs(useAppStore());
+  const { dateFormat } = storeToRefs(useSettingsStore());
 
   const isValid = ref<Record<ContactTextField, boolean>>({
     name: fieldValidate('name'),
@@ -69,6 +85,85 @@
 
   function getRules(field: keyof ContactContent) {
     return get(props.rules, field, []);
+  }
+
+  /**
+   * Masked only while the number is in the international form (or empty). A
+   * number typed before the mask existed stays as it was; once it is cleared,
+   * the mask takes over.
+   */
+  const phoneMask = computed(() => (isPhoneMaskApplicable(props.contact.phone) ? PHONE_MASK : undefined));
+
+  const dateLocaleConfig = computed(() => makeDateLocaleConfig(lang.value, t('contact.content.birthdayWithoutYear')));
+
+  const birthday = computed(() => getBirthday(props.contact.dates));
+  const birthdayValue = computed(() => (birthday.value ? contactDateToDate(birthday.value) : null));
+
+  /**
+   * Whether the birthday is given without a year. Follows the stored date, and
+   * otherwise keeps the user's choice in the picker for the date to be typed.
+   */
+  const isBirthdayWithoutYear = ref(false);
+  watch(
+    birthday,
+    value => {
+      if (value) {
+        isBirthdayWithoutYear.value = value.year === undefined;
+      }
+    },
+    { immediate: true },
+  );
+
+  function emitBirthday(value: ContactDate | undefined) {
+    emits('update:dates', withBirthday(props.contact.dates, value));
+  }
+
+  function onBirthdayChange(value: Date | null) {
+    if (!value) {
+      emitBirthday(undefined);
+      return;
+    }
+
+    const base = birthday.value ?? { id: randomStr(8), type: 'birthday' as const };
+    emitBirthday(dateToContactDate(value, isBirthdayWithoutYear.value, base));
+  }
+
+  /**
+   * The picker sends the date converted to the new mode right after this; it is
+   * converted here as well, so that the stored date never depends on that.
+   */
+  function onBirthdayWithoutYearChange(value: boolean) {
+    isBirthdayWithoutYear.value = value;
+    const current = birthday.value;
+    if (!current || (current.year === undefined) === value) {
+      return;
+    }
+
+    const next: ContactDate = { ...current };
+    if (value) {
+      delete next.year;
+    } else {
+      next.year = new Date().getFullYear();
+      if (!isValidCalendarDay(next.month, next.day, next.year)) {
+        next.day = 28;
+      }
+    }
+    emitBirthday(next);
+  }
+
+  function onBirthdayNotifyChange(value: unknown) {
+    const current = birthday.value;
+    if (!current) {
+      return;
+    }
+
+    const next: ContactDate = { ...current };
+    if (value === true) {
+      next.notify = true;
+    } else {
+      delete next.notify;
+    }
+    emitBirthday(next);
   }
 
   let watchAllValid: WatchHandle;
@@ -118,8 +213,36 @@
         :label="t('contact.content.phone')"
         :rules="getRules('phone')"
         :disabled="disabled"
+        :mask="phoneMask"
         @input="onInput($event, 'phone')"
       />
+    </div>
+
+    <div
+      :class="$style.field"
+      data-field="birthday"
+    >
+      <ui3n-input-date
+        :model-value="birthdayValue"
+        :label="t('contact.content.birthday')"
+        :format="dateFormat"
+        :without-year="isBirthdayWithoutYear"
+        :locale-config="dateLocaleConfig"
+        allow-without-year
+        clearable
+        :disabled="disabled"
+        @update:model-value="onBirthdayChange"
+        @update:without-year="onBirthdayWithoutYearChange"
+      />
+
+      <ui3n-checkbox
+        :model-value="!!birthday?.notify"
+        :disabled="disabled || !birthday"
+        :class="$style.notify"
+        @change="onBirthdayNotifyChange"
+      >
+        {{ t('contact.content.birthdayNotify') }}
+      </ui3n-checkbox>
     </div>
 
     <div :class="$style.field">
@@ -153,5 +276,9 @@
 
   .field {
     padding-bottom: var(--spacing-s);
+  }
+
+  .notify {
+    margin-top: var(--spacing-xs);
   }
 </style>

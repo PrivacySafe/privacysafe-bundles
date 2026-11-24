@@ -15,12 +15,16 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { App } from 'vue';
 import { useSystemLevelAppConfig } from '@main/common/store/app/system-level-app-config';
 import { installFakeW3n } from '../../../helpers/fake-w3n.ts';
+import { withSetup } from '../../../helpers/app-context.ts';
 
 const htmlClasses = () => Array.from(document.documentElement.classList);
 
 let platform: ReturnType<typeof installFakeW3n>;
+let config: ReturnType<typeof useSystemLevelAppConfig>;
+let app: App | undefined;
 
 beforeEach(() => {
   document.documentElement.className = '';
@@ -28,9 +32,14 @@ beforeEach(() => {
   vi.stubGlobal('URL', Object.assign(Object.create(URL), URL, {
     createObjectURL: vi.fn(() => 'blob:fake-logo'),
   }));
+  // The store calls useI18n(), which vue-i18n only allows inside a component
+  // setup, so it has to be created through the real app context.
+  ({ result: config, app } = withSetup(() => useSystemLevelAppConfig()));
 });
 
 afterEach(() => {
+  app?.unmount();
+  app = undefined;
   platform?.uninstall();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -40,7 +49,6 @@ describe('useSystemLevelAppConfig', () => {
 
   it('starts with the defaults before initialize is called', () => {
     platform = installFakeW3n();
-    const config = useSystemLevelAppConfig();
 
     expect(config.appVersion.value).toBe('');
     expect(config.user.value).toBe('');
@@ -51,7 +59,6 @@ describe('useSystemLevelAppConfig', () => {
 
   it('reads the app version and the user address on initialize', async () => {
     platform = installFakeW3n({ appVersion: '0.8.30', userId: 'ann@3nweb.com' });
-    const config = useSystemLevelAppConfig();
 
     await config.initialize();
 
@@ -61,7 +68,6 @@ describe('useSystemLevelAppConfig', () => {
 
   it('takes the language and the theme from the launcher settings', async () => {
     platform = installFakeW3n({ settings: { lang: 'en', colorTheme: 'light' } });
-    const config = useSystemLevelAppConfig();
 
     await config.initialize();
 
@@ -72,7 +78,6 @@ describe('useSystemLevelAppConfig', () => {
   // be mapped onto the ones the library knows.
   it('maps the legacy theme ids of the launcher settings', async () => {
     platform = installFakeW3n({ settings: { colorTheme: 'dark2' } });
-    const config = useSystemLevelAppConfig();
 
     await config.initialize();
 
@@ -84,7 +89,6 @@ describe('useSystemLevelAppConfig', () => {
   // fight over which palette is applied.
   it('leaves the html classes to the theme plugin', async () => {
     platform = installFakeW3n({ settings: { colorTheme: 'light' } });
-    const config = useSystemLevelAppConfig();
 
     await config.initialize();
 
@@ -96,7 +100,6 @@ describe('useSystemLevelAppConfig', () => {
     platform = installFakeW3n({
       settings: { customLogo: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' },
     });
-    const config = useSystemLevelAppConfig();
 
     await config.initialize();
 
@@ -107,7 +110,6 @@ describe('useSystemLevelAppConfig', () => {
   // decoration, while initialize() also brings in the user address.
   it('survives a malformed custom logo', async () => {
     platform = installFakeW3n({ settings: { customLogo: 'not-a-data-url' } });
-    const config = useSystemLevelAppConfig();
 
     await expect(config.initialize()).resolves.toBeUndefined();
 
@@ -117,7 +119,6 @@ describe('useSystemLevelAppConfig', () => {
 
   it('leaves no logo when the settings carry none', async () => {
     platform = installFakeW3n({ settings: { customLogo: undefined } });
-    const config = useSystemLevelAppConfig();
 
     await config.initialize();
 
@@ -129,7 +130,6 @@ describe('useSystemLevelAppConfig', () => {
   it('still initializes when the settings resource cannot be read', async () => {
     platform = installFakeW3n({ appVersion: '0.8.30' });
     platform.w3n.shell.getFSResource.mockRejectedValue(new Error('no resource'));
-    const config = useSystemLevelAppConfig();
 
     await expect(config.initialize()).resolves.toBeUndefined();
 
@@ -150,7 +150,6 @@ describe('useSystemLevelAppConfig', () => {
       onFsEvent = obs.next;
       return () => undefined;
     });
-    const config = useSystemLevelAppConfig();
     await config.initialize();
     expect(config.colorTheme.value).toBe('dark');
 
@@ -172,7 +171,6 @@ describe('useSystemLevelAppConfig', () => {
       onFsEvent = obs.next;
       return () => undefined;
     });
-    const config = useSystemLevelAppConfig();
     await config.initialize();
 
     platform.settingsFile.readJSON.mockResolvedValue({
@@ -188,7 +186,6 @@ describe('useSystemLevelAppConfig', () => {
     platform = installFakeW3n();
     const unsub = vi.fn();
     platform.settingsFile.watch.mockReturnValue(unsub);
-    const config = useSystemLevelAppConfig();
     await config.initialize();
 
     await config.stopWatching();
@@ -198,7 +195,6 @@ describe('useSystemLevelAppConfig', () => {
 
   it('tolerates stopWatching before initialize', async () => {
     platform = installFakeW3n();
-    const config = useSystemLevelAppConfig();
 
     await expect(config.stopWatching()).resolves.toBeUndefined();
   });

@@ -42,6 +42,7 @@ import type {
   AddressCheckResult,
   ComponentStatus,
   SyncActivityView,
+  ServerReachability,
   UpdateEvent,
 } from '../../types/services.types.ts';
 import type {
@@ -221,6 +222,14 @@ export interface ChatSrv {
    * (see emitChatEvent), and a start-up catch-up often finishes before that.
    */
   getSyncActivityState(): Promise<SyncActivityView>;
+
+  /**
+   * What the component's own probe last learned about the user's mail server,
+   * for the status line of the window. Needed alongside the 'server' events for
+   * the same reason as getSyncActivityState: the probe runs at start-up, often
+   * before a window has subscribed.
+   */
+  getServerReachability(): Promise<ServerReachability>;
 
   /**
    * Asks the user's other devices to repeat the records that buffered orphaned

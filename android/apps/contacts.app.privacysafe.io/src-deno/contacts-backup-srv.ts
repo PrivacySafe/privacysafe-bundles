@@ -21,6 +21,7 @@
 // `Zip` still reports progress per entry, which a single zipSync call could not.
 import { Zip, ZipDeflate, ZipPassThrough, strFromU8, strToU8, unzipSync, type Unzipped } from 'fflate/browser';
 import { makeCancelController, type CancelController, type CancelSignal } from './utils/cancel-signal.ts';
+import { makeZipSizeGuard } from './utils/zip-size-guard.ts';
 // @deno-types="../shared-libs/sqlite-on-3nstorage/index.d.ts"
 import { SQLiteOn3NStorage } from '../shared-libs/sqlite-on-3nstorage/index.js';
 import { sleep } from '../shared-libs/processes/sleep.ts';
@@ -233,7 +234,8 @@ function openArchive(
 ): OpenedArchive {
   let entries: Unzipped;
   try {
-    entries = filter ? unzipSync(archiveBytes, { filter }) : unzipSync(archiveBytes);
+    // SECURITY(CVE-2026-122146): see zip-size-guard.ts.
+    entries = unzipSync(archiveBytes, { filter: makeZipSizeGuard(filter) });
   } catch {
     throw new BackupArchiveFailure('corrupted_archive');
   }

@@ -107,6 +107,12 @@ export function useInitialize() {
           backupStore.onRestoreProgress(updateEvent.progress);
           return;
         }
+        // The status line has nothing to do with the update queue, and is
+        // wanted at once.
+        if (updateEvent.updatedEntityType === 'server') {
+          appStore.reportServerReachability(updateEvent.reachable);
+          return;
+        }
         if (updateEvent.updatedEntityType === 'auto-backup') {
           settingsStore.applyAutoBackupInfo(updateEvent.info);
           return;
@@ -153,6 +159,11 @@ export function useInitialize() {
     // GUI is attached, so a catch-up scan running at this moment would otherwise
     // be invisible until its next state change.
     await appStore.refreshSyncState();
+    // The same for the status line: the component probes the server at its
+    // start, often before this window subscribed, and keeps the outcome.
+    chatService.getServerReachability()
+      .then(reachability => appStore.reportServerReachability(reachability))
+      .catch(err => log.error('Failed to read the server reachability', err));
 
     stopVideoCallsWatching.value = videoOpenerSrv.watchVideoChats({
       next: async data => {

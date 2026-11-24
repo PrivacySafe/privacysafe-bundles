@@ -19,7 +19,10 @@ import { h } from 'vue';
 import { createMemoryHistory, createRouter, type Router } from 'vue-router';
 
 vi.mock('@main/common/services/services-provider', () => ({
-  appContactsSrvProxy: { getContactList: vi.fn(async () => []) },
+  appContactsSrvProxy: {
+    getContactList: vi.fn(async () => []),
+    getContact: vi.fn(async (id: string) => (id === 'c1' ? { id: 'c1', mail: 'ann@3nweb.com', timestamp: 1 } : undefined)),
+  },
   initializeServices: vi.fn(),
 }));
 
@@ -161,6 +164,39 @@ describe('useCommandHandler', () => {
     expect(platform.w3n.log).toHaveBeenCalled();
     expect(platform.w3n.log.mock.calls[0][0]).toBe('error');
     app.unmount();
+  });
+
+  describe('open-contact', () => {
+
+    it('opens the contact a reminder was shown for', async () => {
+      const { handler, router, app } = await boot({ cmd: 'open-contact', params: [{ contactId: 'c1' }] });
+
+      await handler.start();
+
+      expect(router.currentRoute.value.name).toBe('contact');
+      expect(router.currentRoute.value.params.id).toBe('c1');
+      app.unmount();
+    });
+
+    it('stays on the list when the contact is gone', async () => {
+      const { handler, router, app } = await boot({ cmd: 'open-contact', params: [{ contactId: 'gone' }] });
+
+      await handler.start();
+
+      expect(router.currentRoute.value.name).toBe('contacts');
+      app.unmount();
+    });
+
+    it('logs a command without a contact id', async () => {
+      const { handler, router, platform, app } = await boot({ cmd: 'open-contact', params: [{}] });
+
+      await handler.start();
+
+      expect(router.currentRoute.value.name).toBe('contacts');
+      expect(platform.w3n.log).toHaveBeenCalledWith('error', expect.stringContaining('open contact'));
+      app.unmount();
+    });
+
   });
 
 });

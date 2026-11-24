@@ -42,3 +42,41 @@ export function prepareRecordList(
     // which the user picks in its header.
     .sort((a, b) => (sortTreasuresTableData ? sortTreasuresTableData(a, b, 'name', 'asc') : 0));
 }
+
+/**
+ * What an empty record list says instead of rows.
+ *
+ * - `loading`: the records are still being read. Each record is a file of its
+ *   own in the synced storage, so the first reading takes a while, and an empty
+ *   list in the meantime would read as "you have nothing stored".
+ * - `failed`: the reading failed and there is nothing to show.
+ * - `no-matches`: there are records, the search leaves none of them.
+ * - `no-records`: there are no records at all.
+ * - `group-empty`: there are records, just none in the selected group.
+ */
+export type RecordListPlaceholder = 'loading' | 'failed' | 'no-matches' | 'no-records' | 'group-empty';
+
+export function getRecordListPlaceholder({
+  areRecordsLoaded,
+  recordsLoadFailed,
+  totalRecords,
+  shownRecords,
+  searchText,
+}: {
+  areRecordsLoaded: boolean;
+  recordsLoadFailed: boolean;
+  totalRecords: number;
+  shownRecords: number;
+  searchText: string;
+}): RecordListPlaceholder | null {
+  if (shownRecords > 0) {
+    return null;
+  }
+  if (!areRecordsLoaded) {
+    return 'loading';
+  }
+  if (totalRecords === 0) {
+    return recordsLoadFailed ? 'failed' : 'no-records';
+  }
+  return searchText.trim() ? 'no-matches' : 'group-empty';
+}

@@ -53,6 +53,7 @@
     showOwnKeysInfo,
     showContactKeysInfo,
     onFieldUpdate,
+    onDatesUpdate,
     saveContact,
     cancel,
     showQRcode,
@@ -263,6 +264,7 @@
           :rules="rules"
           :disabled="isUserAddress"
           @update:field="onFieldUpdate"
+          @update:dates="onDatesUpdate"
           @update:valid="contactValid = $event"
         />
       </custom-scroll-bar>

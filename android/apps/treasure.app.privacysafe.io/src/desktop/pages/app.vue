@@ -36,7 +36,9 @@
     customLogoSrc,
     user,
     connectivityStatus,
+    connectivityStatusText,
     isSyncRunning,
+    syncStatusText,
     t,
     onResize,
     openDashboard,
@@ -71,13 +73,28 @@
           <span :class="$style.mail">
             {{ user }}
           </span>
-          <span :class="$style.connection">
-            {{ t('app.status.label') }}:
 
-            <span :class="connectivityStatus === 'online' && $style.connectivity">
-              {{ connectivityStatus === 'online' ? t('app.status.online') : t('app.status.offline') }}
-            </span>
-          </span>
+          <div :class="$style.status">
+            <span>{{ t('app.status.label') }}</span>
+
+            <b
+              :class="{
+                [$style.ok]: connectivityStatus === 'online',
+                [$style.warn]: connectivityStatus === 'server-unreachable',
+                [$style.error]: connectivityStatus === 'offline',
+              }"
+            >
+              {{ connectivityStatusText }}
+            </b>
+          </div>
+
+          <div :class="$style.status">
+            <span>{{ t('app.sync.status') }}</span>
+
+            <b :class="!isSyncRunning && $style.ok">
+              {{ syncStatusText }}
+            </b>
+          </div>
         </div>
 
         <div
@@ -192,24 +209,40 @@
         flex-direction: column;
         justify-content: center;
         align-items: flex-end;
+        color: var(--color-text-control-primary-default);
+        line-height: 1.4;
 
         .mail {
           font-size: var(--font-14);
           font-weight: 600;
         }
 
-        .connection {
+        .status {
+          display: flex;
+          justify-content: flex-end;
+          align-items: center;
+          column-gap: var(--spacing-s);
           font-size: var(--font-12);
           font-weight: 500;
+
+          b {
+            position: relative;
+            min-width: 68px;
+            text-transform: uppercase;
+            text-align: right;
+          }
         }
 
-        span:not(.connectivity) {
-          color: var(--color-text-control-primary-default);
-          line-height: 1.4;
-        }
-
-        .connectivity {
+        .ok {
           color: var(--success-content-default);
+        }
+
+        .warn {
+          color: var(--warning-content-default);
+        }
+
+        .error {
+          color: var(--error-content-default);
         }
       }
 

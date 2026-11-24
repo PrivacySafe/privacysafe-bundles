@@ -37,6 +37,7 @@ export async function initializeServices() {
       'getRecord',
       'getRecordSyncStatus',
       'getAllRecords',
+      'getServerReachability',
       'createBackupArchive',
       'cancelBackupArchive',
       'restoreBackupArchive',

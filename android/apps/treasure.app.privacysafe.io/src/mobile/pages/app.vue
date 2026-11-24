@@ -23,7 +23,16 @@
 
   const { t } = useI18n();
 
-  const { appVersion, commonLoading, user, connectivityStatus, isSyncRunning, runMenuAction } = useAppPage();
+  const {
+    appVersion,
+    commonLoading,
+    user,
+    connectivityStatus,
+    connectivityStatusText,
+    isSyncRunning,
+    syncStatusText,
+    runMenuAction,
+  } = useAppPage();
 
   const isMenuOpen = ref(false);
 </script>
@@ -36,6 +45,7 @@
           :is-menu-open="isMenuOpen"
           :user="user || ''"
           :connectivity-status="connectivityStatus"
+          :connectivity-status-text="connectivityStatusText"
           @action="ev => runMenuAction(ev)"
           @update:model-value="ev => (isMenuOpen = ev)"
         />
@@ -54,7 +64,23 @@
           <div :class="$style.status">
             <span>{{ t('app.status.label') }}</span>
 
-            <b :class="connectivityStatus === 'online' && $style.ok" />
+            <b
+              :title="connectivityStatusText"
+              :class="{
+                [$style.ok]: connectivityStatus === 'online',
+                [$style.warn]: connectivityStatus === 'server-unreachable',
+                [$style.error]: connectivityStatus === 'offline',
+              }"
+            />
+          </div>
+
+          <div :class="$style.status">
+            <span>{{ t('app.sync.status') }}</span>
+
+            <b
+              :title="syncStatusText"
+              :class="!isSyncRunning && $style.ok"
+            />
           </div>
         </div>
 
@@ -148,9 +174,11 @@
 
     .info {
       display: flex;
-      justify-content: flex-end;
-      align-items: center;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-end;
       color: var(--color-text-control-primary-default);
+      line-height: 1.4;
 
       .status {
         display: flex;
@@ -172,6 +200,14 @@
 
         .ok {
           background-color: var(--success-content-default);
+        }
+
+        .warn {
+          background-color: var(--warning-content-default);
+        }
+
+        .error {
+          background-color: var(--error-content-default);
         }
       }
     }

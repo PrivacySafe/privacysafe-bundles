@@ -57,6 +57,27 @@ export function useCommandHandler() {
   }
 
   /**
+   * A click on a reminder of a contact's date (see the date reminders of the
+   * service). The contact may have been removed since, in which case the list
+   * is all there is to show.
+   */
+  async function openContact(cmdArg: { contactId?: unknown }) {
+    const contactId = cmdArg?.contactId;
+    if (!contactId || (typeof contactId !== 'string')) {
+      await w3n.log('error', 'Invalid contact id passed in open contact command');
+      return;
+    }
+
+    const contact = await contactsStore.getContact(contactId).catch(() => undefined);
+    if (!contact) {
+      await router.push({ name: 'contacts' });
+      return;
+    }
+
+    await router.push({ name: 'contact', params: { id: contactId } });
+  }
+
+  /**
    * Contacts shared by another user: the chat or inbox app has handed the
    * file to the service, and passes here the id under which it was read.
    */
@@ -110,6 +131,8 @@ export function useCommandHandler() {
       switch (cmd) {
         case 'add-contact':
           return addNewContact(params[0]);
+        case 'open-contact':
+          return openContact(params[0]);
         case 'import-contacts':
           // Not awaited: the app's start waits for the start command to be
           // processed, and must not wait for the user going through the import.

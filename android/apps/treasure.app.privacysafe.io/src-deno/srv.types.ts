@@ -15,10 +15,13 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
 import type {
+  ImageLoadResult,
   TreasureEvent,
   TreasureGroup,
   TreasureRecord,
 } from '../shared/@types/common.types.ts';
+
+export type ServerReachability = 'unknown' | 'up' | 'down';
 
 export interface TreasureDenoSrv {
   emitTreasureEvent: (event: TreasureEvent) => void;
@@ -39,7 +42,7 @@ export interface TreasureDenoSrv {
   /** Takes the archive already decrypted by the gui, when it was protected. */
   restoreBackupArchive: (archiveBytes: Uint8Array) => Promise<boolean>;
 
-  loadImage: (imageId: string) => Promise<Uint8Array | undefined>;
+  loadImage: (imageId: string) => Promise<ImageLoadResult>;
   saveImage: (data: { bytes: Uint8Array; id?: string }) => Promise<string>;
   deleteImages: (fileIds: string[]) => Promise<void>;
 
@@ -53,6 +56,8 @@ export interface TreasureDenoSrv {
   getRecord: (id: string) => Promise<TreasureRecord | null>;
   getRecordSyncStatus: (id: string) => Promise<web3n.files.SyncStatus | undefined>;
   getAllRecords: () => Promise<{ records: TreasureRecord[]; errors: unknown[] }>;
+  /** The latest outcome of the service's own requests to the storage server. */
+  getServerReachability: () => Promise<ServerReachability>;
   initial: () => Promise<void>;
 }
 

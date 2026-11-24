@@ -14,12 +14,40 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
-export async function checkServerConnection(fs: web3n.files.WritableFS) {
+import type { ContactEvent } from '../../src/types/index.ts';
+import { SERVER_REQUEST_TIMEOUT_MS, withTimeout } from './storage-connection.ts';
+
+/**
+ * Whether the storage server answers right now. Bounded by
+ * SERVER_REQUEST_TIMEOUT_MS: a server that does not answer in time counts as
+ * unreachable, rather than holding up the sync pass for the platform's network
+ * timeouts. The outcome is reported as a server:reachability event when
+ * emitStorageEvent is given, so that the window can tell "online" from "the
+ * network is up, the server is not".
+ */
+export async function checkServerConnection(
+  fs: web3n.files.WritableFS,
+  {
+    emitStorageEvent,
+    timeoutMs = SERVER_REQUEST_TIMEOUT_MS,
+  }: {
+    emitStorageEvent?: (event: ContactEvent) => void;
+    timeoutMs?: number;
+  } = {},
+): Promise<boolean> {
+  const status = fs.v?.sync?.status('');
+  if (!status) {
+    return false;
+  }
+
   try {
-    const res = await fs.v?.sync?.status('');
+    const res = await withTimeout(status, timeoutMs);
+    emitStorageEvent?.({ event: 'server:reachability', payload: { reachable: true } });
     return !!res;
   } catch (err) {
-    if ((err as web3n.ConnectException).type !== 'connect') {
+    if ((err as web3n.ConnectException).type === 'connect') {
+      emitStorageEvent?.({ event: 'server:reachability', payload: { reachable: false } });
+    } else {
       console.error('🔥 Error while checking server connection. ', err);
     }
     return false;

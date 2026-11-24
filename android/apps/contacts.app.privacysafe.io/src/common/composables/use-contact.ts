@@ -40,6 +40,7 @@ import { useContactsStore } from '@main/common/store/contacts.store';
 import { verdictForAddressCheck } from '@main/common/utils/contact-reachability';
 import { makeMailRules } from '@main/common/utils/contact-validation';
 import { saveContactAvatar } from '@main/common/utils/contact-avatar';
+import { areContactDatesEqual } from '@main/common/utils/contact-dates';
 import {
   chatApp,
   EMPTY_CONTACT,
@@ -48,7 +49,14 @@ import {
   NEW_EMPTY_CONTACT_ID,
   NEW_POPULATED_CONTACT_ID,
 } from '@main/common/constants';
-import { ContactTextField, OpenChatCmdArg, OpenInboxCmdArg, Person, PersonSettings } from '@main/types';
+import {
+  ContactDate,
+  ContactTextField,
+  OpenChatCmdArg,
+  OpenInboxCmdArg,
+  Person,
+  PersonSettings,
+} from '@main/types';
 import ConfirmationDialog from '@main/common/components/dialogs/confirmation-dialog.vue';
 import OwnKeysInfoDialog from '@main/common/components/dialogs/own-keys-info-dialog.vue';
 import ContactKeysInfoDialog from '@main/common/components/dialogs/contact-keys-info-dialog.vue';
@@ -92,8 +100,8 @@ export function useContact() {
 
   /**
    * Whether handing this contact to the chat or the inbox app makes sense.
-   * Both need the network, and so does the address check in front of them, so
-   * offline the buttons are disabled rather than left to fail.
+   * The other apps queue the hand-off, so being offline does not disable the
+   * buttons.
    *
    * A contact that is not saved yet is excluded too: the form fills `mail` as
    * the user types, which used to be enough to enable the buttons for something
@@ -142,11 +150,12 @@ export function useContact() {
       return false;
     }
 
-    return Object.keys(pick(contact.value, ['mail', 'name', 'avatarId', 'phone', 'notice'])).some(field => {
+    const isFieldChanged = Object.keys(pick(contact.value, ['mail', 'name', 'avatarId', 'phone', 'notice'])).some(field => {
       const oldFieldValue = initialContact.value![field as keyof Omit<Person, 'timestamp'>];
       const fieldValue = contact.value![field as keyof Omit<Person, 'timestamp'>];
       return fieldValue !== oldFieldValue;
     });
+    return isFieldChanged || !areContactDatesEqual(contact.value.dates, initialContact.value.dates);
   });
 
   const rules = {
@@ -478,6 +487,10 @@ export function useContact() {
     contact.value![field] = val;
   }
 
+  function onDatesUpdate(dates: ContactDate[]) {
+    contact.value!.dates = dates;
+  }
+
   async function uploadImage() {
     const imagesExtensions = ['jpeg', 'jpg', 'png', 'gif'];
 
@@ -577,6 +590,7 @@ export function useContact() {
     showContactKeysInfo,
     showOwnKeysInfo,
     onFieldUpdate,
+    onDatesUpdate,
     uploadImage,
     deleteImage,
     showQRcode,

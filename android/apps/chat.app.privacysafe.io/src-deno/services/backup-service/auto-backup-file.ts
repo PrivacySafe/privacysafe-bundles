@@ -23,6 +23,7 @@
 // component at load - nothing got exposed, and the window timed out on
 // AppChatsInternal (0.12.42). The browser entry imports nothing.
 import { gunzipSync, gzipSync, strFromU8, strToU8 } from 'fflate/browser';
+import { assertGzipSizeWithin } from '../../../shared-libs/zip-size-guard.ts';
 import type { AutoBackupFile } from '../../../types/auto-backup.types.ts';
 import type { BackedUpTombstone, SnapshotMsgEntry } from '../../../types/backup.types.ts';
 import type { DB } from '../../types/index.ts';
@@ -118,7 +119,15 @@ export class AutoBackupFormatError extends Error {}
 export async function decodeAutoBackup(bytes: Uint8Array): Promise<AutoBackupFile> {
   let json: Uint8Array;
   try {
-    json = isGzip(bytes) ? gunzipSync(bytes) : bytes;
+    if (isGzip(bytes)) {
+      // SECURITY(CVE-2026-122146): gunzipSync allocates as much as the stream
+      // declares; see zip-size-guard.ts. The file may come from another device,
+      // or from anything else that can write to the synced storage.
+      assertGzipSizeWithin(bytes);
+      json = gunzipSync(bytes);
+    } else {
+      json = bytes;
+    }
   } catch (err) {
     throw new AutoBackupFormatError(`not a readable gzip stream: ${(err as Error)?.message ?? err}`);
   }

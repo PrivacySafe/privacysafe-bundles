@@ -121,8 +121,13 @@ export async function treasureFileSrv(
 
   async function loadImage(fileId: string): Promise<Uint8Array | undefined> {
     try {
-      return fileProc.startOrChain(async () => fs.readBytes(`${IMAGES_FOLDER}/${fileId}`));
+      return await fileProc.startOrChain(async () => fs.readBytes(`${IMAGES_FOLDER}/${fileId}`));
     } catch (err) {
+      // A missing image is passed on as is: the caller tells it apart by
+      // notFound, and catches the images folder up rather than failing.
+      if ((err as web3n.files.FileException).notFound) {
+        throw err;
+      }
       w3n.log('error', `Error getting image file ${fileId}. `, err);
       throw new Error(`Error getting image file ${fileId}`, { cause: err });
     }

@@ -31,6 +31,7 @@ import {
   isForeignAppMetadataPath,
   makeBackupMetadataBytes,
 } from '@deno/utils/backup-archive';
+import { makeZipSizeGuard } from '@deno/utils/zip-size-guard';
 import type {
   BackupArchiveError,
   BackupMetadataContent,
@@ -106,7 +107,8 @@ export async function openBackupContainer(
 ): Promise<OpenedBackupContainer> {
   let outer: Record<string, Uint8Array>;
   try {
-    outer = unzipSync(fileBytes);
+    // SECURITY(CVE-2026-122146): see zip-size-guard.ts.
+    outer = unzipSync(fileBytes, { filter: makeZipSizeGuard() });
   } catch {
     throw new BackupArchiveFailure('corrupted_archive');
   }

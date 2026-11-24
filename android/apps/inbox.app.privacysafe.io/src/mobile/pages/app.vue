@@ -41,6 +41,7 @@
   const {
     appVersion,
     me,
+    connectivityStatus,
     connectivityStatusText,
     commonLoading,
     startupStatusText,
@@ -105,6 +106,7 @@
         <app-menu
           :app-version="appVersion"
           :user="me"
+          :connectivity-status="connectivityStatus"
           :connectivity-status-text="connectivityStatusText"
           @close="isMenuOpen = false"
           @action="runMenuAction"

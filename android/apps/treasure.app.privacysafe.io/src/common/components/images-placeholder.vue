@@ -16,9 +16,12 @@
 -->
 <script setup lang="ts">
   import { computed, ref, watch } from 'vue';
+  import { useI18n } from 'vue-i18n';
+  import { storeToRefs } from 'pinia';
   import size from 'lodash/size';
   import { Ui3nIcon } from '@v1nt1248/3nclient-lib';
-  import { createImageThumbnail } from '@/common/utils';
+  import { createImageThumbnail, type ImageThumbnail } from '@/common/utils';
+  import { useSyncStore } from '@/common/stores/sync.store';
 
   const props = withDefaults(
     defineProps<{
@@ -31,23 +34,69 @@
     },
   );
 
-  const imagesPlaceholders = ref<string[]>([]);
+  const { t } = useI18n();
+  const { imagesRevision } = storeToRefs(useSyncStore());
+
+  /** Indexed like the displayed images; nothing while an image is loading. */
+  const thumbnails = ref<(ImageThumbnail | undefined)[]>([]);
 
   const displayedImagesPlaceholders = computed(() => (props.images || []).slice(0, props.displayedQuantity));
   const diff = computed(() => Math.max(size(props.images) - props.displayedQuantity, 0));
 
-  watch(
-    () => props.images,
-    async () => {
-      for (const imgId of displayedImagesPlaceholders.value) {
-        const thumbnail = await createImageThumbnail(imgId);
-        imagesPlaceholders.value.push(thumbnail);
+  async function loadThumbnail(imgId: string): Promise<ImageThumbnail> {
+    try {
+      return await createImageThumbnail(imgId);
+    } catch (err) {
+      w3n.log('error', `Error creating a thumbnail of the image ${imgId}. `, err);
+      return { state: 'missing' };
+    }
+  }
+
+  let loadingRun = 0;
+
+  function loadInto(run: number, imgId: string, index: number) {
+    loadThumbnail(imgId).then(thumbnail => {
+      // The images may have changed while this one was loading.
+      if (run === loadingRun) {
+        thumbnails.value[index] = thumbnail;
       }
+    });
+  }
+
+  // Each thumbnail is loaded on its own: one image that cannot be read must not
+  // keep the others from showing, as it did when they went in one loop.
+  //
+  // Watched by the ids, not by the array: every reload of the records hands
+  // over a new array with the same ids, and the thumbnails would blink back to
+  // spinners each time for nothing.
+  watch(
+    () => displayedImagesPlaceholders.value.join('/'),
+    () => {
+      const run = ++loadingRun;
+      thumbnails.value = [];
+      displayedImagesPlaceholders.value.forEach((imgId, index) => loadInto(run, imgId, index));
     },
     {
       immediate: true,
     },
   );
+
+  // An image not shown yet may have come with the synchronization that ended.
+  // It keeps what it showed until the new answer comes, so a recheck that
+  // changes nothing does not blink.
+  watch(imagesRevision, () => {
+    displayedImagesPlaceholders.value.forEach((imgId, index) => {
+      const thumbnail = thumbnails.value[index];
+      if (thumbnail && thumbnail.state !== 'loaded') {
+        loadInto(loadingRun, imgId, index);
+      }
+    });
+  });
+
+  function urlOf(index: number): string | undefined {
+    const thumbnail = thumbnails.value[index];
+    return thumbnail?.state === 'loaded' ? thumbnail.url : undefined;
+  }
 </script>
 
 <template>
@@ -58,14 +107,23 @@
       :class="$style.placeholderWrapper"
     >
       <img
-        v-if="imagesPlaceholders[index]"
-        :src="imagesPlaceholders[index]"
+        v-if="urlOf(index)"
+        :src="urlOf(index)"
         :class="$style.placeholder"
         alt="placeholder"
       />
 
       <ui3n-icon
+        v-else-if="thumbnails[index]?.state === 'missing'"
+        icon="broken-image-outline"
+        size="24"
+        color="var(--color-icon-control-secondary-default)"
+        :title="t('recordDialog.form.image.unavailable')"
+      />
+
+      <ui3n-icon
         v-else
+        :title="thumbnails[index]?.state === 'pending' ? t('recordDialog.form.image.pending') : undefined"
         icon="spinner-blocks-wave"
         size="32"
         color="var(--color-icon-button-secondary-default)"

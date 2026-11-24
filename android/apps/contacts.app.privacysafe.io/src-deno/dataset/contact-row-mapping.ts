@@ -21,6 +21,7 @@ import type { QueryExecResult } from '../../shared-libs/sqlite-on-3nstorage/inde
 import type { BindParams } from '../../shared-libs/sqlite-on-3nstorage/sqljs';
 import type { Person, RawPerson } from '../../src/types/index.ts';
 import { isPlainObject, safeJsonParse } from '../utils/obj-processing.ts';
+import { sanitizeContactDates, serializeContactDates } from '../../src/common/utils/contact-dates.ts';
 
 type SqlValue = number | string | Uint8Array | null;
 
@@ -41,6 +42,9 @@ export function objectFromQueryExecResult<T>(sqlResult: QueryExecResult): T[] {
  * array and `settings` as an object (both get stringified); `RawPerson` carries
  * them already as strings (passed through as they are). Anything else becomes
  * null.
+ *
+ * `dates` is validated on either shape, string or array: a malformed date must
+ * not reach the table, where the reminders of the background service read it.
  */
 export function personValueToSqlInsertParams(value: Omit<Person, 'avatarImage'> | RawPerson): BindParams {
   return {
@@ -61,6 +65,7 @@ export function personValueToSqlInsertParams(value: Omit<Person, 'avatarImage'> 
       : typeof value.settings === 'string'
         ? value.settings
         : null,
+    $dates: serializeContactDates(value.dates),
   };
 }
 
@@ -80,5 +85,7 @@ export function queryResultToPerson(sqlResult: QueryExecResult, row = 0): Omit<P
   person.settings = (person.settings !== null && person.settings !== undefined)
     ? (safeJsonParse<Person['settings']>(person.settings as unknown as string) ?? {})
     : {};
+  // Absent in a row of a table made by an older version of the app.
+  person.dates = sanitizeContactDates(person.dates);
   return person;
 }

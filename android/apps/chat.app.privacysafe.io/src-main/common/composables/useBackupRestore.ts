@@ -25,6 +25,7 @@
 import { inject, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { unzipSync } from 'fflate';
+import { makeZipSizeGuard } from '@shared/zip-size-guard';
 import {
   DIALOGS_KEY,
   NOTIFICATIONS_KEY,
@@ -301,7 +302,9 @@ export function useBackupRestore() {
     const appVersion = appStore.appVersion;
     let entries: Record<string, Uint8Array>;
     try {
-      entries = unzipSync(opened.plainZipBytes);
+      // SECURITY(CVE-2026-122146): see zip-size-guard.ts. A size over the limit
+      // throws, and lands in the catch below.
+      entries = unzipSync(opened.plainZipBytes, { filter: makeZipSizeGuard() });
     } catch {
       throw new BackupArchiveFailure('corrupted_archive');
     }

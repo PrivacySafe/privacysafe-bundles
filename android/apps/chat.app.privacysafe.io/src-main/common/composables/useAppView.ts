@@ -14,8 +14,13 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
-import { computed, defineAsyncComponent, inject, onBeforeMount, onBeforeUnmount } from 'vue';
-import { DIALOGS_KEY, type DialogsPlugin } from '@v1nt1248/3nclient-lib/plugins';
+import { computed, defineAsyncComponent, inject, onBeforeMount, onBeforeUnmount, watch } from 'vue';
+import {
+  DIALOGS_KEY,
+  NOTIFICATIONS_KEY,
+  type DialogsPlugin,
+  type NotificationsPlugin,
+} from '@v1nt1248/3nclient-lib/plugins';
 import { useI18n } from 'vue-i18n';
 import { storeToRefs } from 'pinia';
 import { useCommandHandler } from '@main/common/composables/useCommandHandler';
@@ -43,7 +48,7 @@ export function useAppView() {
   const chatsStore = useChatsStore();
 
   const {
-    commonLoading, appVersion, user: me, connectivityStatus, customLogoSrc, colorTheme,
+    commonLoading, appVersion, user: me, connectivityStatus, isConnectivitySettled, customLogoSrc, colorTheme,
     isSyncing, syncPending, syncPhase, syncStalled, syncStatusText, showSyncStatus,
   } = storeToRefs(appStore);
 
@@ -74,9 +79,22 @@ export function useAppView() {
 
   const isOnline = computed(() => connectivityStatus.value === 'online');
 
-  const connectivityStatusText = computed(() =>
-    isOnline.value ? 'app.status.connected.online' : 'app.status.connected.offline',
-  );
+  /** Already translated: 'online', 'offline' or 'server unavailable'. */
+  const connectivityStatusText = computed(() => t(`app.status.connected.${connectivityStatus.value}`));
+
+  // Only changes between two real readings are announced: the first reading
+  // replacing the initial guess is not news to the user.
+  const notifications = inject<NotificationsPlugin>(NOTIFICATIONS_KEY);
+  watch([connectivityStatus, isConnectivitySettled], ([val, isSettled], [oVal, wasSettled]) => {
+    if (!isSettled || !wasSettled || (val === oVal)) {
+      return;
+    }
+    notifications?.$createNotice({
+      type: (val === 'online') ? 'info' : 'warning',
+      content: t(`app.info.status.${val}`),
+      duration: 4000,
+    });
+  });
 
   async function openDashboard() {
     await w3n.shell!.openDashboard!();
@@ -171,6 +189,7 @@ export function useAppView() {
     customLogoSrc,
     appVersion,
     isOnline,
+    connectivityStatus,
     connectivityStatusText,
     isSyncing,
     syncPending,

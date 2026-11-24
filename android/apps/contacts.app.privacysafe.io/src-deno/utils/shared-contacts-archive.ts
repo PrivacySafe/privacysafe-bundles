@@ -18,8 +18,10 @@
 // contacts-share-srv.ts on the sending side.
 import { strFromU8, unzipSync, type Unzipped } from 'fflate/browser';
 import { canonicalMail } from '@main/common/utils/mail-address.ts';
+import { withoutReminders } from '@main/common/utils/contact-dates.ts';
 import { SHARE_DATA_FILE, SHARE_DATA_VERSION, SHARE_IMAGES_FOLDER } from '../constants.ts';
 import { isSafeArchivePath } from './backup-archive.ts';
+import { makeZipSizeGuard } from './zip-size-guard.ts';
 import { dataURLFromImage } from './image-data-url.ts';
 import type { ImportedContact, SharedContactsData, SharedImportError } from '../../src/types/index.ts';
 
@@ -46,7 +48,10 @@ function asText(value: unknown): string {
 export function readSharedContactsArchive(bytes: Uint8Array): ImportedContact[] {
   let entries: Unzipped;
   try {
-    entries = unzipSync(bytes, { filter: file => isSafeArchivePath(file.name) });
+    // SECURITY(CVE-2026-122146): see zip-size-guard.ts.
+    entries = unzipSync(bytes, {
+      filter: makeZipSizeGuard(file => isSafeArchivePath(file.name)),
+    });
   } catch {
     throw new SharedContactsArchiveFailure('corrupted_archive');
   }
@@ -105,6 +110,8 @@ export function readSharedContactsArchive(bytes: Uint8Array): ImportedContact[] 
       name: asText(item.name),
       phone: asText(item.phone),
       notice: asText(item.notice),
+      // A reminder is the receiver's own choice, never the sender's.
+      dates: withoutReminders(item.dates),
       timestamp: (typeof item.timestamp === 'number') ? item.timestamp : 0,
       ...(avatarImage ? { avatarId, avatarImage } : {}),
       settings: null,

@@ -18,7 +18,7 @@
   import { computed, ref, watch } from 'vue';
   import { Ui3nIcon } from '@v1nt1248/3nclient-lib';
   import { styleByStatus } from './constants';
-  import { useAppStore } from '@/common/stores/app.store';
+  import { useConnectivityStatus } from '@/common/composables/use-connectivity-status';
   import { useRecordStore } from '@/common/stores/record.store';
   import type { SyncType, TreasureRecord } from '@shared/@types';
 
@@ -27,7 +27,9 @@
     syncProcess?: { type: SyncType; value: number };
   }>();
 
-  const appStore = useAppStore();
+  // A server out of reach is no better than no network here: the sync status
+  // of a record cannot be learned from it either way.
+  const { connectivityStatus } = useConnectivityStatus();
   const { getRecordSyncStatus } = useRecordStore();
 
   const gettingSyncStatusInProgress = ref(false);
@@ -36,7 +38,7 @@
   const recordId = computed(() => props.record.id);
   const lockChanges = computed(() => !!props.syncProcess);
   const showProgress = computed(
-    () => (gettingSyncStatusInProgress.value || props.syncProcess) && appStore.connectivityStatus === 'online',
+    () => (gettingSyncStatusInProgress.value || props.syncProcess) && connectivityStatus.value === 'online',
   );
 
   const displayStyle = computed(() =>
@@ -47,7 +49,7 @@
   }));
 
   async function getSyncStatus() {
-    if (appStore.connectivityStatus === 'offline') {
+    if (connectivityStatus.value !== 'online') {
       setTimeout(() => {
         getSyncStatus();
       }, 60000);
@@ -81,7 +83,7 @@
   );
 
   watch(
-    [lockChanges, () => appStore.connectivityStatus],
+    [lockChanges, connectivityStatus],
     async ([lockVal, cStatusVal]) => {
       if (!lockVal && cStatusVal === 'online') {
         await getSyncStatus();

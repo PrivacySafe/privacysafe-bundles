@@ -14,13 +14,15 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
-import { inject, onBeforeMount, watch } from 'vue';
+import { computed, inject, onBeforeMount, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { storeToRefs } from 'pinia';
 import {
   DIALOGS_KEY,
+  NOTIFICATIONS_KEY,
   THEME_KEY,
   type DialogsPlugin,
+  type NotificationsPlugin,
   type ThemePlugin,
 } from '@v1nt1248/3nclient-lib/plugins';
 import { makeServiceCaller } from '@shared/ipc/ipc-service-caller';
@@ -29,6 +31,7 @@ import { useAppStore } from '@/common/stores/app.store';
 import { useSyncStore } from '@/common/stores/sync.store';
 import { useRecordStore } from '@/common/stores/record.store';
 import { useBackupRestore } from '@/common/composables/use-backup-restore';
+import { reportServerReachability, useConnectivityStatus } from '@/common/composables/use-connectivity-status';
 import { getActiveTheme, SystemSettings } from '@/common/utils';
 import type { Ui3nResizeCbArg } from '@v1nt1248/3nclient-lib';
 import type { TreasureDenoSrv } from '@deno/srv.types';
@@ -40,6 +43,7 @@ import type {
   TreasureRemoveEvent,
   TreasureRecord,
   TreasureUpdateEvent,
+  TreasureServerReachabilityEvent,
 } from '@shared/@types';
 import BackupCreatingDialog from '@/common/components/dialogs/backup-creating-dialog.vue';
 
@@ -47,12 +51,12 @@ export function useAppPage() {
   const { t } = useI18n();
   const dialog = inject<DialogsPlugin>(DIALOGS_KEY);
   const { setTheme } = inject<ThemePlugin>(THEME_KEY)!;
+  const notifications = inject<NotificationsPlugin>(NOTIFICATIONS_KEY);
 
   const appStore = useAppStore();
   const {
     getAppVersion,
     getUser,
-    setConnectivityStatus,
     setAppWindowSize,
     getAppConfig,
     setLang,
@@ -61,8 +65,7 @@ export function useAppPage() {
     onBackupProgress,
     onRestoreProgress,
   } = appStore;
-  const { appVersion, colorTheme, commonLoading, customLogoSrc, user, connectivityStatus } =
-    storeToRefs(appStore);
+  const { appVersion, colorTheme, commonLoading, customLogoSrc, user } = storeToRefs(appStore);
 
   // The launcher owns the theme; the store only mirrors it, and the plugin puts
   // it on the document.
@@ -77,14 +80,23 @@ export function useAppPage() {
   const { getAllGroups, getAllRecords, getRecord, getRecords, loadRecentRecords, updateRecordList } =
     useRecordStore();
 
-  w3n.connectivity!.watch({
-    next: event => {
-      const { isOnline } = event;
-      setConnectivityStatus(isOnline);
-    },
-    error: err => {
-      console.error('🔥 CONNECTIVITY WATCHING ERROR. ', err);
-    },
+  const { connectivityStatus, isConnectivitySettled } = useConnectivityStatus();
+
+  const connectivityStatusText = computed(() => t(`app.status.connected.${connectivityStatus.value}`));
+  const syncStatusText = computed(() => (isSyncRunning.value ? t('app.status.unsynced') : t('app.status.synced')));
+
+  // Only changes between two real readings are announced: the first reading
+  // replacing the initial guess is not news to the user.
+  watch([connectivityStatus, isConnectivitySettled], ([val, isSettled], [oVal, wasSettled]) => {
+    if (!isSettled || !wasSettled || val === oVal) {
+      return;
+    }
+
+    notifications?.$createNotice({
+      type: val === 'online' ? 'info' : 'warning',
+      content: t(`app.info.status.${val}`),
+      duration: 4000,
+    });
   });
 
   function onResize(value: Ui3nResizeCbArg) {
@@ -144,9 +156,6 @@ export function useAppPage() {
     await getAllGroups();
     await getAllRecords();
     await loadRecentRecords();
-
-    const onlineFlag = await w3n.connectivity?.isOnline();
-    setConnectivityStatus(!!onlineFlag?.includes('online'));
 
     const config = await SystemSettings.makeResourceReader();
     config.watchConfig({
@@ -225,6 +234,12 @@ export function useAppPage() {
             break;
           }
 
+          case 'server:reachability': {
+            const { reachable } = payload as TreasureServerReachabilityEvent['payload'];
+            reportServerReachability(reachable);
+            break;
+          }
+
           // no default
         }
       },
@@ -233,6 +248,14 @@ export function useAppPage() {
     });
 
     await appTreasureDenoSrv.initial();
+
+    // The service checks the server at startup, possibly before this window
+    // subscribed to its events; the outcome it kept fills that gap.
+    try {
+      reportServerReachability(await appTreasureDenoSrv.getServerReachability());
+    } catch (err) {
+      w3n.log('error', '🔥 Error reading the server reachability. ', err);
+    }
   });
 
   return {
@@ -241,7 +264,9 @@ export function useAppPage() {
     customLogoSrc,
     user,
     connectivityStatus,
+    connectivityStatusText,
     isSyncRunning,
+    syncStatusText,
 
     t,
     onResize,

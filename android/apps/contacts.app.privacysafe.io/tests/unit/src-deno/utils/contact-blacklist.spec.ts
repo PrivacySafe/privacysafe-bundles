@@ -19,6 +19,7 @@ import {
   blacklistFingerprint,
   isBlacklistAffecting,
   makeBlacklistBroadcaster,
+  makeContactListBroadcaster,
   selectBlacklisted,
 } from '@deno/utils/contact-blacklist.ts';
 import type { ContactEvent, Person, PersonSettings } from '@main/types/index.ts';
@@ -260,6 +261,80 @@ describe('makeBlacklistBroadcaster', () => {
 
     expect(broadcast).toHaveBeenCalledTimes(1);
     expect(broadcast.mock.calls[0][0].map(({ id }: Person) => id)).toEqual(['a', 'b']);
+  });
+
+});
+
+describe('makeContactListBroadcaster', () => {
+
+  function setup(initial: Row[]) {
+    let rows = initial;
+    const broadcast = vi.fn();
+    const onError = vi.fn();
+    const listContacts = vi.fn(() => rows);
+    const broadcaster = makeContactListBroadcaster({ listContacts, broadcast, onError });
+
+    return {
+      broadcaster,
+      broadcast,
+      onError,
+      listContacts,
+      setRows: (value: Row[]) => { rows = value; },
+    };
+  }
+
+  it('reports every contact, blocked or not', () => {
+    const { broadcaster } = setup([blocked('a'), row('b')]);
+
+    expect(broadcaster.current().map(({ id }) => id)).toEqual(['a', 'b']);
+  });
+
+  it('announces a Name given to a contact that is not blocked', () => {
+    // The case other apps watch for: a sender shown as a bare address until
+    // the user names them in the contacts app.
+    const { broadcaster, broadcast, setRows } = setup([row('a', { name: '' })]);
+    broadcaster.prime();
+
+    setRows([row('a', { name: 'Alice' })]);
+    broadcaster.broadcastIfChanged();
+
+    expect(broadcast).toHaveBeenCalledTimes(1);
+    expect(broadcast.mock.calls[0][0][0].name).toBe('Alice');
+  });
+
+  it('announces an added and a removed contact', () => {
+    const { broadcaster, broadcast, setRows } = setup([row('a')]);
+    broadcaster.prime();
+
+    setRows([row('a'), row('b')]);
+    broadcaster.broadcastIfChanged();
+    setRows([row('b')]);
+    broadcaster.broadcastIfChanged();
+
+    expect(broadcast).toHaveBeenCalledTimes(2);
+    expect(broadcast.mock.calls[1][0].map(({ id }: Person) => id)).toEqual(['b']);
+  });
+
+  it('stays quiet when a save only restamps the timestamp', () => {
+    const { broadcaster, broadcast, setRows } = setup([row('a')]);
+    broadcaster.prime();
+
+    setRows([row('a', { timestamp: 2000 })]);
+    broadcaster.broadcastIfChanged();
+
+    expect(broadcast).not.toHaveBeenCalled();
+  });
+
+  it('reports a failure to read instead of throwing', () => {
+    const { broadcaster, broadcast, onError, listContacts } = setup([row('a')]);
+    broadcaster.prime();
+    listContacts.mockImplementationOnce(() => {
+      throw new Error('no such column: settings');
+    });
+
+    expect(() => broadcaster.broadcastIfChanged()).not.toThrow();
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(broadcast).not.toHaveBeenCalled();
   });
 
 });

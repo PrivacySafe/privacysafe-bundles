@@ -165,6 +165,24 @@ export interface DuplicateDeviceInstanceEvent {
 export type SyncStateEvent = SyncStateChangedEvent | DuplicateDeviceInstanceEvent;
 
 /**
+ * What the background component last learned about the user's mail server:
+ * 'unknown' until its first probe has an answer.
+ */
+export type ServerReachability = 'unknown' | 'up' | 'down';
+
+/**
+ * The outcome of the background component's own probe of the user's mail
+ * server, for the status line of the window (see
+ * src-deno/utils/check-server-reachability.ts). Applied by the GUI straight
+ * away, like 'sync-state'.
+ */
+export interface ServerReachabilityEvent {
+  updatedEntityType: 'server';
+  event: 'reachability';
+  reachable: boolean;
+}
+
+/**
  * Progress of a backup or of a restore.
  *
  * Two more members of UpdateEvent rather than channels of their own: watch() is
@@ -205,6 +223,7 @@ export type UpdateEvent =
   | ChatEvent
   | ChatMessageEvent
   | SyncStateEvent
+  | ServerReachabilityEvent
   | BackupProgressEvent
   | RestoreProgressEvent
   | AutoBackupInfoEvent

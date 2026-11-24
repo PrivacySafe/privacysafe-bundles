@@ -157,4 +157,65 @@ describe('prepareSyncedRoot', () => {
     expect(state).toEqual({ verified: true, holdUploads: false, conflict: false });
   });
 
+  // With the network up and the server out of reach, status() waits for the
+  // platform's network timeouts, and the startup awaited it before exposing its
+  // ipc: the windows gave up on connecting while the contacts were all on disk.
+  it('treats a server that does not answer in time as out of reach', async () => {
+    vi.useFakeTimers();
+    try {
+      const { fs, sync } = makeFakeFs();
+      const collector = makeEventCollector();
+      sync.status.mockReturnValue(new Promise(() => undefined));
+
+      const pending = prepareSyncedRoot({
+        fs, emitStorageEvent: collector.emitStorageEvent, statusTimeoutMs: 1000,
+      });
+      await vi.advanceTimersByTimeAsync(1000);
+      const state = await pending;
+
+      expect(state).toEqual({ verified: false, holdUploads: true, conflict: false });
+      expect(sync.adoptRemote).not.toHaveBeenCalled();
+      expect(collector.events).toContainEqual(
+        { event: 'server:reachability', payload: { reachable: false } },
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('reports the server as reachable once it answers', async () => {
+    const { fs, sync } = makeFakeFs();
+    const collector = makeEventCollector();
+    sync.status.mockResolvedValue({ state: 'synced', synced: { latest: 2 } });
+
+    await prepareSyncedRoot({ fs, emitStorageEvent: collector.emitStorageEvent });
+
+    expect(collector.events).toContainEqual(
+      { event: 'server:reachability', payload: { reachable: true } },
+    );
+  });
+
+  it('reports the server as unreachable when offline', async () => {
+    const { fs, sync } = makeFakeFs();
+    const collector = makeEventCollector();
+    sync.status.mockRejectedValue(connectException());
+
+    await prepareSyncedRoot({ fs, emitStorageEvent: collector.emitStorageEvent });
+
+    expect(collector.events).toContainEqual(
+      { event: 'server:reachability', payload: { reachable: false } },
+    );
+  });
+
+  // Only an answer, or the lack of one, says anything about the server.
+  it('reports nothing about the server on an unexpected failure', async () => {
+    const { fs, sync } = makeFakeFs();
+    const collector = makeEventCollector();
+    sync.status.mockRejectedValue(new Error('boom'));
+
+    await prepareSyncedRoot({ fs, emitStorageEvent: collector.emitStorageEvent });
+
+    expect(collector.names()).not.toContain('server:reachability');
+  });
+
 });

@@ -20,6 +20,7 @@ import { makeCancelController, type CancelController, type CancelSignal } from '
 import { zipEntries, type ZipEntryInput } from './contacts-backup-srv.ts';
 import { callChatApp, callInboxApp } from './external-apps.ts';
 import { imageFromDataURL } from './utils/image-data-url.ts';
+import { withoutReminders } from '../src/common/utils/contact-dates.ts';
 import type { ContactDB } from './dataset/contacts-db.ts';
 import {
   SHARE_DATA_FILE,
@@ -54,16 +55,19 @@ function checkAbortSignal(signal: CancelSignal): void {
 
 /**
  * Only what describes the contact goes out. Things that are this user's own
- * business stay here: blocking settings and the history of activities.
+ * business stay here: blocking settings, the history of activities, and
+ * whether this user wants to be reminded of the contact's dates.
  */
 function toSharedPerson(contact: Omit<Person, 'avatarImage'>, hasAvatar: boolean): SharedPerson {
   const { name, mail, avatarId, notice, phone, timestamp } = contact;
+  const dates = withoutReminders(contact.dates);
   return {
     name,
     mail,
     ...(hasAvatar && avatarId ? { avatarId } : {}),
     notice,
     phone,
+    ...(dates.length ? { dates } : {}),
     timestamp,
     settings: null,
     activities: null,

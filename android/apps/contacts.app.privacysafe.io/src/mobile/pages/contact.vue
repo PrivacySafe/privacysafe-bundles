@@ -53,6 +53,7 @@
     saveContact,
     delContact,
     onFieldUpdate,
+    onDatesUpdate,
     uploadImage,
     deleteImage,
     setUpContactBlocking,
@@ -284,6 +285,7 @@
           :is-mobile-form-factor="true"
           :class="!isEditMode && $style.readonly"
           @update:field="onFieldUpdate"
+          @update:dates="onDatesUpdate"
           @update:valid="contactValid = $event"
         />
       </div>

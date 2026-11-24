@@ -15,7 +15,7 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { waitForOnline, watchStorageReconnection } from '@deno/utils/storage-connection.ts';
+import { waitForOnline, watchStorageReconnection, withTimeout } from '@deno/utils/storage-connection.ts';
 import { installFakeW3n } from '../../helpers/fake-w3n.ts';
 
 const TIMEOUT_MS = 60000;
@@ -279,6 +279,46 @@ describe('watchStorageReconnection', () => {
 
     expect(() => unsubscribe()).not.toThrow();
     expect(onReconnected).not.toHaveBeenCalled();
+  });
+
+});
+
+describe('withTimeout', () => {
+
+  it('settles as the request does when it answers in time', async () => {
+    await expect(withTimeout(Promise.resolve(42), 1000)).resolves.toBe(42);
+    await expect(withTimeout(Promise.reject(new Error('boom')), 1000)).rejects.toThrow('boom');
+  });
+
+  // Typed as `connect` so that every caller reads it as "the server cannot be
+  // reached", which is what a request that does not answer in time means.
+  it('rejects as a connect failure once the time is up', async () => {
+    const pending = withTimeout(new Promise(() => undefined), 1000);
+    const assertion = expect(pending).rejects.toMatchObject({ type: 'connect', timeout: true });
+
+    await vi.advanceTimersByTimeAsync(1000);
+    await assertion;
+  });
+
+  // The request goes on in the background, and its late failure must not
+  // surface as an unhandled rejection.
+  it('swallows a late failure of the request', async () => {
+    let fail!: (err: unknown) => void;
+    const request = new Promise((_, reject) => {
+      fail = reject;
+    });
+    const pending = withTimeout(request, 1000);
+    const assertion = expect(pending).rejects.toMatchObject({ timeout: true });
+
+    await vi.advanceTimersByTimeAsync(1000);
+    await assertion;
+    fail(new Error('late'));
+    await vi.advanceTimersByTimeAsync(0);
+  });
+
+  it('leaves no timer behind when the request answers', async () => {
+    await withTimeout(Promise.resolve(1), 1000);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
 });

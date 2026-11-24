@@ -38,6 +38,7 @@
     { id: 'tutorial', icon: 'book-open-blank-variant', label: t('app.menu.tutorial') },
     { id: 'make-backup', icon: 'outline-file-download', label: t('app.menu.makeBackup') },
     { id: 'upload-backup', icon: 'outline-file-upload', label: t('app.menu.uploadBackup') },
+    { id: 'settings', icon: 'outline-settings', label: t('app.menu.settings') },
     { id: 'exit', icon: 'round-logout', label: t('app.menu.exit') },
   ]);
 

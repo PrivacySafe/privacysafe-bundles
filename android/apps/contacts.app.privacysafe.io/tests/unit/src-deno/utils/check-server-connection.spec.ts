@@ -14,49 +14,86 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { checkServerConnection } from '@deno/utils/check-server-connection.ts';
-import { connectException, makeFakeFs } from '../../helpers/fake-fs.ts';
+import { syncStatusOf } from '@deno/utils/upload-state.ts';
+import { SERVER_REQUEST_TIMEOUT_MS } from '@deno/utils/storage-connection.ts';
+import { connectException, makeEventCollector, makeFakeFs } from '../../helpers/fake-fs.ts';
+import { installFakeW3n } from '../../helpers/fake-w3n.ts';
+
+let w3n: ReturnType<typeof installFakeW3n>;
+
+beforeEach(() => {
+  w3n = installFakeW3n();
+});
 
 afterEach(() => {
+  vi.useRealTimers();
+  w3n.uninstall();
   vi.restoreAllMocks();
 });
 
 describe('checkServerConnection', () => {
 
-  it('reports a connection when the root has a sync status', async () => {
+  it('says yes, and reports the server reachable, when it answers', async () => {
     const { fs, sync } = makeFakeFs();
+    const collector = makeEventCollector();
     sync.status.mockResolvedValue({ state: 'synced' });
 
-    expect(await checkServerConnection(fs)).toBe(true);
-    expect(sync.status).toHaveBeenCalledWith('');
+    const res = await checkServerConnection(fs, { emitStorageEvent: collector.emitStorageEvent });
+
+    expect(res).toBe(true);
+    expect(collector.events).toEqual([{ event: 'server:reachability', payload: { reachable: true } }]);
   });
 
-  it('reports no connection when the status is absent', async () => {
+  it('says no, and reports the server unreachable, when offline', async () => {
     const { fs, sync } = makeFakeFs();
-    sync.status.mockResolvedValue(undefined);
-
-    expect(await checkServerConnection(fs)).toBe(false);
-  });
-
-  // Being offline is an expected state, not a fault, so it must stay out of the
-  // error log — otherwise every offline start writes a scary entry.
-  it('stays quiet about a connect exception', async () => {
-    const { fs, sync } = makeFakeFs();
-    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const collector = makeEventCollector();
     sync.status.mockRejectedValue(connectException());
 
-    expect(await checkServerConnection(fs)).toBe(false);
-    expect(error).not.toHaveBeenCalled();
+    const res = await checkServerConnection(fs, { emitStorageEvent: collector.emitStorageEvent });
+
+    expect(res).toBe(false);
+    expect(collector.events).toEqual([{ event: 'server:reachability', payload: { reachable: false } }]);
   });
 
-  it('logs any other failure but still reports no connection', async () => {
+  // The network is up, the server does not answer: the sync pass must not be
+  // held up for the platform's network timeouts.
+  it('gives up on a server that does not answer in time', async () => {
+    vi.useFakeTimers();
     const { fs, sync } = makeFakeFs();
-    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    sync.status.mockRejectedValue(new Error('unexpected'));
+    const collector = makeEventCollector();
+    sync.status.mockReturnValue(new Promise(() => undefined));
+
+    const pending = checkServerConnection(fs, {
+      emitStorageEvent: collector.emitStorageEvent, timeoutMs: 1000,
+    });
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(await pending).toBe(false);
+    expect(collector.events).toEqual([{ event: 'server:reachability', payload: { reachable: false } }]);
+  });
+
+  it('says no for a storage without the sync api', async () => {
+    const { fs } = makeFakeFs();
+    (fs as unknown as { v: undefined }).v = undefined;
 
     expect(await checkServerConnection(fs)).toBe(false);
-    expect(error).toHaveBeenCalled();
+  });
+
+});
+
+describe('syncStatusOf', () => {
+
+  it('answers undefined for a server that does not answer in time', async () => {
+    vi.useFakeTimers();
+    const { fs, sync } = makeFakeFs();
+    sync.status.mockReturnValue(new Promise(() => undefined));
+
+    const pending = syncStatusOf(fs, 'contacts-db');
+    await vi.advanceTimersByTimeAsync(SERVER_REQUEST_TIMEOUT_MS);
+
+    expect(await pending).toBeUndefined();
   });
 
 });

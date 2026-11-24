@@ -19,14 +19,13 @@ import { defineStore } from 'pinia';
 import { inboxSrv } from '@common/services/services-provider';
 import { SystemSettings, getActiveTheme } from '@common/utils/ui-settings';
 import type { ThemeId } from '@v1nt1248/3nclient-lib/plugins';
-import type { AvailableLanguage, ConnectivityStatus, AppState, AppConfig } from '@common/types';
+import type { AvailableLanguage, AppState, AppConfig } from '@common/types';
 import type { SyncActivityView } from '@deno/services/sync/sync-activity';
 import { blobFromDataURL } from '../utils/image-files';
 import { useI18n } from 'vue-i18n';
 
 export const useAppStore = defineStore('app', () => {
   const appVersion = ref<string>('');
-  const connectivityStatus = ref<string>('offline');
   const user = ref<string>('');
   const lang = ref<AvailableLanguage>('en');
   const colorTheme = ref<ThemeId>('dark');
@@ -61,14 +60,6 @@ export const useAppStore = defineStore('app', () => {
     const v = await w3n.myVersion();
     if (v) {
       appVersion.value = v;
-    }
-  }
-
-  async function getConnectivityStatus() {
-    const status = await w3n.connectivity!.isOnline();
-    if (status) {
-      const parsedStatus = status.split('_');
-      connectivityStatus.value = parsedStatus[0] as ConnectivityStatus;
     }
   }
 
@@ -176,7 +167,6 @@ export const useAppStore = defineStore('app', () => {
   return {
     appVersion,
     isMobileMode,
-    connectivityStatus,
     user,
     lang,
     colorTheme,
@@ -188,7 +178,6 @@ export const useAppStore = defineStore('app', () => {
     getSyncActivityState,
     applySyncActivity,
     getAppVersion,
-    getConnectivityStatus,
     getUser,
     getAppState,
     applyAppState,

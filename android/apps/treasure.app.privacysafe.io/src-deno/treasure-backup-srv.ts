@@ -25,6 +25,7 @@ import {
 } from '../shared/utils/backup-archive.ts';
 import { checkServerConnection } from './utils/check-server-connection.ts';
 import { checkItemSyncState, checkFolderSyncState } from './utils/check-sync-fs-state.ts';
+import { makeZipSizeGuard } from './utils/zip-size-guard.ts';
 import type { TreasureEvent } from '../shared/@types/index.ts';
 import type { TreasureFileSrv } from './srv.types.ts';
 
@@ -83,7 +84,9 @@ function areBytesEqual(a?: Uint8Array, b?: Uint8Array): boolean {
  * restore with a large file failed there.
  */
 async function decompressZip(bytes: Uint8Array): Promise<Unzipped> {
-  return unzipSync(bytes);
+  // SECURITY(CVE-2026-122146): see zip-size-guard.ts. Entries the restore
+  // would drop anyway are not even decompressed.
+  return unzipSync(bytes, { filter: makeZipSizeGuard(file => isSafeArchivePath(file.name)) });
 }
 
 async function generateBackupMetadata(

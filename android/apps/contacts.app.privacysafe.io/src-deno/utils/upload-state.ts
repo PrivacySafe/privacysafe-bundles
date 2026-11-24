@@ -14,6 +14,7 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
+import { SERVER_REQUEST_TIMEOUT_MS, withTimeout } from './storage-connection.ts';
 
 /**
  * Reports whether the platform already has an upload in flight for this path.
@@ -48,7 +49,11 @@ export async function syncStatusOf(
   fs: web3n.files.WritableFS, path: string,
 ): Promise<web3n.files.SyncStatus | undefined> {
   try {
-    return await fs.v?.sync?.status(path);
+    const status = fs.v?.sync?.status(path);
+    // Bounded, as every request the app waits on: with the server out of reach
+    // and the network up, an unbounded status() held up whatever awaited it -
+    // deleting an avatar among them - for the platform's network timeouts.
+    return status && await withTimeout(status, SERVER_REQUEST_TIMEOUT_MS);
   } catch {
     return undefined;
   }

@@ -35,6 +35,7 @@ import {
   checkBackupFormatCompatibility,
   checkBackupVersionCompatibility,
 } from '@shared/utils/check-backup-version';
+import { makeZipSizeGuard } from '@deno/utils/zip-size-guard.ts';
 import { decryptPayload, encryptPayload, isSubtleCryptoAvailable } from './backup-crypto';
 import type { BackupArchiveError, BackupValidationResult } from '@shared/@types';
 
@@ -97,7 +98,8 @@ export async function openBackupContainer(
 ): Promise<OpenedBackupContainer> {
   let outer: Record<string, Uint8Array>;
   try {
-    outer = unzipSync(fileBytes);
+    // SECURITY(CVE-2026-122146): see zip-size-guard.ts.
+    outer = unzipSync(fileBytes, { filter: makeZipSizeGuard() });
   } catch {
     throw new BackupArchiveFailure('corrupted_archive');
   }
@@ -171,7 +173,8 @@ export function validateBackupContainer(
   let usableEntries = 0;
   try {
     // Counted through the filter rather than by unpacking: returning false
-    // leaves the entry compressed, so nothing is paid to decompress it.
+    // leaves the entry compressed, so nothing is paid to decompress it. No
+    // size guard is needed here for the same reason: nothing gets allocated.
     unzipSync(plainZipBytes, {
       filter: file => {
         if (isSafeArchivePath(file.name)) {

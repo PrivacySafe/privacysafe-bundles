@@ -27,7 +27,11 @@
     type Ui3nDialogComponentProps,
     type Ui3nDialogEvent,
   } from '@v1nt1248/3nclient-lib';
+  import { storeToRefs } from 'pinia';
   import { useContactsImport, type ImportOutcome, type ImportStats } from '@main/common/composables/use-contacts-import';
+  import { useSettingsStore } from '@main/common/store/settings.store';
+  import { formatContactDate, getBirthday } from '@main/common/utils/contact-dates';
+  import type { ImportedContact, Person } from '@main/types';
   import {
     IMPORT_FIELDS,
     type ImportField,
@@ -49,6 +53,7 @@
   }>();
 
   const { t } = useI18n();
+  const { dateFormat } = storeToRefs(useSettingsStore());
 
   const { total, processed, percent, stats, conflict, run, decide, abort } = useContactsImport(props.importId);
 
@@ -57,6 +62,7 @@
     name: 'contact.content.name',
     phone: 'contact.content.phone',
     notice: 'contact.content.note',
+    birthday: 'import.field.birthday',
   };
 
   /** Choosing by fields: the table gets radio buttons, and "Apply" appears. */
@@ -65,7 +71,7 @@
   const fieldSources = ref<Record<ImportField, ImportFieldSource>>(defaultSources());
 
   function defaultSources(): Record<ImportField, ImportFieldSource> {
-    return { avatar: 'current', name: 'current', phone: 'current', notice: 'current' };
+    return { avatar: 'current', name: 'current', phone: 'current', notice: 'current', birthday: 'current' };
   }
 
   watch(conflict, () => {
@@ -83,11 +89,22 @@
     return IMPORT_FIELDS.map(field => ({
       field,
       label: t(FIELD_LABELS[field]),
-      current: (field === 'avatar') ? existing.avatarImage || '' : existing[field] || '',
-      incoming: (field === 'avatar') ? incoming.avatarImage || '' : incoming[field] || '',
+      current: displayValue(existing, field),
+      incoming: displayValue(incoming, field),
       isDifferent: fields.includes(field),
     }));
   });
+
+  function displayValue(contact: Person | ImportedContact, field: ImportField): string {
+    if (field === 'avatar') {
+      return contact.avatarImage || '';
+    }
+    if (field === 'birthday') {
+      const birthday = getBirthday(contact.dates);
+      return birthday ? formatContactDate(birthday, dateFormat.value) : '';
+    }
+    return contact[field] || '';
+  }
 
   function keepCurrent() {
     decide({ kind: 'keep' }, applyToAll.value);

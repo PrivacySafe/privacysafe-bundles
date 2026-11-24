@@ -24,6 +24,7 @@ import { isIncomingMsg } from '../sync/msg-aspects.ts';
 import { syncedRecordOf } from '../sync/record-mapping.ts';
 import { snapshotEntriesOf, type RestorableMsg } from '../sync/restore-snapshot.ts';
 import { groupSyncVersions } from '../sync/sync-versions.ts';
+import { assertGzipSizeWithin } from '../../utils/zip-size-guard.ts';
 
 export const AUTO_BACKUP_KIND = 'inbox-auto-backup';
 export const AUTO_BACKUP_FORMAT_VERSION = 1;
@@ -116,7 +117,14 @@ export class AutoBackupFormatError extends Error {}
 export function decodeAutoBackup(bytes: Uint8Array): AutoBackupFile {
   let json: Uint8Array;
   try {
-    json = isGzip(bytes) ? gunzipSync(bytes) : bytes;
+    if (isGzip(bytes)) {
+      // SECURITY(CVE-2026-122146): gunzipSync allocates what the trailer of the
+      // stream declares; see zip-size-guard.ts.
+      assertGzipSizeWithin(bytes);
+      json = gunzipSync(bytes);
+    } else {
+      json = bytes;
+    }
   } catch (err) {
     throw new AutoBackupFormatError(`not a readable gzip stream: ${(err as Error)?.message ?? err}`);
   }

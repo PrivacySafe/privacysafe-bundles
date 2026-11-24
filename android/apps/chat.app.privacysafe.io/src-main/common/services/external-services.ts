@@ -136,6 +136,7 @@ export async function initializeServices() {
               'countPendingSyncPhantoms',
               'countSyncPhantomsInDelivery',
               'getSyncActivityState',
+              'getServerReachability',
               'getBlacklistedAddresses',
               'removeExpiredInboxMessages',
               'getMessage',

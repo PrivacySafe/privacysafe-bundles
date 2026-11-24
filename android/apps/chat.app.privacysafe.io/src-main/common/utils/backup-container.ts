@@ -26,6 +26,7 @@ import {
   makeBackupMetadataBytes,
 } from '@shared/backup-archive';
 import { APP_DOMAIN, METADATA_FILE_NAME, PAYLOAD_FILE_NAME } from '@shared/constants/backup';
+import { makeZipSizeGuard } from '@shared/zip-size-guard';
 import type { BackupArchiveError, BackupMetadataContent, SkippedAttachment } from '~/backup.types';
 import { decryptPayload, encryptPayload, isSubtleCryptoAvailable } from './backup-crypto';
 
@@ -97,7 +98,9 @@ export async function openBackupContainer(
 ): Promise<OpenedBackupContainer> {
   let outer: Record<string, Uint8Array>;
   try {
-    outer = unzipSync(fileBytes);
+    // SECURITY(CVE-2026-122146): see zip-size-guard.ts. A size over the limit
+    // throws, and lands in the catch below.
+    outer = unzipSync(fileBytes, { filter: makeZipSizeGuard() });
   } catch {
     throw new BackupArchiveFailure('corrupted_archive');
   }

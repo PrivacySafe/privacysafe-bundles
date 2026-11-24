@@ -118,6 +118,7 @@ export function useContactsImport(importId: string) {
       name: incoming.name || '',
       phone: incoming.phone || '',
       notice: incoming.notice || '',
+      dates: incoming.dates ?? [],
       avatarId,
     });
 

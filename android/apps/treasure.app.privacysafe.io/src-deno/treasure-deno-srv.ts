@@ -29,13 +29,15 @@ import { treasureBackupSrv } from './treasure-backup-srv.ts';
 import { handleFolderChangeSyncStatus } from './utils/handle-folder-change-sync-status.ts';
 import { handleFileChangeSyncStatus } from './utils/handle-file-change-sync-status.ts';
 import { checkSyncFsState } from './utils/check-sync-fs-state.ts';
+import { makeImageLoader } from './utils/load-image.ts';
 import type {
+  ImageLoadResult,
   TreasureCardRecord,
   TreasureEvent,
   TreasureGroup,
   TreasureRecord,
 } from '../shared/@types/common.types.ts';
-import type { TreasureDenoSrv, TreasureDenoSrvInternal } from './srv.types.ts';
+import type { ServerReachability, TreasureDenoSrv, TreasureDenoSrvInternal } from './srv.types.ts';
 
 async function treasureDenoSrv(): Promise<TreasureDenoSrv> {
   setupGlobalReportingOfUnhandledErrors(true);
@@ -57,8 +59,23 @@ async function treasureDenoSrv(): Promise<TreasureDenoSrv> {
 
   const eventsObservers = new ObserversSet<TreasureEvent>();
 
+  /** Kept off the server:reachability events; see getServerReachability. */
+  let serverReachability: ServerReachability = 'unknown';
+
   function emitTreasureEvent(event: TreasureEvent) {
+    if (event.event === 'server:reachability') {
+      serverReachability = event.payload.reachable ? 'up' : 'down';
+    }
     eventsObservers.next(event);
+  }
+
+  /**
+   * The latest outcome of the service's own requests to the storage server.
+   * A window that opens after the startup check has run has missed its event,
+   * and reads the outcome here instead.
+   */
+  async function getServerReachability(): Promise<ServerReachability> {
+    return serverReachability;
   }
 
   function watchEvent(obs: web3n.Observer<TreasureEvent>): () => void {
@@ -210,7 +227,7 @@ async function treasureDenoSrv(): Promise<TreasureDenoSrv> {
 
   async function rewriteGroups(data: TreasureGroup[], withoutSync?: boolean): Promise<boolean> {
     await fileSrv.saveFile(data, GROUPS_FILE_NAME);
-    const isConnectionAvailable = await checkServerConnection(fs);
+    const isConnectionAvailable = await checkServerConnection(fs, { emitEvent: emitTreasureEvent });
 
     if (!withoutSync && isConnectionAvailable) {
       await syncUpload({ fs, path: GROUPS_FILE_NAME, emitEvent: emitTreasureEvent });
@@ -232,8 +249,15 @@ async function treasureDenoSrv(): Promise<TreasureDenoSrv> {
     }
   }
 
-  async function loadImage(imageId: string): Promise<Uint8Array | undefined> {
-    return fileSrv.loadImage(imageId);
+  const loadImageCatchingUp = makeImageLoader({
+    fs,
+    readImage: id => fileSrv.loadImage(id),
+    emitEvent: emitTreasureEvent,
+    getServerReachability: () => serverReachability,
+  });
+
+  async function loadImage(imageId: string): Promise<ImageLoadResult> {
+    return loadImageCatchingUp(imageId);
   }
 
   async function saveImage(data: { bytes: Uint8Array; id?: string }) {
@@ -250,7 +274,7 @@ async function treasureDenoSrv(): Promise<TreasureDenoSrv> {
     withoutUploadParentFolder?: boolean,
   ): Promise<{ id: string; wasSync?: boolean }> {
     const id = await fileSrv.saveFile(data);
-    const isConnectionAvailable = await checkServerConnection(fs);
+    const isConnectionAvailable = await checkServerConnection(fs, { emitEvent: emitTreasureEvent });
 
     if (isConnectionAvailable) {
       await syncUpload({ fs, path: id, emitEvent: emitTreasureEvent });
@@ -268,7 +292,7 @@ async function treasureDenoSrv(): Promise<TreasureDenoSrv> {
   async function updateRecord(data: TreasureRecord): Promise<boolean> {
     await fileSrv.updateFile(data);
 
-    const isConnectionAvailable = await checkServerConnection(fs);
+    const isConnectionAvailable = await checkServerConnection(fs, { emitEvent: emitTreasureEvent });
     if (isConnectionAvailable) {
       await syncUpload({ fs, path: data.id, emitEvent: emitTreasureEvent });
       return true;
@@ -304,7 +328,7 @@ async function treasureDenoSrv(): Promise<TreasureDenoSrv> {
       await fileSrv.deleteFiles(processedImagesPath);
     }
 
-    const isConnectionAvailable = await checkServerConnection(fs);
+    const isConnectionAvailable = await checkServerConnection(fs, { emitEvent: emitTreasureEvent });
     if (isConnectionAvailable && !withoutUploadParentFolder) {
       await syncUpload({ fs, path: '', emitEvent: emitTreasureEvent, immediately: true });
 
@@ -389,7 +413,7 @@ async function treasureDenoSrv(): Promise<TreasureDenoSrv> {
       await rewriteGroups([]);
     }
 
-    const isThereConnection = await checkServerConnection(fs);
+    const isThereConnection = await checkServerConnection(fs, { emitEvent: emitTreasureEvent });
     if (!isThereConnection) {
       setTimeout(() => {
         initial();
@@ -428,6 +452,7 @@ async function treasureDenoSrv(): Promise<TreasureDenoSrv> {
     getRecord,
     getRecordSyncStatus,
     getAllRecords,
+    getServerReachability,
 
     initial,
   };
@@ -452,6 +477,7 @@ treasureDenoSrv()
       'getRecord',
       'getRecordSyncStatus',
       'getAllRecords',
+      'getServerReachability',
       'createBackupArchive',
       'cancelBackupArchive',
       'restoreBackupArchive',

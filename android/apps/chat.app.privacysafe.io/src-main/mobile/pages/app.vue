@@ -26,7 +26,7 @@
   const {
     t,
     me,
-    isOnline,
+    connectivityStatus,
     connectivityStatusText,
     commonLoading,
     runMenuAction,
@@ -85,11 +85,17 @@
 
         <div
           :class="$style.status"
-          :title="t(connectivityStatusText)"
+          :title="connectivityStatusText"
         >
           <span>{{ t('app.status.label') }}</span>
 
-          <b :class="isOnline && $style.ok" />
+          <b
+            :class="{
+              [$style.ok]: connectivityStatus === 'online',
+              [$style.warn]: connectivityStatus === 'server-unreachable',
+              [$style.error]: connectivityStatus === 'offline',
+            }"
+          />
         </div>
 
         <!-- Out of the flow: its wording is long enough to squeeze the toolbar. -->
@@ -269,6 +275,14 @@
 
     .ok {
       background-color: var(--success-content-default);
+    }
+
+    .warn {
+      background-color: var(--warning-content-default);
+    }
+
+    .error {
+      background-color: var(--error-content-default);
     }
   }
 

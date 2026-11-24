@@ -164,6 +164,14 @@ chat-backup-0_12_15-2026-09-06_18-20.zip        # точки в версии →
    `applyNewerAspects`, см. §5.2.2 в [04-multi-device-sync.md](./04-multi-device-sync.md)).
 8. `finally`: `endBulkReplay()`.
 
+Файл бэкапа выбирает пользователь, поэтому размеры записей, заявленные в архиве, недостоверны.
+Оба вызова `unzipSync` (внешний контейнер в
+[backup-container.ts](../src-main/common/utils/backup-container.ts) и внутренний архив в
+[useBackupRestore.ts](../src-main/common/composables/useBackupRestore.ts)) идут с фильтром
+`makeZipSizeGuard()`. Он отказывает архиву, который заявляет больше предела, до того как fflate
+выделит память, и такой архив получает `corrupted_archive`. Подробности в
+[security/fflate-cve-2026-122146.md](./security/fflate-cve-2026-122146.md).
+
 Флага `isRestoreInProgress` в БД, в отличие от inbox, **нет**: там он нужен, потому что restore
 сбрасывает watermark и переписывает то, что пишет приём почты. В chat сходимость держат токены,
 единственная реальная гонка — `addMessage` против вставки диспетчером (лечится
@@ -604,7 +612,9 @@ interface AutoBackupFile {            // types/auto-backup.types.ts
 в deno-компоненте на Android нет даже `TextEncoder` (0.12.41 падал на нём), так что глобальные Web API
 не используются. Голый JSON (его писали прежние сборки в среде без `CompressionStream`) читается по-прежнему,
 читатель различает по сигнатуре gzip. Файл чужого формата или битый пропускается с
-записью в лог и никогда не применяется частично. Записи с истёкшим `removeAfter` не кладутся.
+записью в лог и никогда не применяется частично. Перед `gunzipSync` вызывается `assertGzipSizeWithin`:
+размер в хвосте gzip задаёт тот, кто писал файл, и завышенный размер делает файл «битым», а не
+роняет компонент (см. [security/fflate-cve-2026-122146.md](./security/fflate-cve-2026-122146.md)). Записи с истёкшим `removeAfter` не кладутся.
 
 **Вложения не бэкапятся** (решение 2026-11-09). Входящие остаются доступны через `incomingMsgId`,
 пока сообщение в общем ящике; байты исходящих были только в file-store погибшего устройства.

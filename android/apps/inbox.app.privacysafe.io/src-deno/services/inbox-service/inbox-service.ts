@@ -171,7 +171,7 @@ export async function inboxService(
    */
   autoBackup: AutoBackupSrv;
 }> {
-  const { emit, watch, beginBulkReplay, endBulkReplay } = createInboxEvents();
+  const { emit, watch, beginBulkReplay, endBulkReplay, getServerReachability } = createInboxEvents();
 
   /**
    * One attempt per msgId per session at pulling a message out of the shared
@@ -379,6 +379,10 @@ export async function inboxService(
 
     async getSyncActivityState() {
       return activity?.snapshot() ?? { seq: 0, syncing: false, pending: 0, phase: 'idle', stalled: false };
+    },
+
+    async getServerReachability() {
+      return getServerReachability();
     },
 
     async getBlacklistedAddresses() {

@@ -326,3 +326,31 @@ describe('resolveDbFileConflict', () => {
   });
 
 });
+
+describe('resolveDbFileConflict: dates', () => {
+
+  const dates = JSON.stringify([{ id: 'b1', type: 'birthday', month: 3, day: 15 }]);
+
+  it('takes the dates from the side that has them', () => {
+    const local = rawPerson({ id: 'c1', mail: 'ann@3nweb.com', timestamp: 5 });
+    const remote = rawPerson({ id: 'c1', mail: 'ann@3nweb.com', timestamp: 5, dates });
+
+    const { resolvedContactList, areThereDifferences } = resolveDbFileConflict([remote], [local]);
+
+    expect(resolvedContactList[0].dates).toBe(dates);
+    expect(areThereDifferences).toBe(true);
+  });
+
+  it('takes the dates of the newer record when both have them', () => {
+    const newer = JSON.stringify([{ id: 'b1', type: 'birthday', month: 4, day: 1 }]);
+    const local = rawPerson({ id: 'c1', mail: 'ann@3nweb.com', timestamp: 5, dates });
+    const remote = rawPerson({ id: 'c1', mail: 'ann@3nweb.com', timestamp: 9, dates: newer });
+
+    expect(resolveDbFileConflict([remote], [local]).resolvedContactList[0].dates).toBe(newer);
+  });
+
+  it('treats an empty list as no dates when normalizing', () => {
+    expect(normalizeContactRow(rawPerson({ dates: '[]' })).dates).toBeNull();
+  });
+
+});

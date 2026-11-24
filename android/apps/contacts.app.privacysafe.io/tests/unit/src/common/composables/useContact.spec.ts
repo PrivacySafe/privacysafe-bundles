@@ -143,17 +143,17 @@ describe('useContact, gating of the header actions', () => {
       expect(contactUse.canShowContactKeys.value).toBe(true);
     });
 
-    // Keys come out of the keyring, so unlike the two apps above they do not
-    // need the network.
-    it('keeps its keys available offline', async () => {
+    // Handing a contact to the chat or the inbox works offline now: the other
+    // apps queue the action. Keys come out of the keyring and never needed the
+    // network in the first place.
+    it('keeps its keys and the other-apps actions available offline', async () => {
       const contactUse = await setup();
       contactUse.contact.value = { ...SAVED_CONTACT } as never;
       w3n.emitConnectivity({ isOnline: false });
       await nextTick();
 
-      expect(contactUse.canReachOtherApps.value).toBe(false);
+      expect(contactUse.canReachOtherApps.value).toBe(true);
       expect(contactUse.canShowContactKeys.value).toBe(true);
-      expect(contactUse.disabledActionReason.value).toBe('Available when online.');
     });
 
   });

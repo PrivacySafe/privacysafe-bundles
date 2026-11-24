@@ -3,7 +3,6 @@ import tsEslint from 'typescript-eslint';
 import vueParser from 'vue-eslint-parser';
 import pluginVue from 'eslint-plugin-vue';
 import pluginPrettier from 'eslint-plugin-prettier';
-import pluginImport from 'eslint-plugin-import';
 import globals from 'globals';
 
 export default [
@@ -29,7 +28,6 @@ export default [
     plugins: {
       '@typescript-eslint': tsEslint.plugin,
       prettier: pluginPrettier,
-      import: pluginImport,
     },
     languageOptions: {
       parser: tsEslint.parser,
@@ -60,7 +58,6 @@ export default [
       'no-debugger': 'off',
       'no-undef': 'off',
       'default-case': ['error'],
-      'import/prefer-default-export': 'off',
       'lines-between-class-members': 'off',
       'no-param-reassign': 'off',
       'no-return-assign': 'off',

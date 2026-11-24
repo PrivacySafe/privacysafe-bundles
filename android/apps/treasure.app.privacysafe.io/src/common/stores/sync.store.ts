@@ -16,12 +16,25 @@
 */
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
+import { IMAGES_FOLDER } from '@shared/constants';
 import type { SyncType } from '@shared/@types';
+
+/** Sync paths whose end may have brought images that could not be read before. */
+function mayBringImages(path: string): boolean {
+  return path === 'root' || path === IMAGES_FOLDER || path.startsWith(`${IMAGES_FOLDER}/`);
+}
 
 export const useSyncStore = defineStore('sync', () => {
   const syncProcesses = ref<Record<string, { type: SyncType; value: number }>>({});
 
   const isSyncRunning = computed(() => Object.keys(syncProcesses.value).length > 0);
+
+  /**
+   * Goes up every time a synchronization that may have brought images ends.
+   * An image shown as unavailable is tried again then: it may have been
+   * missing only until the images folder caught up with the server.
+   */
+  const imagesRevision = ref(0);
 
   function addRecordToSyncList(id: string, type: SyncType) {
     syncProcesses.value[id] = { type, value: 0 };
@@ -30,6 +43,9 @@ export const useSyncStore = defineStore('sync', () => {
   function removeRecordFromSyncList(id: string) {
     // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
     delete syncProcesses.value[id];
+    if (mayBringImages(id)) {
+      imagesRevision.value += 1;
+    }
   }
 
   function updateSyncListRecord(id: string, type: SyncType, value: number) {
@@ -39,6 +55,7 @@ export const useSyncStore = defineStore('sync', () => {
   return {
     syncProcesses,
     isSyncRunning,
+    imagesRevision,
     addRecordToSyncList,
     removeRecordFromSyncList,
     updateSyncListRecord,

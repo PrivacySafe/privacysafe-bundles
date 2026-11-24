@@ -25,15 +25,20 @@ export const es = {
       connected: {
         online: 'en línea',
         offline: 'desconectado',
+        'server-unreachable': 'servidor no disponible',
       },
       synced: 'sincronizado',
       unsynced: 'no sincronizado',
     },
     exit: 'Cerrar',
+    startup: {
+      waitingForService: 'El servicio de contactos tarda más de lo habitual en iniciarse. Intentándolo de nuevo (intento {attempt} de {total})…',
+    },
     menu: {
       tutorial: 'Repetir tutorial',
       makeBackup: 'Crear copia de seguridad',
       uploadBackup: 'Restaurar desde copia de seguridad',
+      settings: 'Ajustes',
       exit: 'Cerrar',
     },
     btn: {
@@ -47,12 +52,16 @@ export const es = {
         online: 'Actualmente estás en línea. Todos los cambios realizados anteriormente se sincronizarán.',
         offline:
           'Actualmente estás sin conexión. Todos los cambios permanecerán en este dispositivo hasta que se conecte.',
+        'server-unreachable':
+          'El servidor no está disponible. Todos los cambios permanecerán en este dispositivo hasta que se pueda acceder a él.',
       },
     },
     warning: {
       label: 'Warning',
       'sync-stuck':
         'La sincronización no se ha reanudado, aunque este dispositivo está en línea. Los cambios se mantienen en este dispositivo. Reinicia la aplicación para sincronizarlos.',
+      'server-unreachable':
+        'El servidor no está disponible. Los cambios se guardan en este dispositivo y se sincronizarán cuando se pueda acceder al servidor. Si el servidor vuelve a estar accesible y este mensaje no desaparece, reinicia la aplicación.',
       'changes-not-published':
         'Los cambios realizados en este dispositivo se guardan aquí, pero el servidor sigue rechazándolos. No se han perdido y se publicarán en cuanto el servidor vuelva a aceptarlos. A veces, reiniciar la aplicación ayuda.',
       'first-run-needs-network':
@@ -135,6 +144,10 @@ export const es = {
       name: 'Nombre',
       phone: 'Teléfono',
       note: 'Nota',
+      birthday: 'Cumpleaños',
+      birthdayNotify: 'Avisarme cuando llegue la fecha indicada',
+      birthdayWithoutYear: 'Sin año',
+      birthdayInvalid: 'Introduce una fecha válida',
     },
     myself: {
       name: 'Yo',
@@ -303,6 +316,7 @@ export const es = {
     result: 'Importación de contactos finalizada: añadidos {added}, actualizados {updated}, omitidos {skipped}',
     field: {
       avatar: 'Foto de perfil',
+      birthday: 'Cumpleaños',
     },
     conflict: {
       title: 'Ya tienes el contacto {mail}',
@@ -329,5 +343,18 @@ export const es = {
     'upload-backup':
       'Al pulsar aquí, iniciarás el proceso de restauración de los datos de la aplicación desde el archivo de copia de seguridad que hayas seleccionado.',
     'repeat-tutorial': 'Al pulsar aquí, se reiniciará el tutorial.',
+  },
+  settings: {
+    title: 'Ajustes',
+    dateFormat: 'Formato de fecha',
+    dateFormatHint: 'Cómo se muestran y se escriben las fechas en esta aplicación en este dispositivo.',
+    saveError: 'No se pudieron guardar los ajustes.',
+  },
+  reminders: {
+    birthday: {
+      title: 'Cumpleaños: {name}',
+      body: 'Hoy es el cumpleaños de {name}.',
+      bodyWithAge: '{name} cumple {age} años hoy.',
+    },
   },
 };

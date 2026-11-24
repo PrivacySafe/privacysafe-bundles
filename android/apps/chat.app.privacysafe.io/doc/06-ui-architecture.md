@@ -140,7 +140,7 @@ flowchart TB
 | `ui.outgoing` | прогресс отправки по сообщениям | [ui.outgoing.store.ts](../src-main/common/store/ui.outgoing.store.ts) |
 
 Вспомогательные части `app`-стора вынесены отдельно:
-[app/connectivity.ts](../src-main/common/store/app/connectivity.ts) (опрос состояния сети),
+[app/connectivity.ts](../src-main/common/store/app/connectivity.ts) (статус подключения, §4.0),
 [app/system-level-app-config.ts](../src-main/common/store/app/system-level-app-config.ts)
 (наблюдение за системным конфигом: язык, тема, логотип) и
 [app/sync-state.ts](../src-main/common/store/app/sync-state.ts) (состояние синхронизации с другими
@@ -153,6 +153,41 @@ flowchart TB
 [useInitialize.ts](../src-main/common/composables/useInitialize.ts); там же события `sync-state`
 обрабатываются **синхронно, минуя очередь** `updatesQueue` — очередь дренируется `SingleProc` и во
 время большого бэклога индикатор отставал бы на секунды, то есть ровно тогда, когда он и нужен.
+
+### 4.0 Статус подключения
+
+Строка «Status» в шапке desktop и лампочка в тулбаре телефона показывают одно из трёх состояний
+(`ConnectivityStatus` в [app.types.ts](../types/app.types.ts)):
+
+| Состояние | Когда | Цвет |
+|---|---|---|
+| `online` | сервер почты пользователя отвечает | зелёный |
+| `server-unreachable` | сеть есть, сервер не отвечает или от него ещё ничего не слышно | жёлтый |
+| `offline` | у устройства нет сети | красный |
+
+`w3n.connectivity.isOnline()` отвечает только на вопрос «есть ли у устройства сеть». Пока окно
+опрашивало его раз в минуту, оно писало «online» и тогда, когда сервер был недоступен и ничего не
+отправлялось, не приходило и не синхронизировалось. Теперь «online» — это утверждение, что сервер
+ответил. Правило перенесено из Inbox. Чистая логика лежит в
+[connectivity-status.ts](../src-main/common/utils/connectivity-status.ts), тесты — в
+[ci/connectivity-status.test.ts](../ci/connectivity-status.test.ts). Источников три:
+
+1. **События платформы** `w3n.connectivity.watch()`. Учитываются только события inbox-сокета:
+   `connected`/`heartbeat` значат «сервер есть», `disconnected`/`heartbeat-skip` — «нет».
+   Storage-сокет ничего не говорит: БД лежат в local FS, а синхронизация идёт фантомами через ASMail.
+2. **Probe фонового компонента**
+   [check-server-reachability.ts](../src-deno/utils/check-server-reachability.ts). При старте
+   компонент делает `preFlight` на собственный адрес с таймаутом 10 с. Пока сервер недоступен,
+   probe повторяется раз в минуту. Результат уходит событием `server`/`reachability`, которое
+   [useInitialize.ts](../src-main/common/composables/useInitialize.ts) применяет сразу, минуя
+   очередь, как и `sync-state`. `inbox.listMsgs` для этого не годится: платформа глотает ошибку
+   подключения и отвечает из локального индекса.
+3. **Снимок** `getServerReachability()`. Окно запрашивает его сразу после подписки, потому что
+   probe обычно успевает ответить раньше, чем окно подписалось.
+
+Смена статуса между двумя «настоящими» значениями сопровождается нотисом `app.info.status.*` (см.
+[useAppView.ts](../src-main/common/composables/useAppView.ts)). Первое чтение, которое заменяет
+начальное предположение, не объявляется.
 
 Особенности:
 

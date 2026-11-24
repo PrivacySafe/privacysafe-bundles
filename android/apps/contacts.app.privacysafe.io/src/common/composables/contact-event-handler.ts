@@ -19,7 +19,13 @@
 // Collaborators arrive as plain functions, keeping this module free of pinia
 // and vue-router.
 import { CONTACTS_DB_FILE } from '@deno/constants';
-import type { BackupProgress, ContactEvent, RestoreProgress, ShareProgress } from '@main/types';
+import type {
+  BackupProgress,
+  ContactEvent,
+  ContactsAppSettings,
+  RestoreProgress,
+  ShareProgress,
+} from '@main/types';
 
 export interface ContactEventHandlerDeps {
   addToSyncList: (path: string) => void;
@@ -30,6 +36,8 @@ export interface ContactEventHandlerDeps {
    * reports being online. A STATE, not a notice: it is set and later cleared.
    */
   setSyncStuck: (isStuck: boolean, reason?: string) => void;
+  /** Whether the storage server answered the service's latest request to it. */
+  setServerReachable: (reachable: boolean) => void;
   emitContactListUpdated: () => void;
   fetchContacts: () => Promise<unknown>;
   /** Name of the currently active route, or undefined when there is none. */
@@ -44,6 +52,8 @@ export interface ContactEventHandlerDeps {
   onRestoreProgress: (progress: RestoreProgress) => void;
   /** Progress of making and handing over a file with shared contacts. */
   onShareProgress: (progress: ShareProgress) => void;
+  /** The app settings changed, in this window or in another one. */
+  onSettingsChanged: (settings: ContactsAppSettings) => void;
 }
 
 /** Path reported for the synced FS root, which arrives as an empty string. */
@@ -84,6 +94,11 @@ export function makeContactEventHandler(
         break;
       }
 
+      case 'server:reachability': {
+        deps.setServerReachable(evt.payload.reachable);
+        break;
+      }
+
       // Progress only: the workflows themselves live in the store and the
       // composable that started them, and the list is refetched off
       // update:contact-list, which a restore emits when it swaps the table.
@@ -99,6 +114,11 @@ export function makeContactEventHandler(
 
       case 'share': {
         deps.onShareProgress(evt.payload);
+        break;
+      }
+
+      case 'settings': {
+        deps.onSettingsChanged(evt.payload);
         break;
       }
 

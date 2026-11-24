@@ -74,20 +74,6 @@ describe('app.store', () => {
       expect(store.user).toBe('me@3nweb.com');
     });
 
-    it('starts out offline, before anything is known', () => {
-      expect(setup().connectivityStatus).toBe('offline');
-    });
-
-    it('follows the connectivity it is told about', () => {
-      const store = setup();
-
-      store.setConnectivityStatus(true);
-      expect(store.connectivityStatus).toBe('online');
-
-      store.setConnectivityStatus(false);
-      expect(store.connectivityStatus).toBe('offline');
-    });
-
   });
 
   describe('the colour theme', () => {

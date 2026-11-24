@@ -15,8 +15,11 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 -->
 <script setup lang="ts">
-  import { computed, onMounted, ref, useTemplateRef } from 'vue';
+  import { computed, onMounted, ref, useTemplateRef, watch } from 'vue';
   import { useSwipe, type UseSwipeDirection } from '@vueuse/core';
+  import { useI18n } from 'vue-i18n';
+  import { storeToRefs } from 'pinia';
+  import { useSyncStore } from '@/common/stores/sync.store';
   import size from 'lodash/size';
   import { Ui3nButton, Ui3nIcon } from '@v1nt1248/3nclient-lib';
   import { appTreasureDenoSrv } from '@/common/services/service-provider';
@@ -29,8 +32,11 @@
     (event: 'close'): void;
   }>();
 
+  const { t } = useI18n();
+  const { imagesRevision } = storeToRefs(useSyncStore());
+
   const target = useTemplateRef('container');
-  const isLoading = ref(false);
+  const isLoading = ref(true);
   const currentImgIndex = ref(0);
   const imgSrc = ref('');
   const rotateAngle = ref(0);
@@ -64,15 +70,32 @@
     },
   });
 
+  /** The current image is not here yet: the spinner stays until a sync ends. */
+  const isPending = ref(false);
+
   async function loadImage(imageId: string): Promise<string> {
+    try {
+      return await renderImage(imageId);
+    } catch (err) {
+      // An image that cannot be read must not leave the spinner going forever.
+      w3n.log('error', `Error loading the image ${imageId}. `, err);
+      isLoading.value = false;
+      isPending.value = false;
+      return '';
+    }
+  }
+
+  async function renderImage(imageId: string): Promise<string> {
     isLoading.value = true;
 
     imgSrc.value = '';
-    const imageBytes = await appTreasureDenoSrv.loadImage(imageId);
-    if (!imageBytes) {
+    const res = await appTreasureDenoSrv.loadImage(imageId);
+    isPending.value = res.state === 'pending';
+    if (res.state !== 'loaded') {
       isLoading.value = false;
       return '';
     }
+    const imageBytes = res.bytes;
 
     const blob = new Blob([imageBytes as BlobPart]);
 
@@ -132,6 +155,26 @@
     }
   }
 
+  // The image shown as unavailable is tried again once a synchronization that
+  // may have brought it ends.
+  // Checked quietly first: a recheck that changes nothing does not blink.
+  watch(imagesRevision, async () => {
+    if (imgSrc.value || isLoading.value) {
+      return;
+    }
+    const imageId = props.imageIds[currentImgIndex.value];
+    try {
+      const res = await appTreasureDenoSrv.loadImage(imageId);
+      if (res.state === 'loaded') {
+        imgSrc.value = await loadImage(imageId);
+      } else {
+        isPending.value = res.state === 'pending';
+      }
+    } catch (err) {
+      w3n.log('error', `Error rechecking the image ${imageId}. `, err);
+    }
+  });
+
   onMounted(async () => {
     imgSrc.value = await loadImage(props.imageIds[currentImgIndex.value]);
   });
@@ -182,7 +225,8 @@
         mode="out-in"
       >
         <ui3n-icon
-          v-if="isLoading"
+          v-if="isLoading || isPending"
+          :title="isPending ? t('recordDialog.form.image.pending') : undefined"
           icon="spinner"
           size="120"
           color="var(--color-icon-table-secondary-default)"
@@ -196,6 +240,18 @@
             :class="$style.image"
             alt="image"
           />
+
+          <div
+            v-else
+            :class="$style.unavailable"
+          >
+            <ui3n-icon
+              icon="broken-image-outline"
+              size="80"
+              color="var(--color-icon-table-secondary-default)"
+            />
+            <span>{{ t('recordDialog.form.image.unavailable') }}</span>
+          </div>
         </template>
       </transition>
     </div>
@@ -352,5 +408,16 @@
         transform: scale(1.4);
       }
     }
+  }
+
+  .unavailable {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    row-gap: var(--spacing-m);
+    font-size: var(--font-16);
+    font-weight: 500;
+    color: var(--color-text-table-secondary-default);
   }
 </style>

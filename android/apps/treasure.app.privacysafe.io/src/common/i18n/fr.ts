@@ -22,10 +22,28 @@ export const fr = {
       uploadBackup: 'Importer une sauvegarde',
       exit: 'Quitter',
     },
+    sync: {
+      status: 'État de la synchronisation',
+    },
     status: {
       label: 'Statut',
-      online: 'En ligne',
-      offline: 'Hors ligne',
+      connected: {
+        online: 'en ligne',
+        offline: 'hors ligne',
+        'server-unreachable': 'serveur indisponible',
+      },
+      synced: 'synchronisé',
+      unsynced: 'non synchronisé',
+    },
+    info: {
+      status: {
+        online:
+          'Vous êtes actuellement en ligne. Toutes les modifications effectuées précédemment seront synchronisées.',
+        offline:
+          'Vous êtes actuellement hors ligne. Toutes les modifications resteront sur cet appareil jusqu’à ce qu’il soit connecté.',
+        'server-unreachable':
+          'Le serveur est indisponible. Toutes les modifications resteront sur cet appareil jusqu’à ce qu’il soit joignable.',
+      },
     },
     btn: {
       close: 'Fermer',
@@ -54,7 +72,14 @@ export const fr = {
     cards: 'Cartes personnalisées',
     favorites: 'Favoris',
     search: 'Rechercher des enregistrements',
-    noData: 'Aucun enregistrement ici',
+    placeholder: {
+      loading: 'Lecture des enregistrements…',
+      failed: 'Impossible de lire les enregistrements. Essayez de rouvrir l’application.',
+      noMatches: 'Aucun résultat pour « {text} ».',
+      noRecords: 'Il n’y a encore aucun enregistrement.',
+      noRecordsHint: 'Créez le premier avec le bouton « Nouvel enregistrement ».',
+      groupEmpty: 'Il n’y a aucun enregistrement dans ce groupe.',
+    },
     notifications: {
       success: {
         saving: 'L’élément {entity} a été enregistré avec succès.',
@@ -159,6 +184,8 @@ export const fr = {
         upload_area: 'Cliquez sur cette zone pour importer des images',
         info: 'Maximum 10 fichiers image aux formats pris en charge (png, jpeg, jpg)',
         uploading: 'Importation en cours',
+        unavailable: 'Image indisponible',
+        pending: 'En attente de synchronisation…',
         message: {
           unsupported: 'Ces fichiers ne sont pas pris en charge : {list}',
           limit:
@@ -225,7 +252,6 @@ export const fr = {
       password: 'Mot de passe / CVV',
       cvv: 'CVV',
     },
-    nodata: 'Aucun enregistrement dans le groupe actuel.',
     row: {
       copiedBtn: 'Copié',
       duplicateTooltip: 'Un autre enregistrement possède les mêmes valeurs pour `resource` et `username`.',

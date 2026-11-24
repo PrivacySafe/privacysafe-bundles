@@ -171,6 +171,31 @@ export interface TreasureRestoreEvent {
   payload: RestoreProgress;
 }
 
+/**
+ * What became of a request for a stored image.
+ *
+ * - `loaded`: here are its bytes.
+ * - `missing`: it is in neither the local nor the server's images folder.
+ * - `pending`: it is not here yet, and cannot be told missing for now: the
+ *   images folder is behind the server and could not catch up, or the server
+ *   has not answered yet. Worth trying again once a synchronization ends.
+ */
+export type ImageLoadResult =
+  | { state: 'loaded'; bytes: Uint8Array }
+  | { state: 'missing' }
+  | { state: 'pending' };
+
+/**
+ * The outcome of the service's own request to the storage server. Lets the
+ * window tell "online" from "the network is up, the server is not".
+ */
+export interface TreasureServerReachabilityEvent {
+  event: 'server:reachability';
+  payload: {
+    reachable: boolean;
+  };
+}
+
 export type TreasureEvent =
   | TreasureSyncStartEvent
   | TreasureSyncUpdateEvent
@@ -181,4 +206,5 @@ export type TreasureEvent =
   | TreasureGroupUpdateEvent
   | TreasureRecordsUpdateEvent
   | TreasureBackupEvent
-  | TreasureRestoreEvent;
+  | TreasureRestoreEvent
+  | TreasureServerReachabilityEvent;

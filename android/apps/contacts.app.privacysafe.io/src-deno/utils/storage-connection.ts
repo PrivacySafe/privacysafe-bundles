@@ -23,6 +23,49 @@ import { sleep } from '../../shared-libs/processes/sleep.ts';
 const STORAGE_SERVICE = 'storage';
 
 /**
+ * Cap on one request to the storage server that the app waits on: status() of
+ * a synced path. Without the network such a request fails at once, on DNS. With
+ * the network up and the SERVER out of reach it waits for the platform's own
+ * timeouts - DNS TXT, then the DoH fallbacks, then HTTP - which run to tens of
+ * seconds. Startup awaited two of them before exposing its ipc, and the windows
+ * gave up on connecting in the meantime: the app looked dead while every
+ * contact was right there on the disk.
+ */
+export const SERVER_REQUEST_TIMEOUT_MS = 10000;
+
+/**
+ * The exception withTimeout rejects with. Typed as a `connect` failure on
+ * purpose: every caller already reads that as "the server cannot be reached",
+ * which is exactly what a request that does not answer in time means.
+ */
+export interface ServerTimeoutException extends web3n.ConnectException {
+  timeout: true;
+}
+
+/**
+ * Settles as the given promise does, or rejects with a ServerTimeoutException
+ * once timeoutMs passes. The request itself is not cancelled - the platform
+ * offers no way to - and is left to finish in the background; its late result
+ * or failure is swallowed here.
+ */
+export function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      const exc: ServerTimeoutException = {
+        runtimeException: true,
+        type: 'connect',
+        connectType: 'timeout',
+        timeout: true,
+      };
+      reject(exc);
+    }, timeoutMs);
+  });
+  promise.catch(() => undefined);
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+/**
  * Resolves as soon as the platform reports the device online, or after
  * timeoutMs - whichever comes first.
  *

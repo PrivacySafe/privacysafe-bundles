@@ -40,6 +40,7 @@ import { makeChatEntry } from './chat-entry.ts';
 import { makeChatQueries } from './chat-queries.ts';
 import { makeLocalMsgActions } from './local-msg-actions.ts';
 import { makeLocalSystemEvents } from './local-system-events.ts';
+import { getLastServerReachability } from '../../utils/check-server-reachability.ts';
 
 /**
  * The chat service: assembles its parts and hands out the ChatSrv methods.
@@ -168,6 +169,7 @@ export async function chatService(
     countPendingSyncPhantoms: async () => countPhantomsAwaitingRelease(data),
     countSyncPhantomsInDelivery: async () => countSyncPhantomsInDelivery(),
     getSyncActivityState: async () => syncActivity.snapshot(),
+    getServerReachability: async () => getLastServerReachability(),
     requestResyncForStuckOrphans: () => requestResyncForStuckOrphans(resyncCtx),
     requestChatsResyncAtStartup: () => requestChatsResyncAtStartup(resyncCtx),
     requestInitialChatsSnapshot: () => requestInitialChatsSnapshot(resyncCtx),

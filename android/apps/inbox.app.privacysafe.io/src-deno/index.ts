@@ -19,6 +19,7 @@ import { initDebugLogging, makeLogger, setLogUserAddress } from '../shared/utils
 import { defer } from '../shared/utils/processes/deferred.ts';
 import { MAX_ATTACHMENT_SIZE } from '../shared/constants/attachment-limits.ts';
 import { ensureDefaultAnonSenderMaxMsgSize } from './utils/workarounds.ts';
+import { watchServerReachability } from './utils/check-server-reachability.ts';
 import { migrateAppDataToLocalFS } from './utils/migrate-to-local-fs.ts';
 import { dataset } from './dataset/index.ts';
 import { createBlacklistTracker } from './services/contacts-service/contacts-blacklist.ts';
@@ -126,6 +127,10 @@ try {
   activity.onChange(view => emit({ entity: 'sync', event: 'activity', view }));
   inboxSrvDeferred.resolve(inboxSrv);
   phaseDone('service-ready');
+
+  // Not awaited: the status line wants an answer from the server as early as
+  // possible, and nothing of the start-up depends on it.
+  watchServerReachability(ownAddr, emit);
 
   // The whole of mailService() is the start-up replay: the catch-up scan of the
   // inbox, and after it the backlog of deliveries - both of which walk a message

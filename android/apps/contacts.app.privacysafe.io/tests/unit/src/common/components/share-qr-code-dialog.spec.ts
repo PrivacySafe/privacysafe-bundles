@@ -84,10 +84,8 @@ describe('share-qr-code-dialog', () => {
     stubCanvas();
     const pinia = createPinia();
     setActivePinia(pinia);
-    const appStore = useAppStore();
-    appStore.user = 'owner@3nweb.com';
 
-    return render(ShareQrDialog, {
+    const view = render(ShareQrDialog, {
       props: {
         contactData,
       },
@@ -103,6 +101,11 @@ describe('share-qr-code-dialog', () => {
         },
       },
     });
+
+    // The dialog creates the store in its own setup. Creating it here first
+    // would call useI18n() outside a setup, which vue-i18n rejects.
+    useAppStore().user = 'owner@3nweb.com';
+    return view;
   }
 
   beforeEach(() => {

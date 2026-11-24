@@ -25,15 +25,20 @@ export const fr = {
       connected: {
         online: 'en ligne',
         offline: 'hors ligne',
+        'server-unreachable': 'serveur indisponible',
       },
       synced: 'synchronisé',
       unsynced: 'non synchronisé',
     },
     exit: 'Fermer',
+    startup: {
+      waitingForService: 'Le service des contacts met plus de temps que d’habitude à démarrer. Nouvelle tentative ({attempt} sur {total})…',
+    },
     menu: {
       tutorial: 'Revoir le tutoriel',
       makeBackup: 'Créer une sauvegarde',
       uploadBackup: 'Restaurer à partir d’une sauvegarde',
+      settings: 'Paramètres',
       exit: 'Fermer',
     },
     btn: {
@@ -48,12 +53,16 @@ export const fr = {
           'Vous êtes actuellement en ligne. Toutes les modifications effectuées précédemment seront synchronisées.',
         offline:
           'Vous êtes actuellement hors ligne. Toutes les modifications resteront sur cet appareil jusqu’à ce qu’il soit connecté.',
+        'server-unreachable':
+          'Le serveur est indisponible. Toutes les modifications resteront sur cet appareil jusqu’à ce qu’il soit joignable.',
       },
     },
     warning: {
       label: 'Avertissement',
       'sync-stuck':
         'La synchronisation n’a pas repris, bien que cet appareil soit en ligne. Les modifications sont conservées sur cet appareil. Redémarrez l’application pour les synchroniser.',
+      'server-unreachable':
+        'Le serveur est indisponible. Les modifications sont conservées sur cet appareil et seront synchronisées dès que le serveur sera joignable. Si le serveur est de nouveau joignable et que ce message reste affiché, redémarrez l’application.',
       'changes-not-published':
         'Les modifications effectuées sur cet appareil sont enregistrées localement, mais le serveur continue de les refuser. Elles ne sont pas perdues et seront publiées dès que le serveur les acceptera à nouveau. Redémarrer l’application permet parfois de résoudre le problème.',
       'first-run-needs-network':
@@ -136,6 +145,10 @@ export const fr = {
       name: 'Nom',
       phone: 'Téléphone',
       note: 'Note',
+      birthday: 'Anniversaire',
+      birthdayNotify: 'M’avertir lorsque la date indiquée arrive',
+      birthdayWithoutYear: 'Sans année',
+      birthdayInvalid: 'Saisissez une date valide',
     },
     myself: {
       name: 'Moi',
@@ -308,6 +321,7 @@ export const fr = {
     result: 'Importation des contacts terminée : {added} ajoutés, {updated} mis à jour, {skipped} ignorés',
     field: {
       avatar: 'Photo de profil',
+      birthday: 'Anniversaire',
     },
     conflict: {
       title: 'Vous possédez déjà le contact {mail}',
@@ -334,5 +348,18 @@ export const fr = {
     'upload-backup':
       'Appuyer sur cet élément lancera le processus de restauration des données d’application à partir du fichier de sauvegarde que vous avez sélectionné.',
     'repeat-tutorial': 'Appuyer ici permet de relancer le tutoriel.',
+  },
+  settings: {
+    title: 'Paramètres',
+    dateFormat: 'Format de date',
+    dateFormatHint: 'Comment les dates sont affichées et saisies dans cette application sur cet appareil.',
+    saveError: 'Impossible d’enregistrer les paramètres.',
+  },
+  reminders: {
+    birthday: {
+      title: 'Anniversaire : {name}',
+      body: 'C’est l’anniversaire de {name} aujourd’hui.',
+      bodyWithAge: '{name} fête ses {age} ans aujourd’hui.',
+    },
   },
 };

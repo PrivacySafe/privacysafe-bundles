@@ -41,7 +41,12 @@ export interface WritableFsWithId extends WritableFS {
 
 export type AvailableLanguage = 'en';
 
-export type ConnectivityStatus = 'offline' | 'online';
+/**
+ * What the status line shows. 'online' means the user's mail server answers,
+ * not only that the device has a network; see
+ * src-main/common/utils/connectivity-status.ts.
+ */
+export type ConnectivityStatus = 'offline' | 'server-unreachable' | 'online';
 
 export interface MessageDeliveryStatusUI {
   icon: string;

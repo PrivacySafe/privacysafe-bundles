@@ -35,9 +35,14 @@ import { prepareSyncedRoot } from './utils/prepare-synced-root.ts';
 import { resolveRootFolderConflict } from './utils/resolve-root-folder-conflict.ts';
 import { waitForOnline, watchStorageReconnection } from './utils/storage-connection.ts';
 import { startConvergenceWatchdog } from './utils/convergence-watchdog.ts';
+import { makeDateReminders, type ReminderState } from './utils/date-reminders.ts';
+import { readUiLanguage, reminderNotificationOpts } from './utils/reminder-notifications.ts';
+import { logoIcon } from './logo-icon.ts';
+import { mergeAppSettings, sanitizeAppSettings } from '../src/common/utils/app-settings.ts';
 import {
   isBlacklistAffecting,
   makeBlacklistBroadcaster,
+  makeContactListBroadcaster,
   selectBlacklisted,
   type BlacklistBroadcaster,
 } from './utils/contact-blacklist.ts';
@@ -48,6 +53,7 @@ import { CONTACTS_DB_FILE, IMAGES_FOLDER } from './constants.ts';
 import type {
   AddressCheckResult,
   ContactEvent,
+  ContactsAppSettings,
   Person,
   RawPerson,
   TutorialState,
@@ -156,6 +162,7 @@ async function openContactsDb(fs: web3n.files.WritableFS): Promise<SQLiteOn3NSto
 async function contactsDenoSrv(): Promise<ContactsDenoSrv> {
   const updateEventsObservers = new ObserversSet<ContactEvent>();
   const updateContactBlacklist = new ObserversSet<Person[]>();
+  const updateContactList = new ObserversSet<Person[]>();
 
   /**
    * Only ready once contactDbSrv exists. emitStorageEvent is handed to
@@ -164,8 +171,18 @@ async function contactsDenoSrv(): Promise<ContactsDenoSrv> {
    */
     // eslint-disable-next-line prefer-const
   let blacklist: BlacklistBroadcaster | undefined;
+  /** The whole list for other apps; ready at the same moment as `blacklist`. */
+  // eslint-disable-next-line prefer-const
+  let contactList: BlacklistBroadcaster | undefined;
 
   setupGlobalReportingOfUnhandledErrors(true);
+
+  /** Kept off the server:reachability events; see getServerReachability. */
+  let serverReachability: 'unknown' | 'up' | 'down' = 'unknown';
+
+  async function getServerReachability(): Promise<'unknown' | 'up' | 'down'> {
+    return serverReachability;
+  }
 
   /**
    * The one point every rewrite of the contacts table passes through -
@@ -180,6 +197,10 @@ async function contactsDenoSrv(): Promise<ContactsDenoSrv> {
    * see makeBlacklistBroadcaster.
    */
   function emitStorageEvent(event: ContactEvent) {
+    if (event.event === 'server:reachability') {
+      serverReachability = event.payload.reachable ? 'up' : 'down';
+    }
+
     updateEventsObservers.next(event);
 
     if (blacklist && isBlacklistAffecting(event)) {
@@ -189,6 +210,16 @@ async function contactsDenoSrv(): Promise<ContactsDenoSrv> {
         blacklist.broadcastIfChanged();
       } catch (err) {
         w3n.log('error', 'Could not recompute the contact block list', err);
+      }
+    }
+
+    // Same events and the same guarantees as the block list above: every
+    // rewrite of the table, from this device, from another one, or a restore.
+    if (contactList && isBlacklistAffecting(event)) {
+      try {
+        contactList.broadcastIfChanged();
+      } catch (err) {
+        w3n.log('error', 'Could not recompute the contact list for its watchers', err);
       }
     }
   }
@@ -210,6 +241,24 @@ async function contactsDenoSrv(): Promise<ContactsDenoSrv> {
       w3n.log('info', 'A block list subscriber failed on its first snapshot', err);
     }
     return () => updateContactBlacklist.delete(obs);
+  }
+
+  /**
+   * The contact list now, and again every time what a subscriber can see in it
+   * changes: a Name, a mail, an avatar, settings, a contact added or removed.
+   * Without images - other apps take the avatar by `avatarId` when they need it.
+   *
+   * The first snapshot is delivered synchronously, for the reason given in
+   * watchContactBlacklistChanging.
+   */
+  function watchContactListChanging(obs: web3n.Observer<Person[]>) {
+    updateContactList.add(obs);
+    try {
+      obs.next?.(contactList!.current());
+    } catch (err) {
+      w3n.log('info', 'A contact list subscriber failed on its first snapshot', err);
+    }
+    return () => updateContactList.delete(obs);
   }
 
   const fs = await openSyncedRoot();
@@ -237,6 +286,39 @@ async function contactsDenoSrv(): Promise<ContactsDenoSrv> {
   async function saveTutorialState(key: string, state: TutorialState): Promise<void> {
     const path = tutorialPath(key);
     await tutorialWriteProc.startOrChain(() => localFs.writeJSONFile(path, state));
+  }
+
+  /**
+   * Settings of the app on this device, in the LOCAL fs for the same reason as
+   * the tutorial state. Kept here rather than in each window, so that the
+   * desktop and the mobile window, and both of them across restarts, see one
+   * value; a change is broadcast as a 'settings' event.
+   */
+  const APP_SETTINGS_FILE = 'app-settings.json';
+  const appSettingsWriteProc = new SingleProc();
+
+  async function getAppSettings(): Promise<ContactsAppSettings> {
+    try {
+      if (!(await localFs.checkFilePresence(APP_SETTINGS_FILE))) {
+        return sanitizeAppSettings(undefined);
+      }
+      return sanitizeAppSettings(await localFs.readJSONFile<unknown>(APP_SETTINGS_FILE));
+    } catch (err) {
+      // A broken file must not break the app: the defaults apply, and the next
+      // save writes a good file over it.
+      await w3n.log('warning', `Could not read ${APP_SETTINGS_FILE}, the defaults apply`, err);
+      return sanitizeAppSettings(undefined);
+    }
+  }
+
+  async function saveAppSettings(patch: Partial<ContactsAppSettings>): Promise<ContactsAppSettings> {
+    const settings = await appSettingsWriteProc.startOrChain(async () => {
+      const next = mergeAppSettings(await getAppSettings(), patch);
+      await localFs.writeJSONFile(APP_SETTINGS_FILE, next);
+      return next;
+    });
+    emitStorageEvent({ event: 'settings', payload: settings });
+    return settings;
   }
 
   /**
@@ -373,6 +455,15 @@ async function contactsDenoSrv(): Promise<ContactsDenoSrv> {
     },
   });
   blacklist.prime();
+
+  contactList = makeContactListBroadcaster({
+    listContacts: contactDbSrv.listAllContactsFrom,
+    broadcast: updateContactList.next,
+    onError: err => {
+      w3n.log('error', 'Could not read the contact list for its watchers', err);
+    },
+  });
+  contactList.prime();
 
   // Second phase of bringing the root in line with the server: the merge needs
   // contactDbSrv, and it has to happen BEFORE the first saveToFile below and
@@ -739,7 +830,7 @@ async function contactsDenoSrv(): Promise<ContactsDenoSrv> {
       return;
     }
 
-    const isThereConnection = await checkServerConnection(fs);
+    const isThereConnection = await checkServerConnection(fs, { emitStorageEvent });
     if (!isThereConnection) {
       return;
     }
@@ -868,7 +959,14 @@ async function contactsDenoSrv(): Promise<ContactsDenoSrv> {
     emitStorageEvent,
   });
 
-  await initialSyncProcess();
+  // Deliberately not awaited: the pass begins with a request to the server, and
+  // the ipc below must not wait for it. With the network up and the server out
+  // of reach that request waits for the platform's network timeouts, and the
+  // windows gave up on connecting in the meantime - the app looked dead while
+  // the contacts were all on the disk. Nothing below depends on the pass: it is
+  // serialized with everything else that rewrites the table through
+  // dbStateProc, and it catches its own failures.
+  void initialSyncProcess();
 
   if (!rootState.verified) {
     // Deliberately not awaited: the app has to come up and serve local reads
@@ -901,11 +999,39 @@ async function contactsDenoSrv(): Promise<ContactsDenoSrv> {
     stuckAfterAttempts: STUCK_AFTER_ONLINE_ATTEMPTS,
   });
 
+  /**
+   * Reminders of the dates of contacts. Started last, once the table is read
+   * and reconciled: a reminder checked against a table that is about to be
+   * replaced by the server's could be shown for a date already removed.
+   */
+  const REMINDERS_FILE = 'date-reminders.json';
+  const icon = logoIcon();
+  const dateReminders = makeDateReminders({
+    listContacts: contactDbSrv.listContactsWithDates,
+    readState: async () => (await localFs.checkFilePresence(REMINDERS_FILE))
+      ? await localFs.readJSONFile<ReminderState>(REMINDERS_FILE)
+      : undefined,
+    writeState: state => localFs.writeJSONFile(REMINDERS_FILE, state),
+    notify: async reminder => {
+      const userNotifications = w3n.shell?.userNotifications;
+      if (!userNotifications) {
+        throw new Error('No userNotifications capability');
+      }
+      const lang = await readUiLanguage();
+      await userNotifications.addNotification(reminderNotificationOpts(reminder, lang, icon));
+    },
+    onError: (message, err) => {
+      void w3n.log('error', message, err);
+    },
+  });
+  dateReminders.start();
+
   return {
     fs,
     emitStorageEvent,
     watchEvent,
     watchContactBlacklistChanging,
+    watchContactListChanging,
 
     addImage,
     getImage,
@@ -926,12 +1052,16 @@ async function contactsDenoSrv(): Promise<ContactsDenoSrv> {
     getTutorialState,
     saveTutorialState,
 
+    getAppSettings,
+    saveAppSettings,
+
     ...backupSrv,
     ...shareSrv,
     ...contactsImportSrv(),
 
     removeUnnecessaryImageFiles,
     initialSyncProcess,
+    getServerReachability,
   };
 }
 
@@ -957,6 +1087,9 @@ contactsDenoSrv()
       'getTutorialState',
       'saveTutorialState',
 
+      'getAppSettings',
+      'saveAppSettings',
+
       'createBackupArchive',
       'cancelBackupArchive',
       'validateBackupArchive',
@@ -970,6 +1103,7 @@ contactsDenoSrv()
 
       'removeUnnecessaryImageFiles',
       'initialSyncProcess',
+      'getServerReachability',
     ]);
     srvWrapInternal.exposeObservableMethods<
       Pick<ContactsDenoSrv, 'watchEvent' | 'watchContactBlacklistChanging'>
@@ -986,8 +1120,11 @@ contactsDenoSrv()
       'changeContactBlockingSettings',
       'prepareSharedContactsImport',
     ]);
-    srvWrap.exposeObservableMethods<Pick<ContactsDenoSrv, 'watchContactBlacklistChanging'>>(srv, [
+    srvWrap.exposeObservableMethods<
+      Pick<ContactsDenoSrv, 'watchContactBlacklistChanging' | 'watchContactListChanging'>
+    >(srv, [
       'watchContactBlacklistChanging',
+      'watchContactListChanging',
     ]);
     srvWrap.startIPC();
   })

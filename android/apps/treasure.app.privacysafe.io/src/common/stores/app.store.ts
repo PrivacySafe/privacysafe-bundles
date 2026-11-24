@@ -68,7 +68,6 @@ async function saveBackupArchiveToFile(
 
 export const useAppStore = defineStore('app', () => {
   const appVersion = ref<string>('');
-  const connectivityStatus = ref<string>('offline');
   const user = ref<Nullable<string>>(null);
   const lang = ref<AvailableLanguage>('en');
   const colorTheme = ref<ThemeId>('dark');
@@ -91,10 +90,6 @@ export const useAppStore = defineStore('app', () => {
 
   async function getUser() {
     user.value = await w3n.mailerid!.getUserId();
-  }
-
-  function setConnectivityStatus(value: boolean) {
-    connectivityStatus.value = value ? 'online' : 'offline';
   }
 
   function setAppWindowSize({ width = 0, height = 0 }) {
@@ -289,7 +284,6 @@ export const useAppStore = defineStore('app', () => {
   return {
     appVersion,
     operatingSystem,
-    connectivityStatus,
     user,
     lang,
     colorTheme,
@@ -306,7 +300,6 @@ export const useAppStore = defineStore('app', () => {
 
     getAppVersion,
     getUser,
-    setConnectivityStatus,
     setAppWindowSize,
     setCommonLoading,
     setLang,

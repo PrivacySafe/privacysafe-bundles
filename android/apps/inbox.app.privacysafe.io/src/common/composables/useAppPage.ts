@@ -2,7 +2,15 @@ import { computed, defineAsyncComponent, inject, onBeforeMount, onBeforeUnmount,
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import { THEME_KEY, DIALOGS_KEY, DialogsPlugin, VUEBUS_KEY, VueBusPlugin } from '@v1nt1248/3nclient-lib/plugins';
+import {
+  THEME_KEY,
+  DIALOGS_KEY,
+  DialogsPlugin,
+  NOTIFICATIONS_KEY,
+  NotificationsPlugin,
+  VUEBUS_KEY,
+  VueBusPlugin,
+} from '@v1nt1248/3nclient-lib/plugins';
 import { getRandomId } from '@v1nt1248/3nclient-lib/utils';
 import type { Ui3nDialogEvent } from '@v1nt1248/3nclient-lib';
 import type { AppGlobalEvents, AppMenuAction, PreparedMessageData } from '@common/types';
@@ -19,6 +27,7 @@ import {
 import { useBackupRestore } from '@common/composables/useBackupRestore';
 import { useCreateMsgActions } from '@common/composables/useCreateMsgActions';
 import { useForceRefreshData } from '@common/composables/useForceRefreshData';
+import { reportServerReachability, useConnectivityStatus } from '@common/composables/useConnectivityStatus';
 import { inboxSrv } from '@common/services/services-provider';
 import { SingleProc } from '@shared/utils/processes/single';
 import { makeLogger } from '@shared/utils/logger';
@@ -31,6 +40,7 @@ export function useAppPage(mobileMode?: boolean) {
   const { setTheme } = inject(THEME_KEY)!;
   const $bus = inject<VueBusPlugin<AppGlobalEvents>>(VUEBUS_KEY)!;
   const $dialogs = inject<DialogsPlugin>(DIALOGS_KEY)!;
+  const $notifications = inject<NotificationsPlugin>(NOTIFICATIONS_KEY);
   const { t } = useI18n();
 
   const unsub = ref<() => void>();
@@ -45,7 +55,6 @@ export function useAppPage(mobileMode?: boolean) {
   const {
     appVersion,
     user: me,
-    connectivityStatus,
     colorTheme,
     isMobileMode,
     commonLoading,
@@ -61,7 +70,6 @@ export function useAppPage(mobileMode?: boolean) {
     stopWatchingAppConfig,
     getAppVersion,
     getUser,
-    getConnectivityStatus,
     setAppWindowSize,
     setMobileMode,
     setCommonLoading,
@@ -100,10 +108,21 @@ export function useAppPage(mobileMode?: boolean) {
   // land either before or after this page is set up.
   watch(colorTheme, id => setTheme(id), { immediate: true });
 
-  const connectivityStatusText = computed(() =>
-    connectivityStatus.value === 'online' ? 'app.status.connected.online' : 'app.status.connected.offline',
-  );
-  const connectivityTimerId = ref<ReturnType<typeof setInterval> | undefined>();
+  const { connectivityStatus, isConnectivitySettled } = useConnectivityStatus();
+  const connectivityStatusText = computed(() => t(`app.status.connected.${connectivityStatus.value}`));
+
+  // Only changes between two real readings are announced: the first reading
+  // replacing the initial guess is not news to the user.
+  watch([connectivityStatus, isConnectivitySettled], ([val, isSettled], [oVal, wasSettled]) => {
+    if (!isSettled || !wasSettled || (val === oVal)) {
+      return;
+    }
+    $notifications?.$createNotice({
+      type: (val === 'online') ? 'info' : 'warning',
+      content: t(`app.info.status.${val}`),
+      duration: 4000,
+    });
+  });
 
   const updatesQueue: InboxUpdateEvent[] = [];
   const updatesProc = new SingleProc();
@@ -370,6 +389,12 @@ export function useAppPage(mobileMode?: boolean) {
       // message. Events queue up here and wait for the read to finish.
       unsubWatch.value = inboxSrv.watch({
         next: updateEvent => {
+          // Not queued behind the initial load: the status line has nothing to
+          // do with the lists, and is wanted at once.
+          if (updateEvent.entity === 'server') {
+            reportServerReachability(updateEvent.reachable);
+            return;
+          }
           updatesQueue.push(updateEvent);
           drainUpdatesIfReady();
         },
@@ -382,7 +407,11 @@ export function useAppPage(mobileMode?: boolean) {
         getAppVersion(),
         getUser(),
         readAndStartWatchingAppConfig(),
-        getConnectivityStatus(),
+        // The service probes the server at its start, possibly before this
+        // window subscribed to its events; the outcome it kept fills that gap.
+        inboxSrv.getServerReachability()
+          .then(reportServerReachability)
+          .catch(err => log.error('Failed to read the server reachability', err)),
         // Asked for as well as subscribed to: the catch-up scan often finishes
         // before this page can subscribe, and a state nobody asked for would
         // then be missed entirely.
@@ -418,8 +447,6 @@ export function useAppPage(mobileMode?: boolean) {
       startupStatusText.value = '';
       log.info(`page filled in ${Date.now() - startedAt}ms: ${phases.join(', ')}`);
 
-      connectivityTimerId.value = setInterval(getConnectivityStatus, 60000);
-
       $bus.$emitter.on('run-create-message', openCreateMsgDialog);
 
       const startCmd = await w3n.shell!.getStartedCmd!();
@@ -442,10 +469,6 @@ export function useAppPage(mobileMode?: boolean) {
   });
 
   onBeforeUnmount(() => {
-    if (connectivityTimerId.value) {
-      clearInterval(connectivityTimerId.value);
-    }
-
     unsub.value && unsub.value();
     unsubWatch.value && unsubWatch.value();
     unsubStartup.value && unsubStartup.value();
@@ -463,6 +486,7 @@ export function useAppPage(mobileMode?: boolean) {
     customLogoSrc,
     commonLoading,
     startupStatusText,
+    connectivityStatus,
     connectivityStatusText,
     /** Whether to show the synchronization line at all. */
     isSyncVisible: computed(() => syncActivity.value.syncing || syncActivity.value.stalled),

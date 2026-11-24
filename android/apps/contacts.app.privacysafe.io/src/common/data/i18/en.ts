@@ -25,15 +25,20 @@ export const en = {
       connected: {
         online: 'online',
         offline: 'offline',
+        'server-unreachable': 'server unavailable',
       },
       synced: 'synced',
       unsynced: 'unsynced',
     },
     exit: 'Close',
+    startup: {
+      waitingForService: 'The contacts service is taking longer to start than usual. Trying again (attempt {attempt} of {total})…',
+    },
     menu: {
       tutorial: 'Repeat Tutorial',
       makeBackup: 'Create backup',
       uploadBackup: 'Restore from backup',
+      settings: 'Settings',
       exit: 'Close',
     },
     btn: {
@@ -46,12 +51,16 @@ export const en = {
       status: {
         online: 'You are currently online. All previously made changes will be synchronized.',
         offline: 'You are currently offline. All changes will stay on this device till it gets connected.',
+        'server-unreachable':
+          'The server is unavailable. All changes will stay on this device till it can be reached.',
       },
     },
     warning: {
       label: 'Warning',
       'sync-stuck':
         'Synchronization has not resumed, although this device is online. Changes are being kept on this device. Restart the app to sync them.',
+      'server-unreachable':
+        'The server is unavailable. Changes are kept on this device and will be synchronized once the server can be reached. If the server is reachable again and this message stays, restart the app.',
       'changes-not-published':
         'Changes made on this device are saved here, but the server keeps refusing them. They are not lost, and will be published as soon as it accepts them again. Restarting the app sometimes helps.',
       'first-run-needs-network':
@@ -132,6 +141,10 @@ export const en = {
       name: 'Name',
       phone: 'Phone',
       note: 'Note',
+      birthday: 'Birthday',
+      birthdayNotify: 'Notify me when the specified date arrives',
+      birthdayWithoutYear: 'Without year',
+      birthdayInvalid: 'Enter a valid date',
     },
     myself: {
       name: 'Me',
@@ -295,6 +308,7 @@ export const en = {
     result: 'Import of contacts is finished: added {added}, updated {updated}, skipped {skipped}',
     field: {
       avatar: 'Avatar',
+      birthday: 'Birthday',
     },
     conflict: {
       title: 'You already have the contact {mail}',
@@ -321,5 +335,18 @@ export const en = {
     'upload-backup':
       'Tapping this will start the process of restoring application data from the backup file you selected.',
     'repeat-tutorial': 'Tapping this restarts the tutorial.',
+  },
+  settings: {
+    title: 'Settings',
+    dateFormat: 'Date format',
+    dateFormatHint: 'How dates are shown and typed in this app on this device.',
+    saveError: 'Could not save the settings.',
+  },
+  reminders: {
+    birthday: {
+      title: 'Birthday: {name}',
+      body: 'Today is the birthday of {name}.',
+      bodyWithAge: '{name} turns {age} today.',
+    },
   },
 };

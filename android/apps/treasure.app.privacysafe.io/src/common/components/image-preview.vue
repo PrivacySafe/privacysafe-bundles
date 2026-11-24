@@ -18,7 +18,9 @@
   import { onMounted, ref, watch } from 'vue';
   import { useI18n } from 'vue-i18n';
   import size from 'lodash/size';
-  import { Ui3nButton, Ui3nProgressCircular } from '@v1nt1248/3nclient-lib';
+  import { storeToRefs } from 'pinia';
+  import { useSyncStore } from '@/common/stores/sync.store';
+  import { Ui3nButton, Ui3nIcon, Ui3nProgressCircular } from '@v1nt1248/3nclient-lib';
   import { appTreasureDenoSrv } from '@/common/services/service-provider';
   import type { ProcessedImage } from '@shared/@types';
 
@@ -36,9 +38,14 @@
   }>();
 
   const { t } = useI18n();
+  const { imagesRevision } = storeToRefs(useSyncStore());
 
   const previewUrl = ref<string | null>(null);
   const isLoading = ref(false);
+  /** A stored image that could not be read: missing from the storage, or broken. */
+  const isUnavailable = ref(false);
+  /** A stored image not here yet, waiting for the images folder to catch up. */
+  const isPending = ref(false);
   const progress = ref(0);
 
   async function blobToUint8Array(blob: Blob): Promise<Uint8Array> {
@@ -56,12 +63,20 @@
   async function loadImage(id: string): Promise<void> {
     try {
       isLoading.value = true;
-      const data = await appTreasureDenoSrv.loadImage(id);
-      await processImage(data || null);
+      isUnavailable.value = false;
+      isPending.value = false;
+      const res = await appTreasureDenoSrv.loadImage(id);
+      if (res.state !== 'loaded') {
+        isUnavailable.value = res.state === 'missing';
+        isPending.value = res.state === 'pending';
+        cleanUp();
+        return;
+      }
+      await processImage(res.bytes);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      emits('error', message);
-      console.error(message);
+      isUnavailable.value = true;
+      w3n.log('error', `Error loading the image ${id}. `, err);
+      emits('error', err instanceof Error ? err.message : `Image ${id} could not be loaded`);
     } finally {
       isLoading.value = false;
     }
@@ -169,6 +184,31 @@
     },
   );
 
+  // A stored image shown as unavailable is tried again once a synchronization
+  // that may have brought it ends.
+  // Checked quietly: what is shown stays until there is something new to show,
+  // so a recheck that changes nothing does not blink.
+  watch(imagesRevision, async () => {
+    const isNotShown = isUnavailable.value || isPending.value;
+    const id = props.source?.name;
+    if (!isNotShown || isLoading.value || !id || props.source.data !== null) {
+      return;
+    }
+    try {
+      const res = await appTreasureDenoSrv.loadImage(id);
+      if (res.state === 'loaded') {
+        isUnavailable.value = false;
+        isPending.value = false;
+        await processImage(res.bytes);
+      } else {
+        isUnavailable.value = res.state === 'missing';
+        isPending.value = res.state === 'pending';
+      }
+    } catch (err) {
+      w3n.log('error', `Error rechecking the image ${id}. `, err);
+    }
+  });
+
   onMounted(cleanUp);
 </script>
 
@@ -186,6 +226,29 @@
         size="48"
         :value="progress"
       />
+    </div>
+
+    <div
+      v-if="isPending && !isLoading"
+      :class="$style.unavailable"
+    >
+      <ui3n-progress-circular
+        indeterminate
+        size="40"
+      />
+      <span>{{ t('recordDialog.form.image.pending') }}</span>
+    </div>
+
+    <div
+      v-if="isUnavailable && !isLoading"
+      :class="$style.unavailable"
+    >
+      <ui3n-icon
+        icon="broken-image-outline"
+        size="40"
+        color="var(--color-icon-control-secondary-default)"
+      />
+      <span>{{ t('recordDialog.form.image.unavailable') }}</span>
     </div>
 
     <img
@@ -235,6 +298,21 @@
       line-height: var(--font-18);
       color: var(--color-text-table-secondary-default);
     }
+  }
+
+  .unavailable {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    row-gap: var(--spacing-s);
+    padding: var(--spacing-s);
+    text-align: center;
+    font-size: var(--font-12);
+    font-weight: 500;
+    color: var(--color-text-table-secondary-default);
   }
 
   .previewImg {
