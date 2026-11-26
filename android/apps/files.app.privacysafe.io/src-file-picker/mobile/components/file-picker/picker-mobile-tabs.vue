@@ -1,9 +1,10 @@
 <script lang="ts" setup>
   import { nextTick, ref, watch } from 'vue';
   import { usePickerState } from '@picker/common/composables/usePickerState';
+  import { getFsFolderLabel } from '@/utils/group-storage-fs-roots';
   import { useI18n } from 'vue-i18n';
 
-  const { t } = useI18n();
+  const { t, te } = useI18n();
   const picker = usePickerState();
 
   const tabsNav = ref<HTMLElement | null>(null);
@@ -54,7 +55,7 @@
           :class="[$style.tab, { [$style.active]: picker.activeRootId.value === root.id }]"
           @click="picker.switchRoot(root.id)"
         >
-          {{ root.name }}
+          {{ getFsFolderLabel(root, category.labelKey, t, te) }}
         </button>
       </template>
     </template>

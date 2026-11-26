@@ -1,15 +1,14 @@
 import type { RootFsFolderView } from '@shared/types';
 import type { DialogMode } from '@picker/common/types';
+import { isSystemRoot } from '../../../shared/utils/fs-grouping.ts';
+
+export { isSystemRoot };
 
 export {
   groupFsRoots as groupPickerFsRoots,
   type FsCategory as PickerCategory,
   type FsCategoryKey as PickerCategoryKey,
-} from '@shared/utils/fs-grouping';
-
-export function isSystemRoot(root: Pick<RootFsFolderView, 'fsId'>): boolean {
-  return root.fsId.startsWith('system-');
-}
+} from '../../../shared/utils/fs-grouping.ts';
 
 export function isRootAvailableInMode(
   root: Pick<RootFsFolderView, 'fsId'>,

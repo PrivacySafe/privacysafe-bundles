@@ -44,7 +44,7 @@ export function groupStorageFsRoots(fsFolderList: RootFsFolderView[]) {
       labelKey: 'fs.category.local',
       roots: localFsFolders,
     },
-    ...groupFsRoots(fsFolderList).filter(category => category.key !== 'home'),
+    ...groupFsRoots(fsFolderList).filter(category => category.key !== 'home' && category.key !== 'local'),
   ].filter(category => category.roots.length > 0);
 
   const groupedIds = new Set([

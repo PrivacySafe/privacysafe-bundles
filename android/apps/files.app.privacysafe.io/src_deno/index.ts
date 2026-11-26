@@ -30,7 +30,8 @@ import { appConfigService } from './services/app-config.service.ts';
 import { favoritesService } from './services/favorites.service.ts';
 import { fsService } from './services/fs.service.ts';
 import { syncService } from './services/sync.service.ts';
-import { USER_FS } from '../shared/constants/index.ts';
+import { isFsRootVisible } from '../shared/utils/fs-grouping.ts';
+import { APP_SETTINGS_DEFAULT, USER_FS } from '../shared/constants/index.ts';
 import {
   getEntityNameAndParent,
   isSafeRelativePath,
@@ -468,7 +469,9 @@ async function storageAppDenoService(): Promise<StorageAppDenoService> {
 
     // The folders the entities were removed from have changed, and other devices must see it.
     // An entity moved to the trash and back has changed its folder and the trash as well.
-    const touchedEntities = entities.filter(e => processedEntities.includes(e) || movedBackPaths.includes(e.fullPath));
+    const touchedEntities = entities.filter(
+      e => processedEntities.includes(e) || movedBackPaths.includes(e.fullPath),
+    );
     const sourceFolders = new Set(
       touchedEntities.map(e => formatPath(getParentFolderPathFromEntityFullPath(e.fullPath))),
     );
@@ -657,9 +660,16 @@ storageAppDenoService()
     // The file pickers run as dialogs of other apps, so they get a separate
     // service with the read-only methods they need (see manifest.json).
     const srvWrapPicker = new MultiConnectionIPCWrap('AppStoragePicker');
-    srvWrapPicker.exposeReqReplyMethods<Pick<StorageAppDenoService, PickerServiceMethod>>(srv, [
-      ...PICKER_SERVICE_METHODS,
-    ]);
+    const pickerService: Pick<StorageAppDenoService, PickerServiceMethod> = {
+      getFsList: srv.getFsList,
+      getFolderContentFilledList: srv.getFolderContentFilledList,
+      async getFsRootFolderList() {
+        const [roots, config] = await Promise.all([srv.getFsRootFolderList(), srv.loadConfigFile()]);
+        const settings = { ...APP_SETTINGS_DEFAULT, ...config };
+        return roots.filter(root => isFsRootVisible(root, settings));
+      },
+    };
+    srvWrapPicker.exposeReqReplyMethods(pickerService, [...PICKER_SERVICE_METHODS]);
     srvWrapPicker.startIPC();
 
     log.info('# DENO SERVICE FOR THE STORAGE APP HAS BEEN LAUNCHED #');

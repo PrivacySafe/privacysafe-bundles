@@ -23,8 +23,9 @@ import { createFileBaseOnOsFileSystemFile as _createFileBaseOnOsFileSystemFile }
 import { downloadEntities as _downloadEntities } from './fs-operations/download-entities';
 import { useAppStore } from '@/store/app.store';
 import type { FileW, FsListItem, ListingEntryExtended, RootFsFolderView } from '@shared/types';
-import { START_OF_SYSTEM_FS_ID, USER_DEVICE_FS, USER_FS, USER_LOCAL_FS } from '@shared/constants';
+import { START_OF_SYSTEM_FS_ID, USER_FS, USER_LOCAL_FS } from '@shared/constants';
 import { getListFolder, makeLinkAwareFs, type FsLocation, type LinkAwareFS } from '@shared/utils/fs-utils';
+import { isFsRootVisible } from '@shared/utils/fs-grouping';
 import { formatPath, prepareFolderPath } from '@shared/utils/various';
 import { makeLogger } from '@shared/utils/logger';
 
@@ -234,16 +235,7 @@ export const useFsStore = defineStore('fs', () => {
   }
 
   const fsAvailableFolderList = computed(() =>
-    fsFolderList.value.filter(f => {
-      const { localFoldersDisplaying, systemFoldersDisplaying, deviceFoldersDisplaying } =
-        appStore.appStorageSettings;
-      return (
-        f.fsId === USER_FS ||
-        (localFoldersDisplaying && f.fsId === USER_LOCAL_FS) ||
-        (deviceFoldersDisplaying && (f.fsId === USER_DEVICE_FS || f.fsId.startsWith(`${USER_DEVICE_FS}-`))) ||
-        (systemFoldersDisplaying && f.id.includes(START_OF_SYSTEM_FS_ID))
-      );
-    }),
+    fsFolderList.value.filter(folder => isFsRootVisible(folder, appStore.appStorageSettings)),
   );
 
   /** The FS object itself, for platform APIs (mounts): they take no logical paths. */
