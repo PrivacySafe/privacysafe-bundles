@@ -63,8 +63,8 @@ describe('isSameMailAddress', () => {
 
   // Whitespace is stripped from the user part only, so a stray space in the
   // domain really is a different address as far as the platform is concerned.
-  it('takes a trailing space after the domain as the same address', () => {
-    expect(isSameMailAddress('ann@3nweb.com ', 'ann@3nweb.com')).toBe(true);
+  it('keeps domains with differing whitespace apart', () => {
+    expect(isSameMailAddress('ann@3nweb.com ', 'ann@3nweb.com')).toBe(false);
   });
 
   it('never equates a blank address with anything, including another blank', () => {

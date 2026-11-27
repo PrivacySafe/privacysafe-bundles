@@ -319,9 +319,6 @@ export const fr = {
     progress: '{number} contacts importés sur {total}',
     notFound: 'Cette importation de contacts est déjà terminée ou a expiré. Ouvrez à nouveau le fichier.',
     result: 'Importation des contacts terminée : {added} ajoutés, {updated} mis à jour, {skipped} ignorés',
-    newContacts: {
-      title: 'Le fichier ajoute {count} nouveau(x) contact(s). Vérifiez les adresses avant de les ajouter :',
-    },
     field: {
       avatar: 'Photo de profil',
       birthday: 'Anniversaire',
@@ -334,8 +331,6 @@ export const fr = {
       applyToAll: 'Appliquer à tous les conflits restants',
     },
     btn: {
-      addNew: 'Ajouter',
-      skipNew: 'Ne pas ajouter',
       abort: 'Arrêter',
       keep: 'Conserver l’actuel',
       incoming: 'Utiliser les données reçues',

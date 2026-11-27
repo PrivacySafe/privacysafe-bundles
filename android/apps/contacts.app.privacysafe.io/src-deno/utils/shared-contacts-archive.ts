@@ -23,12 +23,6 @@ import { SHARE_DATA_FILE, SHARE_DATA_VERSION, SHARE_IMAGES_FOLDER } from '../con
 import { isSafeArchivePath } from './backup-archive.ts';
 import { makeZipSizeGuard } from './zip-size-guard.ts';
 import { dataURLFromImage } from './image-data-url.ts';
-import {
-  boundedText,
-  MAX_CONTACT_NAME_LENGTH,
-  MAX_CONTACT_NOTICE_LENGTH,
-  MAX_CONTACT_PHONE_LENGTH,
-} from './contact-input-checks.ts';
 import type { ImportedContact, SharedContactsData, SharedImportError } from '../../src/types/index.ts';
 
 /**
@@ -51,10 +45,6 @@ function asText(value: unknown): string {
  * app keeps them. Entries without a usable mail are dropped, and so are
  * repeated ones: one address is one contact.
  */
-/** More contacts than anyone shares at once; the rest of a file is left out. */
-export const MAX_SHARED_CONTACTS = 5000;
-const MAX_SHARED_AVATAR_BYTES = 5 * 1024 * 1024;
-
 export function readSharedContactsArchive(bytes: Uint8Array): ImportedContact[] {
   let entries: Unzipped;
   try {
@@ -97,13 +87,7 @@ export function readSharedContactsArchive(bytes: Uint8Array): ImportedContact[] 
     if ((dot <= 0) || name.includes('/')) {
       continue;
     }
-    // Raster pictures only, of a size a picture of a person has: an avatar is
-    // re-drawn small anyway, and SVG is a document, not a picture.
-    const ext = name.slice(dot + 1).toLowerCase();
-    if ((ext === 'svg') || (imageBytes.length > MAX_SHARED_AVATAR_BYTES)) {
-      continue;
-    }
-    const dataURL = dataURLFromImage(imageBytes, ext);
+    const dataURL = dataURLFromImage(imageBytes, name.slice(dot + 1));
     if (dataURL) {
       images.set(name.slice(0, dot), dataURL);
     }
@@ -112,9 +96,6 @@ export function readSharedContactsArchive(bytes: Uint8Array): ImportedContact[] 
   const seen = new Set<string>();
   const contacts: ImportedContact[] = [];
   for (const item of data.contacts) {
-    if (contacts.length >= MAX_SHARED_CONTACTS) {
-      break;
-    }
     const mail = asText(item?.mail).trim();
     const cMail = canonicalMail(mail);
     if (!cMail || seen.has(cMail)) {
@@ -126,10 +107,9 @@ export function readSharedContactsArchive(bytes: Uint8Array): ImportedContact[] 
     const avatarImage = avatarId ? images.get(avatarId) : undefined;
     contacts.push({
       mail,
-      // Written by another user: bounded, and the name one line.
-      name: boundedText(asText(item.name), MAX_CONTACT_NAME_LENGTH, true),
-      phone: boundedText(asText(item.phone), MAX_CONTACT_PHONE_LENGTH, true),
-      notice: boundedText(asText(item.notice), MAX_CONTACT_NOTICE_LENGTH, false),
+      name: asText(item.name),
+      phone: asText(item.phone),
+      notice: asText(item.notice),
       // A reminder is the receiver's own choice, never the sender's.
       dates: withoutReminders(item.dates),
       timestamp: (typeof item.timestamp === 'number') ? item.timestamp : 0,

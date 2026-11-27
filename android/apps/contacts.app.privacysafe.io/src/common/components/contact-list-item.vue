@@ -15,7 +15,6 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 -->
 <script setup lang="ts">
-  import { cssImageUrl } from '@main/common/utils/css-image-url';
   import { computed, inject, onBeforeMount, onBeforeUnmount, ref, watch } from 'vue';
   import { useRouter } from 'vue-router';
   import { useI18n } from 'vue-i18n';
@@ -53,8 +52,11 @@
   let imgTOut: ReturnType<typeof setTimeout> | null = null;
 
   const iconStyle = computed(() => {
-    const imgUrl = cssImageUrl(img.value);
-    return imgUrl ? { backgroundImage: imgUrl } : {};
+    if (!img.value) {
+      return {};
+    }
+
+    return { backgroundImage: `url(${img.value})` };
   });
 
   const isContactBlocked = computed(() => !!props.item.settings?.blockUser);
