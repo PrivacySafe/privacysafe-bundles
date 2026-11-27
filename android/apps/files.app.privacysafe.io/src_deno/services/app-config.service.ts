@@ -18,8 +18,18 @@ import { CONFIG_FILE, TRASH_FOLDER_NAME_PREFIX } from '../constants.ts';
 import type { StorageAppConfig } from '../../shared/types/index.ts';
 import type { AppConfigService } from '../types.ts';
 import { makeLogger } from '../../shared/utils/logger.ts';
+import { isValidEntityName } from '../../shared/utils/fs-utils/entity-name.ts';
 
 const log = makeLogger('AppConfigService');
+
+/**
+ * The trash folder is a hidden folder in the root of the user storages. Any
+ * other name would turn "delete" into a move into an ordinary folder, and
+ * deletes inside that folder into complete removals.
+ */
+export function isValidTrashFolderName(name: unknown): name is string {
+  return isValidEntityName(name) && name.startsWith(`${TRASH_FOLDER_NAME_PREFIX}-`);
+}
 
 export async function appConfigService(): Promise<AppConfigService> {
   const appLocalFs = await w3n.storage!.getAppLocalFS();
@@ -42,9 +52,12 @@ export async function appConfigService(): Promise<AppConfigService> {
     try {
       const isPresentConfigFile = await appLocalFs.checkFilePresence(CONFIG_FILE);
       const configFileData = isPresentConfigFile ? await loadConfigFile() : undefined;
-      if (configFileData?.trashFolderName) {
+      if (isValidTrashFolderName(configFileData?.trashFolderName)) {
         trashFolderName = configFileData.trashFolderName;
         return;
+      }
+      if (configFileData?.trashFolderName) {
+        log.error('The trash folder name in the config file is invalid: the default one is used.');
       }
 
       trashFolderName = await getDefaultTrashFolderName();
@@ -70,7 +83,8 @@ export async function appConfigService(): Promise<AppConfigService> {
 
   async function saveConfigFile(value: StorageAppConfig): Promise<void> {
     try {
-      return await appLocalFs.writeJSONFile(CONFIG_FILE, value);
+      // the trash folder name is chosen by this service, not by its callers
+      return await appLocalFs.writeJSONFile(CONFIG_FILE, { ...value, trashFolderName });
     } catch (err) {
       log.error('Error saving the config file. ', err);
     }

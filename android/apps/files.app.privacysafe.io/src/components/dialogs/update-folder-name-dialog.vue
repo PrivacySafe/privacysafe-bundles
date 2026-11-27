@@ -23,7 +23,7 @@
     type Ui3nDialogComponentProps,
     type Ui3nDialogEvent,
   } from '@v1nt1248/3nclient-lib';
-  import { isValidEntityName } from '@shared/utils/fs-utils/entity-name';
+  import { isValidNewEntityName } from '@shared/utils/fs-utils/entity-name';
   import { makeLogger } from '@shared/utils/logger';
 
   const log = makeLogger('FolderNameDialog');
@@ -54,7 +54,7 @@
   const isNameTaken = computed(() => !!data.value.newName && takenName.value === data.value.newName);
 
   async function runNameCheck(value: string) {
-    if (!props.checkNameTaken || !isValidEntityName(value)) {
+    if (!props.checkNameTaken || !isValidNewEntityName(value)) {
       isCheckingName.value = false;
       return;
     }
@@ -77,7 +77,7 @@
     () => data.value.newName,
     value => {
       clearTimeout(nameCheckTimer);
-      isCheckingName.value = !!props.checkNameTaken && isValidEntityName(value);
+      isCheckingName.value = !!props.checkNameTaken && isValidNewEntityName(value);
       nameCheckTimer = setTimeout(() => runNameCheck(value), 300);
     },
   );
@@ -93,7 +93,7 @@
   }
 
   function checkName(text?: unknown): boolean | string {
-    return !text || isValidEntityName(text) || t('validation.text.invalid_name');
+    return !text || isValidNewEntityName(text) || t('validation.text.invalid_name');
   }
 
   function onValidUpdate(val: boolean) {

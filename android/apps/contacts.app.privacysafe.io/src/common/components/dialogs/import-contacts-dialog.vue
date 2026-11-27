@@ -55,7 +55,9 @@
   const { t } = useI18n();
   const { dateFormat } = storeToRefs(useSettingsStore());
 
-  const { total, processed, percent, stats, conflict, run, decide, abort } = useContactsImport(props.importId);
+  const {
+    total, processed, percent, stats, conflict, newContacts, run, decide, decideOnNewContacts, abort,
+  } = useContactsImport(props.importId);
 
   const FIELD_LABELS: Record<ImportField, string> = {
     avatar: 'import.field.avatar',
@@ -152,6 +154,39 @@
           height="4"
           :value="percent"
         />
+
+        <div
+          v-if="newContacts"
+          :class="$style.conflict"
+        >
+          <div :class="$style.conflictTitle">
+            {{ t('import.newContacts.title', { count: newContacts.length }) }}
+          </div>
+
+          <ul :class="$style.newContacts">
+            <li
+              v-for="item in newContacts"
+              :key="item.mail"
+            >
+              <span v-if="item.name">{{ item.name }} &mdash; </span><b>{{ item.mail }}</b>
+            </li>
+          </ul>
+
+          <div :class="$style.decisions">
+            <ui3n-button
+              type="secondary"
+              @click="decideOnNewContacts(false)"
+            >
+              {{ t('import.btn.skipNew') }}
+            </ui3n-button>
+            <ui3n-button
+              type="primary"
+              @click="decideOnNewContacts(true)"
+            >
+              {{ t('import.btn.addNew') }}
+            </ui3n-button>
+          </div>
+        </div>
 
         <div
           v-if="conflict"
@@ -290,6 +325,15 @@
 </template>
 
 <style lang="scss" module>
+  .newContacts {
+    max-height: 240px;
+    overflow-y: auto;
+    margin: 0;
+    padding-left: var(--spacing-m);
+    font-size: var(--font-12);
+    word-break: break-all;
+  }
+
   .body {
     position: relative;
     width: 100%;

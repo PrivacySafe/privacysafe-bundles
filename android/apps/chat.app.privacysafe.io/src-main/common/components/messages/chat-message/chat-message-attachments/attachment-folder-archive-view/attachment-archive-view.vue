@@ -77,6 +77,11 @@ function handleZipEntry(path: string, dir: boolean) {
   }
 }
 
+// Listing reads the whole file; beyond this the preview is not offered.
+const ARCHIVE_PREVIEW_MAX_BYTES = 200 * 1024 * 1024;
+// One entry per item of the tree; a listing beyond this is not a preview.
+const ARCHIVE_PREVIEW_MAX_ENTRIES = 20_000;
+
 onMounted(async () => {
   isProcessing.value = true;
 
@@ -88,7 +93,16 @@ onMounted(async () => {
       return;
     }
 
-    const uint8Array = await (entity as web3n.files.ReadonlyFile).readBytes();
+    // The whole archive is read into memory to list it: an archive a peer sent
+    // can be as large as the platform lets attachments be, so the listing is
+    // offered only up to a size a window can afford.
+    const file = entity as web3n.files.ReadonlyFile;
+    const { size: fileSize } = await file.stat();
+    if ((typeof fileSize !== 'number') || (fileSize > ARCHIVE_PREVIEW_MAX_BYTES)) {
+      emits('error');
+      return;
+    }
+    const uint8Array = await file.readBytes();
     if (uint8Array) {
       // Only the archive's table of contents is needed here. The filter runs
       // for every central directory entry, and returning false from it keeps
@@ -98,9 +112,13 @@ onMounted(async () => {
       // `return false` - fflate allocates an entry's declared size only for
       // entries the filter accepts. Should this ever unpack anything, the
       // filter has to come from makeZipSizeGuard (see zip-size-guard.ts).
+      let entries = 0;
       unzipSync(uint8Array, {
         filter: ({ name }) => {
-          handleZipEntry(name, name.endsWith('/') || name.endsWith('\\'));
+          entries += 1;
+          if (entries <= ARCHIVE_PREVIEW_MAX_ENTRIES) {
+            handleZipEntry(name, name.endsWith('/') || name.endsWith('\\'));
+          }
           return false;
         },
       });

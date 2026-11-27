@@ -273,6 +273,8 @@ export const es = {
       preflight_error: 'El mensaje no se pudo enviar a los destinatarios especificados.',
       sending_on_another_device: 'Este mensaje se está enviando desde otro de sus dispositivos.',
       add_address: 'Añadir dirección a los contactos',
+      recipients_claimed: 'según el remitente',
+      recipients_claimed_hint: 'El remitente indica estos destinatarios; la aplicación no puede comprobar que el mensaje realmente les llegó.',
       blocked_sender: 'Ha bloqueado esta dirección',
       blocked_reply: 'No puede responder a una dirección bloqueada. Desbloquéela primero.',
       btn: {

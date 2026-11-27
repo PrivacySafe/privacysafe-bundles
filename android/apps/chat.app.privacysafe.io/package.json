@@ -1,6 +1,6 @@
 {
   "name": "chat.app.privacysafe.io",
-  "version": "0.12.45",
+  "version": "0.12.47",
   "license": "GPL-3.0-or-later",
   "private": true,
   "type": "module",
@@ -21,6 +21,8 @@
     "test:auto-backup": "deno test -A --no-check ci/auto-backup.test.ts",
     "test:zip-size-guard": "deno test -A --no-check ci/zip-size-guard.test.ts",
     "test:connectivity-status": "deno test -A --no-check ci/connectivity-status.test.ts",
+    "test:sync-sender": "deno test -A --no-check ci/sync-sender-check.test.ts",
+    "test:peer-authority": "deno test -A --no-check ci/peer-authority.test.ts ci/peer-input-checks.test.ts",
     "run:mac:1": "bash ./run-test-mac.sh /Applications/privacysafe.app 2>&1 | tee live-user1-A.log",
     "run:mac:2": "bash ./run-test-mac1.sh /Applications/privacysafe.app 2>&1 | tee live-user1-B.log",
     "run:mac:3": "bash ./run-test-mac2.sh /Applications/privacysafe.app 2>&1 | tee live-user2.log",
@@ -43,6 +45,7 @@
   },
   "dependencies": {
     "@dbushell/hyperless": "0.35.0",
+    "@types/punycode": "^2.1.4",
     "@v1nt1248/3nclient-lib": "0.4.18",
     "@vueuse/core": "15.1.0",
     "dayjs": "1.11.23",
@@ -50,6 +53,7 @@
     "lodash": "4.18.1",
     "pdfjs-dist": "6.5.438",
     "pinia": "3.0.4",
+    "punycode": "^2.3.1",
     "vue": "3.5.46",
     "vue-i18n": "11.4.23",
     "vue-router": "5.5.1"

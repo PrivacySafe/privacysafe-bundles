@@ -15,7 +15,7 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
 import { SQLiteOn3NStorage } from '../../shared-libs/sqlite-on-3nstorage/index.js';
-import { ContactDB, objectFromQueryExecResult } from '../dataset/contacts-db.ts';
+import { ContactDB, contactRowsOf } from '../dataset/contacts-db.ts';
 import { CONTACTS_DB_FILE } from '../constants.ts';
 import { syncUpload } from './sync-upload.ts';
 import { syncAdopt } from './sync-adopt.ts';
@@ -23,7 +23,7 @@ import { syncDownload } from './sync-download.ts';
 import {
   ensureUniqueContactIds, normalizeContactRow, resolveDbFileConflict,
 } from './db-file-conflict.ts';
-import  { ContactEvent, RawPerson } from '../../src/types/index.ts';
+import  { ContactEvent } from '../../src/types/index.ts';
 
 export async function handleDbFileSyncStatus({ fs, sqlite, contactDbSrv, emitStorageEvent }: {
   fs: web3n.files.WritableFS;
@@ -87,12 +87,11 @@ export async function handleDbFileSyncStatus({ fs, sqlite, contactDbSrv, emitSto
       );
 
       const sqliteTemp = await SQLiteOn3NStorage.makeReadonly(bytes!);
-      const [sqlValueRemote] = sqliteTemp.db.exec('SELECT * FROM contacts');
-      const [sqlValue] = sqlite.db.exec('SELECT * FROM contacts');
-      const contactListRemote = objectFromQueryExecResult<RawPerson>(sqlValueRemote)
-        .map(normalizeContactRow);
-      const contactList = objectFromQueryExecResult<RawPerson>(sqlValue)
-        .map(normalizeContactRow);
+      // Read defensively: the remote file was written by another device, and a
+      // table that is missing or empty there used to throw here and leave the
+      // conflict unresolved for good.
+      const contactListRemote = contactRowsOf(sqliteTemp.db).map(normalizeContactRow);
+      const contactList = contactRowsOf(sqlite.db).map(normalizeContactRow);
 
       const { areThereDifferences, isLocalAheadOfRemote, resolvedContactList } =
         resolveDbFileConflict(contactListRemote, contactList);

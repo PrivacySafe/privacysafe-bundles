@@ -206,3 +206,38 @@ describe('fsService.deleteEntities when the original location cannot be stored',
     expect(fs.has(res['docs/fav'])).toBe(true);
   });
 });
+
+// Security audit 2026-11: whether a deletion is complete was decided by the first entity
+// only, and by a prefix without a '/' boundary.
+describe('fsService.deleteEntities: what is removed for good', () => {
+  it('moves to the trash a root entity whose name only starts with the trash name', async () => {
+    const fs = new MemoryFS().addFolder(TRASH).addFile(`${TRASH}X/a.txt`);
+    const { srv, fsId } = createFsService({ fs });
+
+    const res = await srv.deleteEntities({ fsId, entities: [fs.entry(`${TRASH}X`)] });
+
+    expect(res).not.toBe(true);
+    expect(fs.paths().some(p => p.startsWith(`${TRASH}/`) && p.endsWith('/a.txt'))).toBe(true);
+  });
+
+  it('refuses a batch mixing entities in the trash and outside of it', async () => {
+    const fs = new MemoryFS().addFile(`${TRASH}/old.txt`).addFile('docs/a.txt');
+    const { srv, fsId } = createFsService({ fs });
+
+    await expect(
+      srv.deleteEntities({ fsId, entities: [fs.entry(`${TRASH}/old.txt`), fs.entry('docs/a.txt')] }),
+    ).rejects.toThrow();
+    expect(fs.has('docs/a.txt')).toBe(true);
+    expect(fs.has(`${TRASH}/old.txt`)).toBe(true);
+  });
+
+  it.each(['', TRASH])('refuses to delete %j', async path => {
+    const fs = new MemoryFS().addFile(`${TRASH}/old.txt`).addFile('docs/a.txt');
+    const { srv, fsId } = createFsService({ fs });
+
+    await expect(
+      srv.deleteEntities({ fsId, entities: [{ ...fs.entry('docs'), fullPath: path, name: path }], completely: true }),
+    ).rejects.toThrow();
+    expect(fs.paths()).toEqual([TRASH, `${TRASH}/old.txt`, 'docs', 'docs/a.txt']);
+  });
+});

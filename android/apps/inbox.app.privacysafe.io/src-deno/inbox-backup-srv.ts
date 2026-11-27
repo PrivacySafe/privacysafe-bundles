@@ -38,6 +38,9 @@ import { INBOX_SCAN_FLOOR_MS } from '../shared/constants/sync.ts';
 import { attachmentAvailabilityOf } from '../shared/utils/attachment-availability.ts';
 import { generateFastRandomString } from '../shared/utils/generate-random-string.ts';
 import { makeLogger } from '../shared/utils/logger.ts';
+import { canonicalAddressOrUndefined } from '../shared/utils/address-utils.ts';
+import { isPlausibleSyncStamp } from './dataset/index.ts';
+import { isMsgRecord } from './types/mail-sync.types.ts';
 import { makeCancelController, type CancelController, type CancelSignal } from './utils/cancel-signal.ts';
 import { makeZipSizeGuard, type ZipEntryInfo } from './utils/zip-size-guard.ts';
 import { randomIdStr } from '../shared/utils/random-id.ts';
@@ -348,6 +351,102 @@ function ageStampOf(msg: MsgView, versions: Partial<Record<SyncAspect, SyncToken
     }
   }
   return stamp;
+}
+
+/**
+ * Archive entries in a shape that can be applied.
+ *
+ * An archive is a file the user was handed, and what it says lands in the
+ * database and, announced as a snapshot, on every device of the user: a token
+ * stamped far in the future freezes that aspect everywhere, and an "incoming"
+ * record with any sender is mail from anyone the archive's author liked
+ * (audit of 2026-11-26). Entries that are not in shape are left out.
+ */
+function isPlausibleTokenMap(versions: unknown, now: number): boolean {
+  if (versions === undefined) {
+    return true;
+  }
+  if (!versions || (typeof versions !== 'object') || Array.isArray(versions)) {
+    return false;
+  }
+  return Object.values(versions).every(token => isPlausibleToken(token, now));
+}
+
+function isPlausibleToken(token: unknown, now: number): boolean {
+  const t = token as { ts?: unknown; deviceId?: unknown } | undefined;
+  return !!t && isPlausibleSyncStamp(t.ts, now) && (typeof t.deviceId === 'string');
+}
+
+export function isRestorableMsgEntry(entry: unknown, now: number): boolean {
+  const e = entry as Partial<BackedUpMsg> | undefined;
+  if (!e || (typeof e.msgId !== 'string') || !e.msgId || (typeof e.incoming !== 'boolean')
+    || !isMsgRecord(e.record) || !isPlausibleTokenMap(e.versions, now)
+    || ((e.attachments !== undefined) && !Array.isArray(e.attachments))) {
+    return false;
+  }
+  return !e.incoming || !!canonicalAddressOrUndefined(e.record?.sender);
+}
+
+export function isRestorableFolderEntry(entry: unknown, now: number): boolean {
+  const e = entry as Partial<BackedUpFolder> | undefined;
+  return !!e && !!e.folder && (typeof e.folder === 'object') && (typeof e.folder.id === 'string')
+    && !!e.folder.id && isPlausibleTokenMap(e.versions, now);
+}
+
+export function isRestorableTombstone(entry: unknown, now: number): boolean {
+  const e = entry as Partial<BackedUpTombstone> | undefined;
+  return !!e && (typeof e.entityType === 'string') && (typeof e.entityId === 'string')
+    && isPlausibleToken(e.token, now);
+}
+
+/** Room for a device whose wall clock runs ahead; see effectiveSnapshotTs(). */
+const SNAPSHOT_MAX_FUTURE_MILLIS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * The `replace` barrier an archive may really have: everything local older
+ * than it and missing from the archive is deleted, on every device.
+ *
+ * The declared stamp sits in the archive's metadata, which is not covered by
+ * the encryption's authentication - an edited archive could declare a stamp
+ * far in the future and so wipe all mail received after the backup (audit of
+ * 2026-11-26). An archive made by this app declares the stamp of its making,
+ * and nothing in it is newer, so the newest stamp the archive carries is a
+ * bound it cannot exceed legitimately; so is the present, give or take a fast
+ * clock.
+ */
+export function effectiveSnapshotTs(
+  declared: number,
+  archive: {
+    msgs: { record?: unknown; versions?: Partial<Record<SyncAspect, SyncToken>> }[];
+    folders: { versions?: Partial<Record<SyncAspect, SyncToken>> }[];
+    tombstones: { token?: SyncToken }[];
+  },
+  now: number,
+): number {
+  let newest = 0;
+  const note = (ts: unknown) => {
+    if ((typeof ts === 'number') && Number.isFinite(ts) && (ts > newest)) {
+      newest = ts;
+    }
+  };
+  for (const { record, versions } of archive.msgs) {
+    const rec = (record ?? {}) as { cTime?: unknown; deliveryTS?: unknown };
+    note(rec.cTime);
+    note(rec.deliveryTS);
+    Object.values(versions ?? {}).forEach(token => note(token?.ts));
+  }
+  for (const { versions } of archive.folders) {
+    Object.values(versions ?? {}).forEach(token => note(token?.ts));
+  }
+  for (const { token } of archive.tombstones) {
+    note(token?.ts);
+  }
+  let ts = (Number.isFinite(declared) ? declared : now);
+  ts = Math.min(ts, now + SNAPSHOT_MAX_FUTURE_MILLIS);
+  if (newest > 0) {
+    ts = Math.min(ts, newest);
+  }
+  return ts;
 }
 
 export interface InboxBackupSrvDeps {
@@ -1079,6 +1178,11 @@ export function inboxBackupSrv({
     mode: RestoreMode,
     outerMetadata?: BackupMetadataContent,
   ): Promise<RestoreOutcome> {
+    // Comes over IPC: anything but the two modes would run as a `replace`
+    // without its deletions.
+    if ((mode !== 'merge') && (mode !== 'replace')) {
+      throw new Error(`Unknown restore mode ${String(mode)}`);
+    }
     // Raised before anything is read: while it is up the receiving tract leaves
     // incoming messages alone AND does not advance the watermark, so the pass
     // after the restore picks them up again. See DBProvider.isRestoreInProgress.
@@ -1100,17 +1204,35 @@ export function inboxBackupSrv({
         log.info(`Entries of the backup archive left unused: ${split.ignored.join(', ')}`);
       }
 
-      const archivedMsgs = parseJsonEntry<BackedUpMsg>(split.messagesBytes, MESSAGES_FILE_NAME);
-      const archivedFolders = parseJsonEntry<BackedUpFolder>(split.foldersBytes, FOLDERS_FILE_NAME);
-      const archivedTombstones = parseJsonEntry<BackedUpTombstone>(
+      const now = Date.now();
+      const parsedMsgs = parseJsonEntry<BackedUpMsg>(split.messagesBytes, MESSAGES_FILE_NAME);
+      const parsedFolders = parseJsonEntry<BackedUpFolder>(split.foldersBytes, FOLDERS_FILE_NAME);
+      const parsedTombstones = parseJsonEntry<BackedUpTombstone>(
         split.tombstonesBytes,
         TOMBSTONES_FILE_NAME,
       );
+      const archivedMsgs = parsedMsgs.filter(e => isRestorableMsgEntry(e, now));
+      const archivedFolders = parsedFolders.filter(e => isRestorableFolderEntry(e, now));
+      const archivedTombstones = parsedTombstones.filter(e => isRestorableTombstone(e, now));
+      const leftOut = (parsedMsgs.length - archivedMsgs.length)
+        + (parsedFolders.length - archivedFolders.length)
+        + (parsedTombstones.length - archivedTombstones.length);
+      if (leftOut > 0) {
+        log.warn(`Backup archive: ${leftOut} entr(y/ies) of an unexpected shape left out`);
+      }
 
       // The archive's own stamp, and the barrier of `replace`. An archive from
       // before the field existed falls back to its calendar time, which is the
       // best guess available and only ever used by such an archive.
-      const snapshotTs = metadata?.snapshotTs ?? (calendarStampOf(metadata) || Date.now());
+      const declaredSnapshotTs = metadata?.snapshotTs ?? (calendarStampOf(metadata) || Date.now());
+      const snapshotTs = effectiveSnapshotTs(declaredSnapshotTs, {
+        msgs: archivedMsgs,
+        folders: archivedFolders,
+        tombstones: archivedTombstones,
+      }, Date.now());
+      if (snapshotTs !== declaredSnapshotTs) {
+        log.warn(`Backup archive declares snapshot stamp ${declaredSnapshotTs}, beyond what it carries; using ${snapshotTs}`);
+      }
 
       // ONE listing of the shared inbox, the same call the catch-up scan makes
       // at every start - so this adds no new class of load. It answers three

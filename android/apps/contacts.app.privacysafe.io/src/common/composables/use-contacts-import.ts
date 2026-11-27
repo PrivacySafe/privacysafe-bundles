@@ -81,6 +81,30 @@ export function useContactsImport(importId: string) {
   let isAborted = false;
   let resolveDecision: ((decision: ImportDecision) => void) | undefined = undefined;
 
+  /**
+   * Contacts of the file the user does not have yet, shown for a decision
+   * before any of them is added. The file comes from another user, and adding
+   * its new contacts without asking let a familiar name with a look-alike
+   * address slip into the book (audit of 2026-11-26).
+   */
+  const newContacts = shallowRef<ImportedContact[] | null>(null);
+  let resolveNewContacts: ((accept: boolean) => void) | undefined = undefined;
+
+  function waitForNewContactsDecision(fresh: ImportedContact[]): Promise<boolean> {
+    newContacts.value = fresh;
+    return new Promise<boolean>(resolve => {
+      resolveNewContacts = resolve;
+    });
+  }
+
+  /** The user's answer on the new contacts: add them all, or none. */
+  function decideOnNewContacts(accept: boolean): void {
+    const resolve = resolveNewContacts;
+    resolveNewContacts = undefined;
+    newContacts.value = null;
+    resolve?.(accept);
+  }
+
   const percent = computed(() => (total.value ? Math.round((processed.value / total.value) * 100) : 0));
 
   function waitForDecision(value: ImportConflict): Promise<ImportDecision> {
@@ -107,6 +131,7 @@ export function useContactsImport(importId: string) {
   /** Stops the import after the contact being processed; added ones stay. */
   function abort(): void {
     isAborted = true;
+    decideOnNewContacts(false);
     decide({ kind: 'keep' });
   }
 
@@ -172,7 +197,7 @@ export function useContactsImport(importId: string) {
     stats.value.updated += 1;
   }
 
-  async function processContact(incoming: ImportedContact): Promise<void> {
+  async function processContact(incoming: ImportedContact, addsNew: boolean): Promise<void> {
     // The user's own record is not someone else's to describe.
     if (isSameMailAddress(incoming.mail, user.value)) {
       stats.value.skipped += 1;
@@ -183,8 +208,10 @@ export function useContactsImport(importId: string) {
     const existing = listed ? await appContactsSrvProxy.getContact(listed.id) : undefined;
     if (existing) {
       await updateContact(existing, incoming);
-    } else {
+    } else if (addsNew) {
       await addContact(incoming);
+    } else {
+      stats.value.skipped += 1;
     }
   }
 
@@ -197,13 +224,20 @@ export function useContactsImport(importId: string) {
       }
 
       total.value = contacts.length;
+
+      const fresh = contacts.filter(c => !isSameMailAddress(c.mail, user.value) && !findContactByMail(c.mail));
+      const addsNew = (fresh.length > 0) ? await waitForNewContactsDecision(fresh) : false;
+      if (isAborted) {
+        return 'aborted';
+      }
+
       for (const incoming of contacts) {
         if (isAborted) {
           break;
         }
 
         try {
-          await processContact(incoming);
+          await processContact(incoming, addsNew);
         } catch (err) {
           await w3n.log('error', `Fail to import contact ${incoming.mail}`, err);
           stats.value.skipped += 1;
@@ -227,9 +261,11 @@ export function useContactsImport(importId: string) {
     percent,
     stats,
     conflict,
+    newContacts,
     isRunning,
     run,
     decide,
+    decideOnNewContacts,
     abort,
   };
 }

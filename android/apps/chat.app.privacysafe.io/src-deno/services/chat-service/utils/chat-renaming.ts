@@ -23,6 +23,7 @@ import { makeMsgDbEntry, msgDbEntryForIncomingSysMsg } from './_msgs-related-met
 import { sendSystemMessage, makeSystemEventPhantom, queueSyncPhantom } from '../../mail-sending-service/index.ts';
 import { makeDbRecordException } from '../../../utils/exceptions.ts';
 import { chatEntityId } from './sync-versions.ts';
+import { normalizeChatName } from './peer-input-checks.ts';
 
 export async function chatRenaming({
   data,
@@ -136,7 +137,13 @@ export async function chatRenaming({
       return;
     }
 
-    const { name } = chatSystemData.value;
+    // The name is shown everywhere, the system notification title included; it
+    // is taken only as a one-line string of a sane length.
+    const name = normalizeChatName(chatSystemData.value?.name);
+    if (name === undefined) {
+      await w3n.log('warning', `Rename of ${chat.chatId} by ${sender} has no valid name; ignoring it`);
+      return;
+    }
     const updatedChat = await data.updateGroupChatRecord(chat.chatId, { name });
     if (!updatedChat) {
       return;
@@ -153,7 +160,10 @@ export async function chatRenaming({
       deviceId: sender,
     });
 
-    await data.addMessage(msgDbEntryForIncomingSysMsg(sender, chatId, chatMessageId, timestamp, chatSystemData));
+    await data.addMessage(msgDbEntryForIncomingSysMsg(sender, chatId, chatMessageId, timestamp, {
+      ...chatSystemData,
+      value: { ...chatSystemData.value, name },
+    }));
     const sysMsg = await data.getMessage({
       chatId: chatId,
       chatMessageId,

@@ -164,6 +164,8 @@ export async function initializeServices() {
               'setAppSettings',
               'listAutoBackups',
               'restoreFromAutoBackups',
+              // Exposed by the component only on the test stand (ipc-expose.ts);
+              // listed here for the specs, which call through this very caller.
               'handleIncomingMsg',
               'forceRefreshChat',
             ],

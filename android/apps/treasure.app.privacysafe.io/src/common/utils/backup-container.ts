@@ -29,6 +29,7 @@ import {
   isForeignAppMetadataPath,
   isSafeArchivePath,
   makeBackupMetadataBytes,
+  type BackupEncryptionParams,
   type BackupMetadataContent,
 } from '@shared/utils/backup-archive';
 import {
@@ -70,6 +71,45 @@ function fromUtf8(bytes: Uint8Array): string {
  * discloses nothing beyond its own metadata - not how many records are stored,
  * not even how many images there are.
  */
+const MAX_VERSION_LENGTH = 32;
+
+function isCount(value: unknown): value is number {
+  return Number.isSafeInteger(value) && (value as number) >= 0;
+}
+
+/**
+ * The metadata file sits outside the encryption, so whoever made the file
+ * wrote it. Fields are kept only when they have the type the rest of the code
+ * reads them as: a version that is not a string broke the version check, and
+ * the version is shown to the user before the restore is agreed to (audit of
+ * 2026-11-26). Answers undefined for something that is not an object at all.
+ */
+export function checkedMetadata(raw: unknown): BackupMetadataContent | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return undefined;
+  }
+
+  const m = raw as Record<string, unknown>;
+  const version =
+    typeof m.version === 'string' && m.version.length <= MAX_VERSION_LENGTH && !/[\r\n]/.test(m.version)
+      ? m.version
+      : '';
+
+  return {
+    // Absent in archives older than the field. Present but not a string is no
+    // domain of ours, and must still be refused as foreign.
+    appDomain: typeof m.appDomain === 'string' ? m.appDomain : m.appDomain == null ? '' : '?',
+    version,
+    formatVersion: Number.isSafeInteger(m.formatVersion) ? (m.formatVersion as number) : 0,
+    createdAt: typeof m.createdAt === 'string' ? m.createdAt : '',
+    ...(isCount(m.recordsCount) && { recordsCount: m.recordsCount }),
+    ...(isCount(m.groupsCount) && { groupsCount: m.groupsCount }),
+    ...(!!m.encryption && typeof m.encryption === 'object' ? {
+      encryption: m.encryption as BackupEncryptionParams,
+    } : {}),
+  };
+}
+
 export async function packEncryptedContainer(
   innerZipBytes: Uint8Array,
   passphrase: string,
@@ -109,7 +149,8 @@ export async function openBackupContainer(
   const metadataBytes = outer[METADATA_FILE_NAME];
   if (metadataBytes) {
     try {
-      metadata = JSON.parse(fromUtf8(metadataBytes)) as BackupMetadataContent;
+      metadata = checkedMetadata(JSON.parse(fromUtf8(metadataBytes)));
+      metadataInvalid = !metadata;
     } catch {
       metadataInvalid = true;
     }

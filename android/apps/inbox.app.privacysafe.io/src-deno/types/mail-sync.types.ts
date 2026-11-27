@@ -241,11 +241,86 @@ export function isMailSyncMsg(body: unknown): body is MailSyncMsg {
   if (typeof candidate.sourceDeviceId !== 'string' || !candidate.sourceDeviceId) {
     return false;
   }
-  if (typeof candidate.timestamp !== 'number' || !Number.isFinite(candidate.timestamp)) {
+  // A stamp is an integer of the ms scale: a fraction or a float beyond 2^53
+  // used to reach the sync clock, whose STRICT INTEGER column then refused it
+  // and left every later local change failing until a restart.
+  if (!Number.isSafeInteger(candidate.timestamp) || ((candidate.timestamp as number) <= 0)) {
     return false;
   }
   const kind = (candidate.event as { kind?: unknown } | undefined)?.kind;
-  return typeof kind === 'string' && !!kind;
+  return typeof kind === 'string' && !!kind && isWellFormedEvent(candidate.event);
+}
+
+/** More ids in one phantom than any bulk action of a person produces. */
+const MAX_IDS_IN_PHANTOM = 100_000;
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return !!v && (typeof v === 'object') && !Array.isArray(v);
+}
+
+function isIdList(v: unknown): v is string[] {
+  return Array.isArray(v) && (v.length <= MAX_IDS_IN_PHANTOM)
+    && v.every(id => (typeof id === 'string') && !!id);
+}
+
+function isId(v: unknown): v is string {
+  return (typeof v === 'string') && !!v;
+}
+
+function isPlacement(v: unknown): boolean {
+  return isRecord(v) && ((v.at === 'home') || (v.at === 'trash') || ((v.at === 'folder') && isId(v.folderId)));
+}
+
+export function isMsgRecord(v: unknown): boolean {
+  return isRecord(v) && isId(v.threadId) && isRecord(v.delivery) && isPlacement(v.placement)
+    && ((v.recipients === undefined) || isIdList(v.recipients))
+    && ((v.attachmentsInfo === undefined) || Array.isArray(v.attachmentsInfo));
+}
+
+/**
+ * The fields each known kind of event is read by, in the shape it is read.
+ *
+ * Phantoms come only from the user's own address, so this is about a buggy or
+ * older device rather than an attacker: a string where ids were expected was
+ * walked character by character, a missing record threw, and a phantom that
+ * throws stays in the inbox for good. Kinds this version does not know pass:
+ * dispatchSync() leaves them alone, and a newer device may well send them.
+ */
+function isWellFormedEvent(event: unknown): boolean {
+  if (!isRecord(event)) {
+    return false;
+  }
+  switch (event.kind) {
+    case 'msg-record':
+      return isId(event.msgId) && isMsgRecord(event.record);
+    case 'msg-read':
+      return isIdList(event.msgIds) && (typeof event.read === 'boolean');
+    case 'msg-placement':
+      return isIdList(event.msgIds) && isPlacement(event.placement)
+        && ((event.incoming === undefined) || isIdList(event.incoming));
+    case 'msg-delivery':
+      return isId(event.msgId) && isRecord(event.delivery);
+    case 'msg-deleted':
+      return isIdList(event.msgIds);
+    case 'folder-record':
+      return isRecord(event.folder) && isId(event.folder.id);
+    case 'folder-deleted':
+      return isId(event.folderId);
+    case 'restore-snapshot':
+      return ((event.mode === 'merge') || (event.mode === 'replace'))
+        && Number.isSafeInteger(event.snapshotTs)
+        && ((event.msgs === undefined) || (Array.isArray(event.msgs)
+          && (event.msgs.length <= MAX_IDS_IN_PHANTOM)
+          && event.msgs.every(m => isRecord(m) && isId(m.msgId)
+            && ((m.record === undefined) || isMsgRecord(m.record)))))
+        && ((event.folders === undefined) || (Array.isArray(event.folders)
+          && event.folders.every(f => isRecord(f) && isRecord(f.folder) && isId(f.folder.id))))
+        && ((event.deleted === undefined) || (isRecord(event.deleted)
+          && ((event.deleted.msgIds === undefined) || isIdList(event.deleted.msgIds))
+          && ((event.deleted.folderIds === undefined) || isIdList(event.deleted.folderIds))));
+    default:
+      return true;
+  }
 }
 
 export function isMailSyncMsgV2(msg: MailSyncMsg): msg is MailSyncMsgV2 {

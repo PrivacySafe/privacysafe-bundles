@@ -49,7 +49,9 @@
     :inert="picker.isBusy.value"
   >
     <header :class="$style.customTitle">
-      <h3>{{ displayTitle }}</h3>
+      <h3 :title="displayTitle">
+        {{ displayTitle }}
+      </h3>
     </header>
 
     <div :class="$style.mainContent">
@@ -96,6 +98,10 @@
       margin: 0;
       font-size: var(--font-14);
       color: var(--color-text-control-primary-default);
+      // the title comes from the calling app: one line, never pushing the dialog out of view
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
     }
   }
 

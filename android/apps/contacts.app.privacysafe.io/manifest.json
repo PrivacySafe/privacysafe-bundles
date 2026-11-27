@@ -1,7 +1,7 @@
 {
   "name": "Contacts",
   "appDomain": "contacts.app.privacysafe.io",
-  "version": "0.8.54",
+  "version": "0.8.55",
   "description": "Private address book for your contact list.",
   "icon": "logo.png",
   "publisher": "Ivy Cyber",
@@ -43,7 +43,7 @@
         "storage": {
           "appFS": "default"
         },
-        "appRPC": ["AppContactsInternal", "AppContactsNew"],
+        "appRPC": ["AppContactsInternal"],
         "connectivity": "check"
       },
       "windowOpts": {
@@ -115,13 +115,10 @@
       "services": {
         "AppContacts": {
           "thisAppComponents": "*",
-          "otherApps": "*"
+          "otherApps": ["chat.app.privacysafe.io", "inbox.app.privacysafe.io"]
         },
         "AppContactsInternal": {
           "thisAppComponents": "*"
-        },
-        "AppContactsNew": {
-          "thisAppComponents": ["/index.html", "/index-mobile.html"]
         }
       },
       "runtime": "deno",

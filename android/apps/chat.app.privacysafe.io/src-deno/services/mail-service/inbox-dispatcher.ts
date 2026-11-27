@@ -92,6 +92,17 @@ export async function inboxDispatcher({
 
   const isSyncPhantom = (body: { chatMessageType?: string } | undefined): boolean =>
     body?.chatMessageType === 'synchronization';
+
+  // Only the user sends phantoms; a sync body from anybody else is a forgery
+  // that the chat service drops (incoming-messages.ts), so it is no work of
+  // another device either. One function for both the enqueue and the done
+  // side, since a condition that drifts between them leaves the counter stuck.
+  const isOtherDevicePhantom = (msg: { sender: string; jsonBody?: unknown }): boolean =>
+    areAddressesEqual(msg.sender, ownAddr)
+    && isSyncPhantomFromOtherDevice(
+      msg.jsonBody as { chatMessageType?: string; sourceDeviceId?: string } | undefined,
+      chatsSrv.getAppDeviceId(),
+    );
   const chatMsgsProc = new SingleProc();
 
   const webRTCMsgsQueue: ChatIncomingMessage[] = [];
@@ -226,7 +237,7 @@ export async function inboxDispatcher({
       } finally {
         // Mirrors the counting in handleIncomingMessage() below, and has to: a
         // condition that drifts from it leaves the counter stuck above zero.
-        if (isSyncPhantomFromOtherDevice(msg.jsonBody, chatsSrv.getAppDeviceId())) {
+        if (isOtherDevicePhantom(msg)) {
           syncActivity.inboundDone();
         }
       }
@@ -556,7 +567,7 @@ export async function inboxDispatcher({
 
       // Our own phantom is still queued and handled below - it has to be scheduled
       // for removal - it is simply not work to report.
-      if (isSyncPhantomFromOtherDevice(jsonBody, chatsSrv.getAppDeviceId())) {
+      if (isOtherDevicePhantom(incomingChatMsg)) {
         syncActivity.inboundEnqueued();
       }
       chatMsgsQueue.push(msg as ChatIncomingMessage);

@@ -130,6 +130,40 @@ describe('useCommandHandler', () => {
       app.unmount();
     });
 
+    // Any app may start this command (audit of 2026-11-26): an id in it turned
+    // the "new contact" form into an edit of an existing contact.
+    it('takes only an address and a name from the command', async () => {
+      const { handler, store, app } = await boot({
+        cmd: 'add-contact',
+        params: [{
+          mail: 'mallory@evil.com', name: 'Alice', id: 'alice-id',
+          settings: { blockUser: false }, avatarImage: 'x), url(https://t', notice: 'n',
+        }],
+      });
+
+      await handler.start();
+
+      expect(store.contactDataFromCmd).toEqual({
+        id: NEW_POPULATED_CONTACT_ID,
+        timestamp: expect.any(Number),
+        mail: 'mallory@evil.com',
+        name: 'Alice',
+      });
+      app.unmount();
+    });
+
+    it('does not prefill something that is not an address', async () => {
+      const { handler, store, app } = await boot({
+        cmd: 'add-contact', params: [{ mail: 'not an address', name: { evil: true } }],
+      });
+
+      await handler.start();
+
+      expect(store.contactDataFromCmd).toMatchObject({ mail: '' });
+      expect(store.contactDataFromCmd!.name).toBeUndefined();
+      app.unmount();
+    });
+
     it('accepts a command carrying only an address', async () => {
       const { handler, store, app } = await boot({
         cmd: 'add-contact', params: [{ mail: 'ann@3nweb.com' }],

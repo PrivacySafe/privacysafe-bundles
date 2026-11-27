@@ -565,6 +565,18 @@ export const en = {
           text: 'Delete selected message?',
           additional_text: 'Delete for everyone?',
         },
+        link_mismatch: {
+          title: 'Open Link',
+          text: 'The text of this link does not match where it leads. It opens {url}',
+        },
+        mention_mismatch: {
+          title: 'Start Chat',
+          text: 'This mention does not match its address. Start a chat with {addr}?',
+        },
+        risky_attachment: {
+          title: 'Open File',
+          text: '{name} can run a program on this device. Open it only if you trust its sender.',
+        },
         forward: {
           title: 'Forward Message',
           section: {

@@ -16,9 +16,22 @@
 */
 import { ChatIdObj } from '../../../../types/asmail-msgs.types.ts';
 import { ChatMessageHistory } from '../../../../types/chat.types.ts';
-import type { ChatSrvEmit, DB } from '../../../types/index.ts';
+import type { ChatSrvEmit, DB, MsgDbEntry } from '../../../types/index.ts';
 import { makeSystemEventPhantom, queueSyncPhantom } from '../../mail-sending-service/index.ts';
 import { msgEntityId } from './sync-versions.ts';
+import { capHistory, MAX_MSG_BODY_LENGTH } from './peer-input-checks.ts';
+import { areAddressesEqual } from '../../../../shared-libs/address-utils.ts';
+
+/**
+ * Whether a peer's edit may touch a record: an incoming regular message, and in
+ * a group chat one this very member sent.
+ */
+function isEditableBy(msg: MsgDbEntry, chatId: ChatIdObj, sender: string): boolean {
+  if ((msg.chatMessageType !== 'regular') || !msg.isIncomingMsg) {
+    return false;
+  }
+  return chatId.isGroupChat ? (!!msg.groupSender && areAddressesEqual(msg.groupSender, sender)) : true;
+}
 
 export async function msgEditing({
   data,
@@ -115,8 +128,20 @@ export async function msgEditing({
     chatId: ChatIdObj;
     chatMessageId: string;
     timestamp: number;
-    body: string;
+    body: unknown;
   }): Promise<void> {
+    // Only the author edits a message. Without this any peer rewrote whatever it
+    // named in the chat: the user's own sent messages, other members' ones, even
+    // system and invitation records, whose body the GUI parses.
+    const msg = await data.getMessage({ chatId, chatMessageId });
+    if (msg && !isEditableBy(msg, chatId, user)) {
+      await w3n.log('warning', `Edit of ${chatMessageId} by ${user}, who is not its author; ignoring it`);
+      return;
+    }
+    if ((typeof body !== 'string') || (body.length > MAX_MSG_BODY_LENGTH)) {
+      await w3n.log('warning', `Edit of ${chatMessageId} by ${user} has no valid body; ignoring it`);
+      return;
+    }
     const { body: oldBody, history } = await getNecessaryMsgData({ chatId, chatMessageId });
     if (oldBody === body) {
       // Already applied - this is a redelivery within the deferred inbox
@@ -133,7 +158,10 @@ export async function msgEditing({
       value: oldBody || '',
     });
 
-    const updatedMsg = await data.updateMessageRecord({ chatId, chatMessageId }, { body, history });
+    const updatedMsg = await data.updateMessageRecord(
+      { chatId, chatMessageId },
+      { body, history: capHistory(history) },
+    );
 
     // Peer-originated change - see the matching comment in
     // handleUpdateChatName() (chat-renaming.ts) on the token used here.

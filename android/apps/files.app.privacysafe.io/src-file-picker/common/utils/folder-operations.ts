@@ -25,7 +25,17 @@ export function createFolderTarget(target: PickerFolderTarget): Promise<web3n.fi
   return target.fs.writableSubRoot(target.path, { create: true, exclusive: true });
 }
 
-export function openFolderTarget(target: PickerFolderTarget): Promise<web3n.files.WritableFS> {
+/** True for the root of a storage: '', '/' and the like. */
+export function isFsRootPath(path: string): boolean {
+  return path.replace(/^[/\s]+|[/\s]+$/g, '') === '';
+}
+
+export async function openFolderTarget(target: PickerFolderTarget): Promise<web3n.files.WritableFS> {
+  // The caller names the button, so one click on "Open" in the root would give
+  // it the whole storage (the trash and the device home folder included).
+  if (isFsRootPath(target.path)) {
+    throw new Error('The root of a storage cannot be given to another app.');
+  }
   // Returning a sub-root gives the caller the chosen folder's capability.
   // Do not return the browsing FS or create a missing "existing" folder.
   return target.fs.writableSubRoot(target.path, { create: false });

@@ -156,9 +156,14 @@ export function setLogRelay(relay: LogRelay | undefined): void {
   logRelay = relay;
 }
 
+const LINE_BREAKS = /[\r\n\u2028\u2029]/g;
+
 function emit(type: 'error' | 'info' | 'warning', scope: string, msg: string, details?: unknown): void {
   const userPrefix = logUserAddress ? `[${logUserAddress}] ` : '';
-  const line = `${timeOfLine()} ${userPrefix}[${scope}] ${msg}`;
+  // One event, one line: messages quote things others chose - a file name, a
+  // subject - and a line break inside one used to forge log lines that look
+  // like the app's own (audit of 2026-11-26).
+  const line = `${timeOfLine()} ${userPrefix}[${scope}] ${String(msg).replace(LINE_BREAKS, '⏎')}`;
   w3n.log(type, line, details).catch(() => {
     // Nothing sensible to do about a failing log, and certainly not another log
   });

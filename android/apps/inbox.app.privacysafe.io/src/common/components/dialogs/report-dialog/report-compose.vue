@@ -16,6 +16,7 @@
 -->
 <script setup lang="ts">
   import { computed } from 'vue';
+  import escape from 'lodash/escape';
   import { useI18n } from 'vue-i18n';
   import { Ui3nCheckbox, Ui3nHtml, Ui3nText } from '@v1nt1248/3nclient-lib';
   import type { IncomingMessageView } from '@common/types';
@@ -56,7 +57,9 @@
 
   const withAttachmentsList = computed(() => props.includeAttachments && attachmentNames.value.length > 0);
 
-  const quotedBody = computed(() => props.message.htmlTxtBody || props.message.plainTxtBody || '');
+  // Rendered with v-ui3n-html:sanitize; a plain-text body is text, not markup.
+  const quotedBody = computed(() => props.message.htmlTxtBody
+    || escape(props.message.plainTxtBody || '').replaceAll('\n', '<br/>'));
 </script>
 
 <template>
@@ -146,7 +149,7 @@
       </div>
 
       <blockquote
-        v-ui3n-html="quotedBody"
+        v-ui3n-html:sanitize="quotedBody"
         :class="$style.quote"
       />
     </div>

@@ -27,6 +27,14 @@ import type { ChatSrvCtx } from './chat-srv-ctx.ts';
 
 export type CallSysMsgHandler = Parameters<ChatSrv['onIncomingCallSysMsg']>[0];
 
+const EVENTS_WITH_RECORD = new Set<string>([
+  'update:members',
+  'update:admins',
+  'update:chatName',
+  'update:settings',
+  'member-removed',
+]);
+
 /**
  * System messages of peers: a dispatch of each event to the handler of the
  * chat operation it belongs to (utils/).
@@ -52,13 +60,22 @@ export function makeIncomingSystemMsgs(ctx: ChatSrvCtx, callSysMsgHandlers: Read
   ): Promise<void> {
     const { chatSystemData: sysData, chatMessageId } = chatMsgBody;
 
+    // Events that leave a record in the chat are identified by it: without an id
+    // the change was applied, the record failed on its NOT NULL column, and the
+    // message stayed in the inbox to be applied again at every start.
+    if (EVENTS_WITH_RECORD.has(sysData.event) && ((typeof chatMessageId !== 'string') || !chatMessageId)) {
+      await w3n.log('warning', `System message ${msg.msgId} (${sysData.event}) from ${msg.sender} has no message id; ignoring it`);
+      await data.scheduleInboxMsgRemoval(msg.msgId);
+      return;
+    }
+
     switch (sysData.event) {
       case 'update:status':
         await msgStatusUpdating.handleUpdateMessageStatus(msg.sender, chat, sysData.value, msg.deliveryTS);
         break;
 
       case 'delete:message':
-        await msgDeletion.handleDeleteChatMessage(chat, sysData.value);
+        await msgDeletion.handleDeleteChatMessage(chat, sysData.value, msg.sender);
         break;
 
       case 'update:members':

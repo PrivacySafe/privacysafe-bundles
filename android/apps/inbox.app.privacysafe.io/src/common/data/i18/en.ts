@@ -274,6 +274,8 @@ export const en = {
       preflight_error: 'The message could not be sent to the specified recipients.',
       sending_on_another_device: 'This message is being sent from another of your devices.',
       add_address: 'Add address to the Contacts',
+      recipients_claimed: 'as stated by the sender',
+      recipients_claimed_hint: 'The sender lists these recipients; the app cannot check that the message really went to them.',
       blocked_sender: 'You have blocked this address',
       blocked_reply: 'You cannot reply to a blocked address. Unblock it first.',
       btn: {
@@ -372,6 +374,8 @@ export const en = {
       opening: {
         preparing: 'Preparing the file to open…',
         unavailable: 'Opening attachments in external apps is not available on this device.',
+        risky_title: 'Open File',
+        risky_text: '{fileName} can run a program on this device. Open it only if you trust its sender.',
         error: 'Could not open the file {fileName} in an external app.',
         prepare_timeout: 'Preparing {fileName} took too long. Please try again.',
         mount_pending:

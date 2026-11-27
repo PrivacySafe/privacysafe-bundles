@@ -27,6 +27,7 @@ import type {
   OutgoingMessageView,
 } from '../../../src/common/types/mail.types.ts';
 import { makeLogger } from '../../../shared/utils/logger.ts';
+import { sameAddress } from '../../../shared/utils/address-utils.ts';
 import type { DBProvider } from '../../dataset/index.ts';
 import type { InboxEmit } from '../inbox-service/events.ts';
 import {
@@ -109,7 +110,7 @@ export async function handleIncomingSyncEnvelope(
   // this database and somebody else's input. A message of this type from another
   // address is not a phantom but a forged one: nothing is applied, and nothing
   // is removed either - it is not ours to remove.
-  if (msg.sender !== ownAddr) {
+  if (!sameAddress(msg.sender, ownAddr)) {
     log.warn(
       `An inbox message ${msg.msgId} of the synchronization type came from ${msg.sender}, `
         + `not from this user; ignoring it.`,

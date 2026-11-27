@@ -37,7 +37,7 @@ import { useNavigation } from '@/composables/useNavigation';
 import { useFsWindowState } from '@/composables/useFsWindowState';
 import { useSort } from '@/composables/useSort';
 import { useAppStore, useFsStore, useRunModeInfoStore } from '@/store';
-import { isValidEntityName } from '@shared/utils/fs-utils/entity-name';
+import { isValidNewEntityName } from '@shared/utils/fs-utils/entity-name';
 import { type AppGlobalEvents, FsFolderEntityEvent, ListingEntryExtended } from '@shared/types';
 import type { FsTableBulkActionName } from '@/components/common/fs-table-bulk-actions/types';
 import { makeLogger } from '@shared/utils/logger';
@@ -200,7 +200,7 @@ export function useFsFolder(fsFolderWindow: ComputedRef<'1' | '2'>) {
           return;
         }
 
-        if (!isValidEntityName(newName)) {
+        if (!isValidNewEntityName(newName)) {
           revert?.();
           notifications.$createNotice({
             type: 'error',

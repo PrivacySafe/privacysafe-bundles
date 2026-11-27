@@ -27,6 +27,7 @@ import {
 import { useAppStore } from '@main/common/store/app.store';
 import { useContactsStore } from '@main/common/store/contacts.store';
 import ConfirmationDialog from '@main/common/components/dialogs/confirmation-dialog.vue';
+import { escapeHtml } from '@main/common/utils/escape-html';
 import { makeLogger } from '@shared/logger';
 
 const log = makeLogger('ContactBlocking');
@@ -58,8 +59,8 @@ export function useContactBlocking() {
 
     const res = await dialog.$openDialog<boolean>(ConfirmationDialog, {
       dialogText: value
-        ? t('dialog.text.block', { mail: `<b>${mail}</b>` })
-        : t('dialog.text.unblock', { mail: `<b>${mail}</b>` }),
+        ? t('dialog.text.block', { mail: `<b>${escapeHtml(mail)}</b>` })
+        : t('dialog.text.unblock', { mail: `<b>${escapeHtml(mail)}</b>` }),
       additionalDialogText: value ? t('dialog.additionalText.block') : t('dialog.additionalText.unblock'),
       dialogProps: {
         icon: { icon: 'round-warning', color: 'var(--color-icon-control-warning-default)' },

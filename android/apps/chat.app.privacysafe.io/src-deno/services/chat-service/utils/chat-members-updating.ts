@@ -33,6 +33,7 @@ import {
 import { chatIdOfChat, excludeAddrsFrom } from './_chats-related-methods.ts';
 import { makeMsgDbEntry, msgDbEntryForIncomingSysMsg } from './_msgs-related-methods.ts';
 import { chatEntityId } from './sync-versions.ts';
+import { isAddressList, isMembersRecord } from './peer-input-checks.ts';
 import type { SyncAspect } from '../../../types/index.ts';
 
 export async function chatMembersUpdating({
@@ -287,6 +288,19 @@ export async function chatMembersUpdating({
     if (!chat.isGroupChat || !includesAddress(chat.admins, sender)) {
       return;
     }
+    // The admin's word decides who is in, but only in a shape that can be
+    // stored: a record of addresses, and a record of who leaves. A non-record
+    // here used to throw at Object.keys() and leave the message in the inbox.
+    if (!isMembersRecord(value?.membersAfterUpdate) || !isMembersRecord(value?.membersToDelete ?? {})
+      || !isMembersRecord(value?.membersToAdd ?? {})) {
+      await w3n.log('warning', `Members update from ${sender} in ${chat.chatId} is malformed; ignoring it`);
+      return;
+    }
+    value = {
+      membersAfterUpdate: value.membersAfterUpdate,
+      membersToDelete: value.membersToDelete ?? {},
+      membersToAdd: value.membersToAdd ?? {},
+    };
 
     const chatId = chatIdOfChat(chat);
     const existingMsg = await data.getMessage({ chatId, chatMessageId });
@@ -322,6 +336,15 @@ export async function chatMembersUpdating({
     value: UpdateAdminsSysMsgData['value'],
   ): Promise<void> {
     if (!chat.isGroupChat || !includesAddress(chat.admins, sender)) {
+      return;
+    }
+    // Admins are members: a list that is not addresses, or names somebody who is
+    // not in the group, would make includesAddress() throw or grant admin rights
+    // to an outsider the moment they are added.
+    const adminsAfterUpdate = value?.adminsAfterUpdate;
+    if (!isAddressList(adminsAfterUpdate) || (adminsAfterUpdate.length === 0)
+      || !adminsAfterUpdate.every(a => includesAddress(Object.keys(chat.members), a))) {
+      await w3n.log('warning', `Admins update from ${sender} in ${chat.chatId} is malformed; ignoring it`);
       return;
     }
 

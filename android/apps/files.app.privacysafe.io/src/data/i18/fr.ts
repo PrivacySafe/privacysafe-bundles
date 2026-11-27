@@ -233,6 +233,11 @@ export const fr = {
       },
     },
     entity: {
+      risky_file: {
+        text: 'Le fichier « {name} » peut exécuter des programmes ou des scripts sur cet ordinateur à l’ouverture.',
+        question: 'Ne l’ouvrez que si vous faites confiance à sa provenance. Ouvrir le fichier ?',
+        open: 'Ouvrir quand même',
+      },
       sorting_text: 'Tri',
       info: {
         type: 'Type',
@@ -256,6 +261,11 @@ export const fr = {
         restore_keep: 'Conserver les deux',
       },
       message: {
+        info: {
+          restore_replaced:
+            'L’objet remplacé a été déplacé dans la Corbeille : {names}. | Les objets remplacés ont été déplacés dans la Corbeille : {names}.',
+          restore_replaced_item: '« {originalName} » sous le nom « {nameInTrash} »',
+        },
         success: {
           delete:
             'L’élément sélectionné a été supprimé avec succès. | Les éléments sélectionnés ({count}) ont été supprimés avec succès.',
@@ -369,6 +379,7 @@ export const fr = {
         folder_target_conflict:
           'Un fichier ou un lien portant ce nom existe déjà. Choisissez un autre nom de dossier.',
         folder_unavailable: 'Ce dossier n’est plus disponible. Choisissez un autre dossier.',
+        root_folder: 'Choisissez un dossier dans le stockage : le stockage entier ne peut pas être donné à une application.',
       },
       success: {
         save_file: 'Fichier enregistré avec succès',

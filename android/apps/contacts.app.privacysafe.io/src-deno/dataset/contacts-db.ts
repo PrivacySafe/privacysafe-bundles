@@ -18,6 +18,7 @@
 
 /* eslint-disable @typescript-eslint/no-empty-function */
 import { SQLiteOn3NStorage } from '../../shared-libs/sqlite-on-3nstorage/index.js';
+import type { QueryExecResult } from '../../shared-libs/sqlite-on-3nstorage/index.js';
 import type { ContactDate, Person, PersonSettings, PersonView, RawPerson } from '../../src/types/index.ts';
 import { randomStr } from '../../src/common/services/base/random.ts';
 import { makeContactsException } from '../utils/exceptions.ts';
@@ -29,11 +30,26 @@ import {
   objectFromQueryExecResult,
   personValueToSqlInsertParams,
   queryResultToPerson,
+  textOrUndefined,
 } from './contact-row-mapping.ts';
 
 // Re-exported for existing importers; the implementations live in the pure,
 // sqlite-runtime-free contact-row-mapping module.
 export { objectFromQueryExecResult, personValueToSqlInsertParams, queryResultToPerson };
+
+/**
+ * All rows of the contacts table of a db, or none for a db without the table
+ * or with an empty one - a file from another device, not only this app's.
+ */
+export function contactRowsOf(db: { exec: (sql: string) => QueryExecResult[] }): RawPerson[] {
+  let sqlValue: QueryExecResult | undefined;
+  try {
+    [sqlValue] = db.exec('SELECT * FROM contacts');
+  } catch {
+    return [];
+  }
+  return (sqlValue && sqlValue.values) ? objectFromQueryExecResult<RawPerson>(sqlValue) : [];
+}
 
 export interface ContactDB {
   insertContactInto: ({
@@ -321,6 +337,9 @@ export async function contactDb(
     const rows = objectFromQueryExecResult<Omit<PersonView, 'avatarImage'>>(sqlValue);
 
     for (const row of rows) {
+      // See queryResultToPerson: text columns may hold other types.
+      row.name = textOrUndefined(row.name);
+      row.mail = textOrUndefined(row.mail) ?? '';
       row.settings = row.settings
         ? (typeof row.settings === 'string' ? (safeJsonParse<PersonSettings>(row.settings) ?? {}) : row.settings)
         : {};
@@ -344,7 +363,12 @@ export async function contactDb(
     }
 
     return objectFromQueryExecResult<Pick<RawPerson, 'id' | 'name' | 'mail' | 'dates'>>(sqlValue)
-      .map(row => ({ id: row.id, name: row.name, mail: row.mail, dates: sanitizeContactDates(row.dates) }))
+      .map(row => ({
+        id: row.id,
+        name: textOrUndefined(row.name),
+        mail: textOrUndefined(row.mail) ?? '',
+        dates: sanitizeContactDates(row.dates),
+      }))
       .filter(row => row.dates.length > 0);
   }
 
@@ -398,11 +422,20 @@ export async function contactDb(
 
     createContactsTable();
 
-    for (let i = 0; i < contacts.length; i++) {
-      await insertContactInto({
-        contact: contacts[i],
-        withoutSaveToFile: withoutSaveToFile && i !== contacts.length - 1,
-      });
+    // The rows may come from another device's file. One without an address
+    // fails the NOT NULL column, and stopping there left the table truncated
+    // in memory - to be saved and uploaded by the next local change. Such rows
+    // are left out, and one that fails anyway is skipped, not the rest.
+    const rows = (contacts as RawPerson[]).filter(c => (typeof c?.mail === 'string') && !!c.mail.trim());
+    for (let i = 0; i < rows.length; i++) {
+      try {
+        await insertContactInto({
+          contact: rows[i],
+          withoutSaveToFile: withoutSaveToFile && i !== rows.length - 1,
+        });
+      } catch (err) {
+        await w3n.log('error', `Contact ${String(rows[i]?.id)} could not be written back to the table`, err);
+      }
     }
 
     return true;

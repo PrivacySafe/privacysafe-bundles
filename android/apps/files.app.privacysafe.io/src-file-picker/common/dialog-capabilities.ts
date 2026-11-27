@@ -1,7 +1,12 @@
 import { reactive, type InjectionKey } from 'vue';
 import { sleep } from '@shared/utils/processes/sleep';
 import type { DialogMode, DialogRequestState, DialogResult, DialogResultMap } from '@picker/common/types';
-import { normalizeFilters, normalizeOptionalText, normalizeText } from '@picker/common/utils/request-params';
+import {
+  MAX_BUTTON_LABEL_LENGTH,
+  normalizeFilters,
+  normalizeOptionalText,
+  normalizeText,
+} from '@picker/common/utils/request-params';
 import { makeLogger } from '@shared/utils/logger';
 
 const log = makeLogger('Picker');
@@ -43,10 +48,18 @@ function beginDialogRequest<M extends DialogMode>(
     return;
   }
 
+  // One request at a time: a second one would replace the mode, texts and
+  // answer of the dialog the user is looking at (e.g. "open file" turned into
+  // "open folder" under the same title and button).
+  if (dialogRequest.resolve || dialogRequest.reject) {
+    reject(new Error('A file dialog is already open in this window.'));
+    return;
+  }
+
   // parameters come from another app: normalize them before the UI uses them
   dialogRequest.mode = mode;
   dialogRequest.title = normalizeText(opts.title);
-  dialogRequest.btnLabel = normalizeText(opts.btnLabel);
+  dialogRequest.btnLabel = normalizeText(opts.btnLabel, MAX_BUTTON_LABEL_LENGTH);
   dialogRequest.multiSelections = opts.multiSelections === true;
   dialogRequest.filters = normalizeFilters(opts.filters);
   dialogRequest.defaultPath = normalizeOptionalText(opts.defaultPath);

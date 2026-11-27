@@ -55,6 +55,20 @@ function facadeOver<T>(
 }
 
 /**
+ * Methods that exist for the specs and are published only on the test stand.
+ *
+ * handleIncomingSyncMsg takes a whole inbox envelope, sender included, so in a
+ * production run it let anything that reaches this channel hand the service a
+ * phantom "from the user" - past the one check of who sent it (audit of
+ * 2026-11-26). The platform gives no `testStand` to a production run.
+ */
+const TEST_STAND_ONLY_METHODS: ReadonlySet<keyof InboxSrv> = new Set(['handleIncomingSyncMsg']);
+
+function isTestStand(): boolean {
+  return !!(w3n as { testStand?: unknown }).testStand;
+}
+
+/**
  * @param inbox the service, which the facade's deferred methods wait on.
  * @param eager methods answered without waiting for it. `watchStartup` reports
  * the very startup `inbox` is waiting on, so a deferred one would deliver its
@@ -68,10 +82,13 @@ export function exposeInboxServiceOnIPC(
   const deferredObservables = INBOX_SRV_OBSERVABLE_METHODS.filter(
     m => !INBOX_SRV_EAGER_METHODS.includes(m),
   );
-  const facade = facadeOver(inbox, INBOX_SRV_REQ_REPLY_METHODS, deferredObservables);
+  const reqReplyMethods = isTestStand()
+    ? INBOX_SRV_REQ_REPLY_METHODS
+    : INBOX_SRV_REQ_REPLY_METHODS.filter(m => !TEST_STAND_ONLY_METHODS.has(m));
+  const facade = facadeOver(inbox, reqReplyMethods, deferredObservables);
   Object.assign(facade, eager);
 
-  srvWrapInternal.exposeReqReplyMethods(facade, INBOX_SRV_REQ_REPLY_METHODS);
+  srvWrapInternal.exposeReqReplyMethods(facade, reqReplyMethods);
   srvWrapInternal.exposeObservableMethods(facade, INBOX_SRV_OBSERVABLE_METHODS);
 
   return srvWrapInternal.startIPC();

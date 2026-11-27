@@ -4,3 +4,8 @@ export * from './app-info.ts';
 export const ENTITY_ICON_SIZE = 128;
 /** The largest custom icon data URL: a 128×128 WebP is a few KB, and an icon is read with every listing entry. */
 export const ENTITY_ICON_MAX_LENGTH = 64 * 1024;
+/**
+ * The largest thumbnail data URL (xattr `thumbnail`). A thumbnail is about 200 px on its short
+ * side and is read with every listing entry, while the xattr itself can come from another device.
+ */
+export const THUMBNAIL_MAX_LENGTH = 256 * 1024;

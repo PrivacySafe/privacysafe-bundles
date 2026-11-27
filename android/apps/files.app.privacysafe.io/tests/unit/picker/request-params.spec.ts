@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { parseDefaultSaveLocation } from '../../../src-file-picker/common/utils/default-save-location.ts';
-import { normalizeFilters, normalizeText } from '../../../src-file-picker/common/utils/request-params.ts';
+import {
+  MAX_BUTTON_LABEL_LENGTH,
+  MAX_DEFAULT_PATH_LENGTH,
+  MAX_EXTENSION_LENGTH,
+  MAX_FILTER_EXTENSIONS,
+  MAX_FILTERS,
+  MAX_TITLE_LENGTH,
+  normalizeFilters,
+  normalizeOptionalText,
+  normalizeText,
+} from '../../../src-file-picker/common/utils/request-params.ts';
 import { filterPickerFilesByType } from '../../../src-file-picker/common/utils/filter-file-types.ts';
 
 describe('parseDefaultSaveLocation', () => {
@@ -78,5 +88,55 @@ describe('normalizeText', () => {
     expect(normalizeText(undefined)).toBe('');
     expect(normalizeText({ toString: () => 'x' })).toBe('');
     expect(normalizeText('Save')).toBe('Save');
+  });
+});
+
+// Security audit 2026-11: the texts of the calling app had no limits. A title of many lines
+// covered the dialog, and bidi overrides disguised names.
+describe('caller texts: limits', () => {
+  it('makes a title one line of limited length', () => {
+    const title = normalizeText(`Line 1\nLine 2\r\n${'x'.repeat(500)}`);
+
+    expect(title).not.toMatch(/[\r\n]/);
+    expect(title.length).toBe(MAX_TITLE_LENGTH);
+    expect(title.startsWith('Line 1 Line 2 x')).toBe(true);
+  });
+
+  it('limits a button label', () => {
+    expect(normalizeText('O'.repeat(100), MAX_BUTTON_LABEL_LENGTH)).toHaveLength(MAX_BUTTON_LABEL_LENGTH);
+  });
+
+  it('removes direction overrides and zero-width characters', () => {
+    expect(normalizeText('Open\u202Efdp.exe\u200b')).toBe('Open fdp.exe');
+  });
+
+  it('drops a default path that is too long or has hidden characters', () => {
+    expect(normalizeOptionalText('a'.repeat(MAX_DEFAULT_PATH_LENGTH + 1))).toBeUndefined();
+    expect(normalizeOptionalText('invoice\u202Efdp.exe')).toBeUndefined();
+    expect(normalizeOptionalText('docs/a.txt')).toBe('docs/a.txt');
+  });
+
+  it('limits filters and their extensions', () => {
+    const many = Array.from({ length: MAX_FILTERS + 10 }, (_, i) => ({ name: `f${i}`, extensions: ['txt'] }));
+    expect(normalizeFilters(many)).toHaveLength(MAX_FILTERS);
+
+    const [filter] = normalizeFilters([
+      {
+        name: 'x',
+        extensions: [
+          ...Array.from({ length: MAX_FILTER_EXTENSIONS + 5 }, (_, i) => `e${i}`),
+        ],
+      },
+    ])!;
+    expect(filter.extensions).toHaveLength(MAX_FILTER_EXTENSIONS);
+
+    expect(normalizeFilters([{ name: 'x', extensions: ['e'.repeat(MAX_EXTENSION_LENGTH + 1), 'pdf'] }])).toEqual([
+      { name: 'x', extensions: ['pdf'] },
+    ]);
+  });
+
+  it('does not propose a hidden name for saving', () => {
+    expect(parseDefaultSaveLocation('.trash-folder-user')).toEqual({ folderPath: '', fileName: '' });
+    expect(parseDefaultSaveLocation('docs/.env')).toEqual({ folderPath: '', fileName: '' });
   });
 });

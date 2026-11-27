@@ -22,3 +22,11 @@ describe('isValidFileName', () => {
     expect(isValidFileName('report.txt')).toBe(true);
   });
 });
+
+// Security audit 2026-11: a caller's default name must not disguise its extension.
+describe('isValidFileName: disguising characters', () => {
+  it.each(['invoice‮fdp.exe', 'a⁧b.txt'])('rejects %j in both modes', name => {
+    expect(isValidFileName(name, { strict: false })).toBe(false);
+    expect(isValidFileName(name, { strict: true })).toBe(false);
+  });
+});

@@ -26,6 +26,7 @@ import {
 import { checkServerConnection } from './utils/check-server-connection.ts';
 import { checkItemSyncState, checkFolderSyncState } from './utils/check-sync-fs-state.ts';
 import { makeZipSizeGuard } from './utils/zip-size-guard.ts';
+import { MAX_RESTORE_ENTRIES, restoreEntryProblem } from './utils/record-input-checks.ts';
 import type { TreasureEvent } from '../shared/@types/index.ts';
 import type { TreasureFileSrv } from './srv.types.ts';
 
@@ -410,14 +411,44 @@ export async function treasureBackupSrv({
 
       // Drops the metadata file, folder entries, the junk desktop zip tools add
       // and anything trying to escape the app's own storage.
-      const archiveEntries = Object.entries(unzipped).filter(([filePath]) =>
+      const safeEntries = Object.entries(unzipped).filter(([filePath]) =>
         isSafeArchivePath(filePath),
       );
+
+      // Checked before anything is written: a restore that is refused leaves
+      // the storage as it was.
+      if (safeEntries.length > MAX_RESTORE_ENTRIES) {
+        throw new Error(`The archive holds ${safeEntries.length} entries, more than a backup can`);
+      }
+
+      // What the archive holds is written into the synced storage and reaches
+      // every device: only files of the app's own shape are let through. An
+      // entry that is turned away is skipped, and the file at its path, if
+      // there is one, is kept rather than deleted (audit of 2026-11-26).
+      const archiveEntries: [string, Uint8Array][] = [];
+      const skippedPaths = new Set<string>();
+      for (const [filePath, fileBytes] of safeEntries) {
+        const problem = restoreEntryProblem(filePath, fileBytes);
+        if (problem) {
+          skippedPaths.add(filePath);
+          w3n.log('error', `Restore skips archive entry ${JSON.stringify(filePath)}: ${problem}`);
+        } else {
+          archiveEntries.push([filePath, fileBytes]);
+        }
+      }
+
+      // A restore replaces: with nothing usable in the archive, it would only
+      // delete what the user has.
+      if (archiveEntries.length === 0) {
+        throw new Error('The archive holds nothing this app can restore');
+      }
 
       const archiveFilesMap = new Map<string, Uint8Array>(archiveEntries);
       const currentFsFiles = await collectFilesFromFS(fs, '');
 
-      const filesToDelete = currentFsFiles.filter(filePath => !archiveFilesMap.has(filePath));
+      const filesToDelete = currentFsFiles.filter(
+        filePath => !archiveFilesMap.has(filePath) && !skippedPaths.has(filePath),
+      );
       const totalOperations = archiveEntries.length + filesToDelete.length;
 
       const changedFiles: string[] = [];

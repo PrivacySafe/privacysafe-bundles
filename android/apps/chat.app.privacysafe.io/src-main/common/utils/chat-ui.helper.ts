@@ -18,7 +18,7 @@ import dayjs from 'dayjs';
 import get from 'lodash/get';
 import { useContactsStore } from '@main/common/store/contacts.store';
 import { useAppStore } from '@main/common/store/app.store';
-import { AUTO_DELETE_MESSAGES_BY_ID } from '@shared/constants';
+import { AUTO_DELETE_MESSAGES_BY_ID, autoDeleteOptionIdOf } from '@shared/constants';
 import { callCancelWording } from '@shared/call-record-wording';
 import { toCanonicalAddress } from '@shared/address-utils';
 import {
@@ -178,7 +178,7 @@ export function getTextForChatSystemMessage(
 
     case 'update:settings': {
       const { settings = {} } = (systemData as UpdatedChatSettingsSysMsgData).value;
-      const autoDeleteMessageId = (settings?.autoDeleteMessages || '0') as '0' | '1' | '2' | '3' | '4' | '5';
+      const autoDeleteMessageId = autoDeleteOptionIdOf(settings?.autoDeleteMessages);
       const timerValueText: string = t(AUTO_DELETE_MESSAGES_BY_ID[autoDeleteMessageId].label);
 
       switch (autoDeleteMessageId) {

@@ -16,9 +16,9 @@
 */
 import type { ChatIdObj, ChatMessageId, DeleteMessageSysMsgData } from '../../../../types/asmail-msgs.types.ts';
 import type { MsgsDeletionResult } from '../../../../types/chat.types.ts';
-import type { ChatDbEntry, ChatSrvEmit, DB, FileStoreService } from '../../../types/index.ts';
+import type { ChatDbEntry, ChatSrvEmit, DB, FileStoreService, MsgDbEntry } from '../../../types/index.ts';
 import { makeDbRecordException } from '../../../utils/exceptions.ts';
-import { includesAddress } from '../../../../shared-libs/address-utils.ts';
+import { areAddressesEqual, includesAddress } from '../../../../shared-libs/address-utils.ts';
 import { removeMsgBytes, removeMsgDataNotInDB } from './_msgs-related-methods.ts';
 import { removeMessagesFromInboxBatch } from '../../../utils/inbox-utils.ts';
 import { chatIdOfChat, recipientsInChat } from './_chats-related-methods.ts';
@@ -290,19 +290,41 @@ export async function msgDeletion({
     }
   }
 
+  /**
+   * Whether a peer may delete a record for everyone, which is to say on this
+   * device too. Only regular messages: system and invitation records are this
+   * user's account of what happened in the chat. In a one-to-one chat either
+   * side deletes any message; in a group the author or an admin does.
+   */
+  function mayPeerDelete(chat: ChatDbEntry, msg: MsgDbEntry, sender: string): boolean {
+    if (msg.chatMessageType !== 'regular') {
+      return false;
+    }
+    if (!chat.isGroupChat) {
+      return true;
+    }
+    const isAuthor = msg.isIncomingMsg && !!msg.groupSender && areAddressesEqual(msg.groupSender, sender);
+    return isAuthor || includesAddress(chat.admins, sender);
+  }
+
   async function handleDeleteChatMessage(
     chat: ChatDbEntry,
     value: DeleteMessageSysMsgData['value'],
+    sender: string,
   ): Promise<void> {
-    const { oneMessage, multipleMessages } = value;
+    const { oneMessage, multipleMessages } = value ?? {};
 
     if (oneMessage) {
       const { chatMessageId } = oneMessage;
       const chatId = chatIdOfChat(chat);
       const id = { chatId, chatMessageId };
-      const msg = await data.getMessage(id);
+      const msg = (typeof chatMessageId === 'string') ? await data.getMessage(id) : undefined;
 
       if (!msg) {
+        return;
+      }
+      if (!mayPeerDelete(chat, msg, sender)) {
+        await w3n.log('warning', `Deletion of ${chatMessageId} by ${sender} is not allowed; ignoring it`);
         return;
       }
 
@@ -313,15 +335,23 @@ export async function msgDeletion({
 
     if (multipleMessages) {
       const { chatMsgIds } = multipleMessages;
+      if (!Array.isArray(chatMsgIds)) {
+        return;
+      }
 
       const chatId = chatIdOfChat(chat);
       const attempted: ChatMessageId[] = [];
       const removeMsgsPr: Promise<void>[] = [];
       for (const id of chatMsgIds) {
-        const { chatMessageId } = id;
+        const chatMessageId = id?.chatMessageId;
+        if (typeof chatMessageId !== 'string') {
+          continue;
+        }
         const msg = await data.getMessage({ chatId, chatMessageId });
 
-        if (msg) {
+        if (msg && !mayPeerDelete(chat, msg, sender)) {
+          await w3n.log('warning', `Deletion of ${chatMessageId} by ${sender} is not allowed; skipping it`);
+        } else if (msg) {
           attempted.push({ chatId, chatMessageId });
           removeMsgsPr.push(removeMsgBytes(data, filesStore, { chatId, chatMessageId }, msg));
         }

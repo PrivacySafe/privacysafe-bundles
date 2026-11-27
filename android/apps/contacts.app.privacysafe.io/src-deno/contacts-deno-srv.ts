@@ -49,6 +49,7 @@ import {
 import { randomStr } from '../src/common/services/base/random.ts';
 import { isNewContactId } from '../src/common/constants/index.ts';
 import { syncUpload } from './utils/sync-upload.ts';
+import { checkedContact, InvalidContactError, withKeptAspects } from './utils/contact-input-checks.ts';
 import { CONTACTS_DB_FILE, IMAGES_FOLDER } from './constants.ts';
 import type {
   AddressCheckResult,
@@ -603,6 +604,15 @@ async function contactsDenoSrv(): Promise<ContactsDenoSrv> {
         errorMessage: string;
       }
   > {
+    try {
+      contact = checkedContact(contact);
+    } catch (err) {
+      if (err instanceof InvalidContactError) {
+        return { errorType: 'invalid', errorMessage: err.message };
+      }
+      throw err;
+    }
+
     // Checked synchronously, with no await between the check and the INSERT
     // (which insertContactInto runs before its first await): two adds of one
     // address that overlap, as an import of shared contacts can make, must
@@ -628,7 +638,8 @@ async function contactsDenoSrv(): Promise<ContactsDenoSrv> {
   async function updateContact(
     contact: RawPerson | Omit<RawPerson, 'timestamp'> | Person | Omit<Person, 'timestamp' | 'avatarImage'>,
   ): Promise<Person> {
-    const updatedContact = await contactDbSrv.updateContactInto(contact);
+    const stored = (typeof contact?.id === 'string') ? contactDbSrv.getContactFrom(contact.id) : undefined;
+    const updatedContact = await contactDbSrv.updateContactInto(checkedContact(withKeptAspects(contact, stored)));
     emitStorageEvent({
       event: 'update:contact',
       payload: {
@@ -732,6 +743,9 @@ async function contactsDenoSrv(): Promise<ContactsDenoSrv> {
     mail?: string;
     value: boolean;
   }) {
+    if (typeof value !== 'boolean') {
+      throw new Error('[changeContactBlockingSettings] The value must be true or false.');
+    }
     if (!id && !mail) {
       await w3n.log(
         'error',

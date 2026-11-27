@@ -21,6 +21,8 @@ import { storeToRefs } from 'pinia';
 import cloneDeep from 'lodash/cloneDeep';
 import omit from 'lodash/omit';
 import pick from 'lodash/pick';
+import escape from 'lodash/escape';
+import { cssImageUrl } from '@main/common/utils/css-image-url';
 import {
   DIALOGS_KEY,
   DialogsPlugin,
@@ -137,10 +139,10 @@ export function useContact() {
 
   const contactAvatarStyle = computed<Record<string, string>>(() => ({
     ...(contact.value?.avatarId &&
-      contact.value?.avatarImage && {
-        backgroundImage: `url(${contact.value!.avatarImage})`,
+      cssImageUrl(contact.value?.avatarImage) && {
+        backgroundImage: cssImageUrl(contact.value!.avatarImage)!,
       }),
-    ...((!contact.value?.avatarId || !contact.value.avatarImage) && {
+    ...((!contact.value?.avatarId || !cssImageUrl(contact.value.avatarImage)) && {
       backgroundColor: generateColor(contactLetters.value),
     }),
   }));
@@ -212,7 +214,7 @@ export function useContact() {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
   async function delContact(doAfterDelete?: Function) {
     const res = await dialog.$openDialog(ConfirmationDialog, {
-      dialogText: t('confirmation.delete.one', { name: `<b>${contactDisplayName.value}</b>` }),
+      dialogText: t('confirmation.delete.one', { name: `<b>${escape(contactDisplayName.value)}</b>` }),
       dialogProps: {
         title: t('contact.delete.title', 1),
         width: 300,
@@ -381,8 +383,8 @@ export function useContact() {
   }) {
     const res = await dialog.$openDialog<boolean>(ConfirmationDialog, {
       dialogText: value
-        ? t('contact.block.dialogText', { contact: `<b>${contactName}</b>` })
-        : t('contact.unblock.dialogText', { contact: `<b>${contactName}</b>` }),
+        ? t('contact.block.dialogText', { contact: `<b>${escape(contactName)}</b>` })
+        : t('contact.unblock.dialogText', { contact: `<b>${escape(contactName)}</b>` }),
       dialogProps: {
         icon: { icon: 'round-warning', color: 'var(--color-icon-control-warning-default)' },
         title: t('app.warning.label'),

@@ -20,6 +20,7 @@
 import { itCond, skipSpecIfUnresponsive } from '../libs-for-tests/jasmine-utils.js';
 import { appContactsSrvProxy } from '@main/common/services/services-provider.js';
 import { NEW_EMPTY_CONTACT_ID } from '@main/common/constants/index.js';
+import { IMAGES_FOLDER } from '@deno/constants.js';
 import { TestSetupContainer } from '@tests/setups.js';
 import { sleep } from '../lib-common/processes/sleep.js';
 import type { Person } from '@main/types/index.js';
@@ -356,7 +357,12 @@ describe(`Contacts deno service`, () => {
       await appContactsSrvProxy.addImage({ base64: IMG_BASE64, id: `${usedId}-mini` });
       await appContactsSrvProxy.upsertContact({ ...contact, avatarId: usedId });
       imageIdsToClean.add(usedId);
-      const orphanId = await appContactsSrvProxy.addImage({ base64: OTHER_IMG_BASE64 });
+      // Written past the service, as a file another device or an older version
+      // left behind: an image the service added itself in this session is kept
+      // out of the sweep until the next start (see the spec below).
+      const orphanId = `spec-orphan-${Date.now()}`;
+      const syncedFS = await w3n.storage!.getAppSyncedFS!();
+      await syncedFS.writeTxtFile(`${IMAGES_FOLDER}/${orphanId}`, OTHER_IMG_BASE64);
 
       // Sweeping is retried for the same reason deletion is eventual: an orphan
       // whose upload is in flight is left for the next sweep.
@@ -374,6 +380,20 @@ describe(`Contacts deno service`, () => {
       .withContext(`referenced image is kept`).toBe(IMG_BASE64);
       expect(await appContactsSrvProxy.getImage(`${usedId}-mini`))
       .withContext(`its thumbnail is kept too`).toBe(IMG_BASE64);
+    }, SPEC_TIMEOUT);
+
+    // The GUI writes an avatar's files before the contact refers to them, and
+    // only sets avatarId when the user saves; a sweep in between deleted the
+    // picture being attached (2026-09-14). So an image added in this session
+    // counts as in use until the next start.
+    itCond(`keeps an image added in this session before any contact refers to it`, async () => {
+      const pendingId = await appContactsSrvProxy.addImage({ base64: IMG_BASE64 });
+      imageIdsToClean.add(pendingId);
+
+      await appContactsSrvProxy.removeUnnecessaryImageFiles();
+
+      expect(await appContactsSrvProxy.getImage(pendingId))
+      .withContext(`image being attached is kept`).toBe(IMG_BASE64);
     }, SPEC_TIMEOUT);
 
   });

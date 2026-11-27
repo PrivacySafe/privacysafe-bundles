@@ -1,7 +1,7 @@
 {
   "name": "Treasure",
   "appDomain": "treasure.app.privacysafe.io",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "description": "The app for storing passwords securely.",
   "icon": "logo.png",
   "publisher": "Ivy Cyber",
@@ -18,10 +18,8 @@
       "runtime": "web-gui",
       "formFactor": ["desktop", "tablet"],
       "capsRequested": {
-        "apps": "opener",
         "logToPlatform": true,
         "mailerid": true,
-        "keyrings": "all",
         "shell": {
           "fileDialog": "all",
           "clipboard": "all",
@@ -52,10 +50,8 @@
       "runtime": "web-gui",
       "formFactor": "phone",
       "capsRequested": {
-        "apps": "opener",
         "logToPlatform": true,
         "mailerid": true,
-        "keyrings": "all",
         "shell": {
           "fileDialog": "all",
           "clipboard": "all",
@@ -76,10 +72,6 @@
 
     "/treasureDenoServices.js": {
       "services": {
-        "AppTreasure": {
-          "thisAppComponents": "*",
-          "otherApps": "*"
-        },
         "AppTreasureInternal": {
           "thisAppComponents": "*"
         }
@@ -87,10 +79,6 @@
       "runtime": "deno",
       "capsRequested": {
         "logToPlatform": true,
-        "mailerid": true,
-        "mail": {
-          "preflightsTo": "all"
-        },
         "storage": {
           "appFS": "default"
         },

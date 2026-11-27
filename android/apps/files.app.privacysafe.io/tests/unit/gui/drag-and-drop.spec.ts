@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { getEffectiveMoveMode, isDropIntoItself, shouldResetMoveMode } from '../../../src/utils/drag-and-drop.ts';
+import {
+  entitiesOfDrop,
+  getEffectiveMoveMode,
+  isDropIntoItself,
+  shouldResetMoveMode,
+} from '../../../src/utils/drag-and-drop.ts';
 
 // Regression for live testing item 5: a folder could be dropped into its own subfolder,
 // and the request went to the Deno service, which refused it with an IPC error.
@@ -100,5 +105,22 @@ describe('shouldResetMoveMode', () => {
     expect(shouldResetMoveMode({ moveModeWindow: '1', isSplittedMode: false, now: { ...base, path: '' }, before })).toBe(
       false,
     );
+  });
+});
+
+// Security audit 2026-11: a drop took the storage and paths from the text of the drop event.
+// A crafted text dragged from a web page copied or moved any paths, device folders included.
+describe('entitiesOfDrop', () => {
+  const dragged = { fsId: 'user-synced', entities: [{ fullPath: 'docs/a.txt' }] as never[] };
+
+  it('gives the entities of a drag that started in the app', () => {
+    expect(entitiesOfDrop(dragged, true)).toBe(dragged);
+  });
+
+  it('gives nothing without a drag in the app', () => {
+    expect(entitiesOfDrop(null, false)).toBeNull();
+    expect(entitiesOfDrop(null, true)).toBeNull();
+    expect(entitiesOfDrop(dragged, false)).toBeNull();
+    expect(entitiesOfDrop({ fsId: 'user-synced', entities: [] }, true)).toBeNull();
   });
 });

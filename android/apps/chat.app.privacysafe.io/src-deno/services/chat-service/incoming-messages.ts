@@ -146,6 +146,21 @@ export function makeIncomingMessages(ctx: ChatSrvCtx) {
       );
     }
 
+    // A phantom is sent by the user to their own address (sync-phantoms.ts), and
+    // the sender of an ASMail message is vouched for by the platform, so the
+    // sender is the one thing about a phantom that its body cannot claim. Every
+    // other field - chatId, sourceDeviceId, timestamp, the change itself - is
+    // whatever the body says, and is applied with the authority of the user's
+    // own device: no admin check, no membership check. A 'synchronization' body
+    // from anybody else is therefore a forgery, not a phantom, and none of the
+    // user's devices needs it, so it goes from the inbox right away.
+    if (checkMsgBody.chatMsgBody.chatMessageType === 'synchronization' && !areAddressesEqual(msg.sender, ownAddr)) {
+      return await removeMessageFromInbox(
+        msg.msgId,
+        `Incoming chat message ${msg.msgId} is a sync message from ${msg.sender}, not from the user. Removing it from inbox.`,
+      );
+    }
+
     if (blacklistTracker && !areAddressesEqual(msg.sender, ownAddr) && blacklistTracker.isBlacklisted(msg.sender)) {
       // A message the history still holds was received before the blocking, and
       // only the user deletes what they have received. For one with attachments
@@ -246,7 +261,7 @@ export function makeIncomingMessages(ctx: ChatSrvCtx) {
     if (chat.isGroupChat && !includesAddress(Object.keys(chat.members), msg.sender)) {
       return await removeMessageFromInbox(
         msg.msgId,
-        `Sender ${msg.msgId} is not a member of group chat ${chat.chatId}. Removing it from inbox.`,
+        `Sender ${msg.sender} of ${msg.msgId} is not a member of group chat ${chat.chatId}. Removing it from inbox.`,
       );
     }
 
@@ -309,6 +324,10 @@ export function makeIncomingMessages(ctx: ChatSrvCtx) {
 
       let msgChatId: ChatIdObj | undefined;
       if (body?.chatMessageType === 'synchronization') {
+        // A sync body from somebody else is a forgery (see handleIncomingMsg),
+        // and its chatId must not even pick it for this chat. The live path
+        // removes such a message from the inbox.
+        if (!areAddressesEqual(incoming.sender, ownAddr)) { continue; }
         const syncMsg = body as ChatSyncMsgV1<
           PhantomSyncMsgDataBasedOnRegularMsgV1 | ChatSystemMsgV1 | ChatInvitationMsgV1
         >;

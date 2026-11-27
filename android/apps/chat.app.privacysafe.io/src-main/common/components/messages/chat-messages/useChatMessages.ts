@@ -49,9 +49,12 @@ import { useContactsStore } from '@main/common/store/contacts.store';
 import { useMessagesStore } from '@main/common/store/messages.store';
 import { useUiOutgoingStore } from '@main/common/store/ui.outgoing.store';
 import { APP_ROUTES } from '@main/mobile/constants';
-import { toCanonicalAddress } from '@shared/address-utils';
+import { areAddressesEqual, checkAndTransformAddress } from '@shared/address-utils';
+import { escapeHtml } from '@main/common/utils/escape-html';
+import ConfirmationDialog from '@main/common/components/dialogs/confirmation-dialog.vue';
 import type { ChatMessagesEmits } from './chat-messages.vue';
 import MessageDeleteDialog from '@main/common/components/dialogs/message-delete-dialog.vue';
+import { canDeleteForEveryone } from '@main/common/utils/delete-for-everyone';
 import MessageForwardDialog from '@main/common/components/dialogs/message-forward-dialog.vue';
 
 interface OpenContactCmdArg {
@@ -218,6 +221,26 @@ export default function useChatMessages(
     return getMsg(target as HTMLElement);
   }
 
+  /**
+   * Asks the user to confirm an action whose target a peer may have disguised,
+   * showing the real target. The values are escaped: they come from a message.
+   */
+  async function confirmByUser(
+    title: string,
+    makeText: (values: Record<string, string>) => string,
+    values: Record<string, string>,
+  ): Promise<boolean> {
+    const escaped = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, `<b>${escapeHtml(v)}</b>`]));
+    const res = await dialog.$openDialog<boolean>(ConfirmationDialog, {
+      dialogText: makeText(escaped),
+      dialogProps: {
+        title,
+        ...(isMobileMode.value && { width: 300 }),
+      },
+    });
+    return res.event === 'confirm';
+  }
+
   async function onMsgClick(ev: PointerEvent) {
     if (msgActionsMenuProps.value.open) {
       return;
@@ -234,7 +257,19 @@ export default function useChatMessages(
 
         const dataMentionSplitted = dataMention.replace('@', '').split('[');
         const user = `${dataMentionSplitted[0]}@${dataMentionSplitted[1]}`.slice(0, -1);
-        if (user === ownAddr.value) {
+        const canonUser = checkAndTransformAddress(user);
+        if (!canonUser || areAddressesEqual(user, ownAddr.value)) {
+          return;
+        }
+        // The composer writes a mention as its own text (prepareMessageBody), so
+        // a mention showing one name and carrying another address was made by
+        // hand - to have the user start a chat with somebody else.
+        if ((element.textContent ?? '') !== dataMention
+          && !(await confirmByUser(
+            t('chat.message.dialog.mention_mismatch.title'),
+            v => t('chat.message.dialog.mention_mismatch.text', v),
+            { addr: user },
+          ))) {
           return;
         }
 
@@ -242,14 +277,14 @@ export default function useChatMessages(
 
         if (!isTargetChatPresent) {
           const contact = contactList.value.find(c => c.mail === user);
-          await createNewOneToOneChat(contact?.displayName || user, toCanonicalAddress(user));
+          await createNewOneToOneChat(contact?.displayName || user, canonUser);
         }
 
         return await router.push({
           name: APP_ROUTES.CHAT,
           params: {
             chatType: 's',
-            chatId: toCanonicalAddress(user),
+            chatId: canonUser,
           },
         });
       }
@@ -259,8 +294,23 @@ export default function useChatMessages(
           return;
         }
 
+        // Same as with mentions: the composer's links show their own target.
+        if (((element.textContent ?? '') !== dataHref)
+          && !(await confirmByUser(
+            t('chat.message.dialog.link_mismatch.title'),
+            v => t('chat.message.dialog.link_mismatch.text', v),
+            { url: dataHref },
+          ))) {
+          return;
+        }
+
         if (/^w3n:\/\//i.test(dataHref)) {
-          const url = new URL(dataHref!);
+          let url: URL;
+          try {
+            url = new URL(dataHref!);
+          } catch {
+            return;
+          }
           const contactCommand = url.hostname;
           const contactAccount = url.searchParams.get('a');
           const contactName = url.searchParams.get('n');
@@ -367,6 +417,11 @@ export default function useChatMessages(
 
   async function deleteMsg(chatMessageId: string) {
     const res = await dialog.$openDialog<boolean>(MessageDeleteDialog, {
+      canDeleteForEveryone: canDeleteForEveryone(
+        chatStore.currentChat,
+        [getMessageFromCurrentChat(chatMessageId)],
+        ownAddr.value,
+      ),
       dialogProps: {
         title: t('chat.message.dialog.delete.title'),
         ...(isMobileMode.value && { width: 300 }),

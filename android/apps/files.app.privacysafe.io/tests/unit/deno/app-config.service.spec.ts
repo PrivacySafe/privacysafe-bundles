@@ -96,3 +96,28 @@ describe('appConfigService: trash folder name', () => {
     expect(srv.trashFolderName).toBe('.trash-folder-');
   });
 });
+
+// Security audit 2026-11: the trash folder name decides what "delete" moves where, and what is
+// removed for good, so a name that is not a hidden trash folder in the root is not used.
+describe('appConfigService: invalid trash folder names', () => {
+  it.each(['Docs', 'a', 'Docs/.trash-folder-x', '.trash-folder-x/..', 42])(
+    'replaces %j with the default name and keeps other settings',
+    async trashFolderName => {
+      const { files } = setupPlatform({ config: { trashFolderName, theme: 'dark' } });
+
+      const srv = await appConfigService();
+
+      expect(srv.trashFolderName).toBe('.trash-folder-user@example.com');
+      expect(files.get(CONFIG_FILE)).toEqual({ theme: 'dark', trashFolderName: '.trash-folder-user@example.com' });
+    },
+  );
+
+  it('keeps its own trash folder name when the config is saved with another one', async () => {
+    const { files } = setupPlatform({ config: { trashFolderName: '.trash-folder-old' } });
+    const srv = await appConfigService();
+
+    await srv.saveConfigFile({ trashFolderName: 'Docs', theme: 'dark' } as never);
+
+    expect(files.get(CONFIG_FILE)).toEqual({ trashFolderName: '.trash-folder-old', theme: 'dark' });
+  });
+});

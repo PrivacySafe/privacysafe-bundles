@@ -133,3 +133,32 @@ describe('readSharedContactsArchive', () => {
   });
 
 });
+
+// A shared-contacts file comes from another user (audit of 2026-11-26).
+describe('what a shared-contacts file may bring', () => {
+
+  it('only contacts with an address that is one', () => {
+    const contacts = readSharedContactsArchive(archive({
+      version: 1, createdAt: 1,
+      contacts: [{ mail: 'x' }, { mail: '@3nweb.com' }, { mail: 'ann@3nweb.com', name: 'Ann' }],
+    }));
+    expect(contacts.map(c => c.mail)).toEqual(['ann@3nweb.com']);
+  });
+
+  it('names as one bounded line', () => {
+    const [c] = readSharedContactsArchive(archive({
+      version: 1, createdAt: 1,
+      contacts: [{ mail: 'ann@3nweb.com', name: `Ann<img src=x>\nline${'x'.repeat(500)}` }],
+    }));
+    expect(c.name!.includes('\n')).toBe(false);
+    expect(c.name!.length).toBe(200);
+  });
+
+  it('no SVG as an avatar', () => {
+    const [c] = readSharedContactsArchive(archive(
+      { version: 1, createdAt: 1, contacts: [{ mail: 'ann@3nweb.com', avatarId: 'a1' }] },
+      { 'images/a1.svg': strToU8('<svg onload="alert(1)"/>') },
+    ));
+    expect(c.avatarImage).toBeUndefined();
+  });
+});

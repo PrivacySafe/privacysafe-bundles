@@ -18,7 +18,8 @@
   import { computed, ref } from 'vue';
   import { useI18n } from 'vue-i18n';
   import isEmpty from 'lodash/isEmpty';
-  import { copyToClipboard, generateColor } from '@v1nt1248/3nclient-lib/utils';
+  import { generateColor } from '@v1nt1248/3nclient-lib/utils';
+  import { copySecret } from '@/common/utils/copy-secret';
   import { Ui3nIcon, Ui3nRipple as vUi3nRipple } from '@v1nt1248/3nclient-lib';
   import type { SyncType, TreasureRecord, TreasurePasswordRecord, TreasureCardRecord } from '@shared/@types';
   import { DEFAULT_GROUP, RECORD_TYPE } from '@shared/constants';
@@ -113,7 +114,7 @@
       return;
     }
 
-    await copyToClipboard(text);
+    await copySecret(text);
 
     if (props.selectedGroup !== DEFAULT_GROUP.RECENT) {
       await addRecordToRecent(props.item.id);

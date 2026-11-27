@@ -23,6 +23,7 @@ import { makeMsgDbEntry, msgDbEntryForIncomingSysMsg } from './_msgs-related-met
 import { excludeAddrFrom, chatIdOfChat } from './_chats-related-methods.ts';
 import { sendSystemMessage, makeSystemEventPhantom, queueSyncPhantom } from '../../mail-sending-service/index.ts';
 import { chatEntityId } from './sync-versions.ts';
+import { peerSettingsOf } from './peer-input-checks.ts';
 
 export async function chatSettingUp({
   data,
@@ -137,10 +138,17 @@ export async function chatSettingUp({
       return;
     }
 
-    const { settings } = chatSystemData.value;
+    // Only the auto-delete period is shared, and only one this version knows: an
+    // unknown id used to throw on every message sent or received in the chat,
+    // and one like 'toString' made every new message expire at once.
+    const settings = peerSettingsOf(chatSystemData.value?.settings);
+    if (!settings) {
+      await w3n.log('warning', `Settings from ${sender} in chat ${chatId.chatId} are not valid; ignoring them`);
+      return;
+    }
     const updatedChat = chat.isGroupChat
-      ? await data.updateGroupChatRecord(chat.chatId, { settings })
-      : await data.updateOTOChatRecord(chat.peerCAddr, { settings });
+      ? await data.updateGroupChatRecord(chat.chatId, { settings: { ...chat.settings, ...settings } })
+      : await data.updateOTOChatRecord(chat.peerCAddr, { settings: { ...chat.settings, ...settings } });
     if (!updatedChat) {
       return;
     }
@@ -154,7 +162,11 @@ export async function chatSettingUp({
       deviceId: sender,
     });
 
-    const sysMsg = msgDbEntryForIncomingSysMsg(sender, chatId, chatMessageId, timestamp, chatSystemData);
+    // The record keeps what was applied, not what was sent: the GUI reads it.
+    const sysMsg = msgDbEntryForIncomingSysMsg(sender, chatId, chatMessageId, timestamp, {
+      ...chatSystemData,
+      value: { ...chatSystemData.value, settings },
+    });
     await data.addMessage(sysMsg);
     emit.message.added(sysMsg);
   }

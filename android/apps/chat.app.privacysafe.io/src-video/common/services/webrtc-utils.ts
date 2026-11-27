@@ -759,7 +759,7 @@ export async function logSelectedCandidatePair(pc: RTCPeerConnection, label: str
       if (!c) {
         return 'unknown';
       }
-      const addr = c.address ?? c.ip ?? 'unknown-ip';
+      const addr = maskIpForLog(c.address ?? c.ip);
       const parts = [
         `type=${c.candidateType ?? '?'}`,
         `addr=${addr}`,
@@ -786,18 +786,38 @@ export async function logSelectedCandidatePair(pc: RTCPeerConnection, label: str
 /**
  * Diagnostic helper: describes a locally-gathered ICE candidate.
  */
+/**
+ * An IP address with its host part hidden, for logs: enough to tell a private
+ * network from a public one or a relay, not enough to locate the user - logs
+ * get attached to bug reports and leave the device.
+ */
+export function maskIpForLog(addr: unknown): string {
+  if ((typeof addr !== 'string') || !addr) {
+    return 'unknown';
+  }
+  if (addr.endsWith('.local')) {
+    return 'mdns';
+  }
+  const v4 = addr.split('.');
+  if (v4.length === 4) {
+    return `${v4[0]}.${v4[1]}.x.x`;
+  }
+  const v6 = addr.split(':');
+  return (v6.length > 2) ? `${v6[0]}:${v6[1]}::x` : 'x';
+}
+
 export function describeIceCandidate(candidate: RTCIceCandidate): string {
   const type = candidate.type ?? 'unknown';
   const origin = type === 'srflx' ? 'STUN' : type === 'relay' ? 'TURN' : type === 'host' ? 'local' : 'unknown';
   const parts = [
     `origin=${origin}`,
     `type=${type}`,
-    `address=${candidate.address ?? 'unknown'}`,
+    `address=${maskIpForLog(candidate.address)}`,
     `port=${candidate.port ?? 'unknown'}`,
     `protocol=${candidate.protocol ?? 'unknown'}`,
   ];
   if (candidate.relatedAddress) {
-    parts.push(`relatedAddress=${candidate.relatedAddress}`);
+    parts.push(`relatedAddress=${maskIpForLog(candidate.relatedAddress)}`);
   }
   if (candidate.relatedPort != null) {
     parts.push(`relatedPort=${candidate.relatedPort}`);

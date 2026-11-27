@@ -314,6 +314,9 @@ export const es = {
     progress: 'Se han importado {number} de {total} contactos',
     notFound: 'Esta importación de contactos ya ha finalizado o ha caducado. Abre el archivo de nuevo.',
     result: 'Importación de contactos finalizada: añadidos {added}, actualizados {updated}, omitidos {skipped}',
+    newContacts: {
+      title: 'El archivo añade {count} contacto(s) nuevo(s). Comprueba las direcciones antes de añadirlos:',
+    },
     field: {
       avatar: 'Foto de perfil',
       birthday: 'Cumpleaños',
@@ -326,6 +329,8 @@ export const es = {
       applyToAll: 'Aplicar a todas las coincidencias restantes',
     },
     btn: {
+      addNew: 'Añadir',
+      skipNew: 'No añadir',
       abort: 'Detener',
       keep: 'Mantener actual',
       incoming: 'Usar recibido',

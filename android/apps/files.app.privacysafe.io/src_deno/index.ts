@@ -19,7 +19,7 @@
 import { setupGlobalReportingOfUnhandledErrors } from '../shared/utils/error-handling.ts';
 import { ObserversSet } from '../shared/utils/observer-utils.ts';
 import type { ListingEntryExtended, StorageEvent } from '../shared/types/index.ts';
-import { PICKER_SERVICE_METHODS, type PickerServiceMethod, type StorageAppDenoService } from './types.ts';
+import { PICKER_SERVICE_METHODS, type StorageAppDenoService } from './types.ts';
 // @deno-types="../shared/utils/ipc/ipc-service.d.ts"
 import { MultiConnectionIPCWrap } from '../shared/utils/ipc/ipc-service.js';
 import { sleep } from '../shared/utils/processes/sleep.ts';
@@ -30,13 +30,13 @@ import { appConfigService } from './services/app-config.service.ts';
 import { favoritesService } from './services/favorites.service.ts';
 import { fsService } from './services/fs.service.ts';
 import { syncService } from './services/sync.service.ts';
-import { isFsRootVisible } from '../shared/utils/fs-grouping.ts';
-import { APP_SETTINGS_DEFAULT, USER_FS } from '../shared/constants/index.ts';
+import { makePickerService } from './services/picker.service.ts';
+import { USER_FS } from '../shared/constants/index.ts';
 import {
   getEntityNameAndParent,
   isSafeRelativePath,
   isSameOrInside,
-  isValidEntityName,
+  isValidNewEntityName,
 } from '../shared/utils/fs-utils/index.ts';
 import { makeLinkAwareFs } from '../shared/utils/fs-utils/link-aware-fs.ts';
 import { filterRpcRemovableXAttrs, filterRpcWritableXAttrs } from './services/fs-service.utils/listing-xattrs.ts';
@@ -165,9 +165,10 @@ async function storageAppDenoService(): Promise<StorageAppDenoService> {
    Names and paths come from the GUI and the file pickers, so they are checked
    here: the FS utils below build paths by plain string joins.
   */
+  /** A new name of an entity: see isValidNewEntityName. */
   function assertValidName(name: unknown): asserts name is string {
-    if (!isValidEntityName(name)) {
-      throw new Error(`Invalid name: it must not be empty, '.', '..' or contain '/' or '\\'.`);
+    if (!isValidNewEntityName(name)) {
+      throw new Error(`Invalid name: it must not be empty, hidden, or contain '/', '\\' or invisible characters.`);
     }
   }
 
@@ -532,20 +533,35 @@ async function storageAppDenoService(): Promise<StorageAppDenoService> {
     entities: ListingEntryExtended[];
     mode?: 'keep' | 'replace';
   }) {
+    // only entities in the trash are restored: anything else would be moved by its xattrs
+    for (const entity of entities) {
+      const path = formatPath(entity.fullPath ?? '');
+      if (path === trashFolderName || !isSameOrInside(path, trashFolderName)) {
+        throw new Error(`'${path}' is not in the trash folder.`);
+      }
+    }
+    if (mode !== 'keep' && mode !== 'replace') {
+      throw new Error(`Unknown restore mode '${String(mode)}'.`);
+    }
+
     if (fsId === USER_FS) {
       await adoptTrashedEntitiesBehind(entities);
     }
 
-    const mappingPathToRestorePath = await fsSrv.restoreEntities({ fsId, entities, mode });
+    const result = await fsSrv.restoreEntities({ fsId, entities, mode });
 
-    if (!mappingPathToRestorePath) {
+    if (!result) {
       return undefined;
     }
 
+    // the replaced entities are new in the trash: other devices must get them
+    for (const pathInTrash of Object.values(result.replaced)) {
+      await enqueueForSync(pathInTrash);
+    }
     await enqueueForSync(trashFolderName);
 
     const restoredParentFolders = new Set<string>();
-    for (const restoredPath of Object.values(mappingPathToRestorePath)) {
+    for (const restoredPath of Object.values(result.restored)) {
       // restored into a folder behind a link, the entity is a new copy that was never uploaded
       await enqueueForSync(restoredPath);
       const { parentFolder } = getEntityNameAndParent(restoredPath);
@@ -555,7 +571,7 @@ async function storageAppDenoService(): Promise<StorageAppDenoService> {
       }
     }
 
-    return mappingPathToRestorePath;
+    return result;
   }
 
   favoritesSrv.getFavorites().then(favorites => {
@@ -660,15 +676,7 @@ storageAppDenoService()
     // The file pickers run as dialogs of other apps, so they get a separate
     // service with the read-only methods they need (see manifest.json).
     const srvWrapPicker = new MultiConnectionIPCWrap('AppStoragePicker');
-    const pickerService: Pick<StorageAppDenoService, PickerServiceMethod> = {
-      getFsList: srv.getFsList,
-      getFolderContentFilledList: srv.getFolderContentFilledList,
-      async getFsRootFolderList() {
-        const [roots, config] = await Promise.all([srv.getFsRootFolderList(), srv.loadConfigFile()]);
-        const settings = { ...APP_SETTINGS_DEFAULT, ...config };
-        return roots.filter(root => isFsRootVisible(root, settings));
-      },
-    };
+    const pickerService = makePickerService({ ...srv, trashFolderName: await srv.getTrashFolderName() });
     srvWrapPicker.exposeReqReplyMethods(pickerService, [...PICKER_SERVICE_METHODS]);
     srvWrapPicker.startIPC();
 

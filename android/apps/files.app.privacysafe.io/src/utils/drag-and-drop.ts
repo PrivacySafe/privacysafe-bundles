@@ -15,6 +15,7 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
 import type { Nullable } from '@v1nt1248/3nclient-lib';
+import type { ListingEntryExtended } from '@shared/types';
 import { isSameOrInside } from '@shared/utils/fs-utils/entity-name';
 import { formatPath } from '@shared/utils/various';
 
@@ -25,6 +26,24 @@ export interface DragSource {
   fsId: string;
   /** paths of the dragged folders */
   folderPaths: string[];
+}
+
+export interface DraggedEntities {
+  fsId: string;
+  entities: ListingEntryExtended[];
+}
+
+/**
+ * What a drop copies or moves: the entities of a drag that started in this
+ * app, as they were taken at its start. The text of the drop event is never
+ * read, since anything dragged from another app or a web page carries text
+ * too, and a crafted one named any storage and any paths in it.
+ */
+export function entitiesOfDrop(
+  dragged: Nullable<DraggedEntities>,
+  isDragging: boolean,
+): Nullable<DraggedEntities> {
+  return isDragging && dragged && dragged.entities.length > 0 ? dragged : null;
 }
 
 /** True when the target is one of the dragged folders or lies inside one of them, in the same FS. */

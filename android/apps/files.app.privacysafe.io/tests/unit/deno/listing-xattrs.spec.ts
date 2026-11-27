@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { MemoryFS } from '../helpers/memory-fs.ts';
 import { loadFolderContentListPrepared } from '../../../src_deno/services/fs-service.utils/load-folder-content-list-prepared.ts';
-import { ENTITY_ICON_MAX_LENGTH } from '../../../shared/constants/index.ts';
+import { ENTITY_ICON_MAX_LENGTH, THUMBNAIL_MAX_LENGTH } from '../../../shared/constants/index.ts';
+import { loadFsEntityStats } from '../../../src_deno/services/fs-service.utils/load-fs-entity-stats.ts';
 import {
   filterRpcRemovableXAttrs,
   filterRpcWritableXAttrs,
@@ -223,3 +224,44 @@ describe('OS-specific entries', () => {
   });
 });
 
+
+// Security audit 2026-11: xattrs come from other devices and apps and go into every listing
+// entry; their sizes were not bounded.
+describe('listing xattrs: sizes', () => {
+  const OVERSIZED_THUMBNAIL = `data:image/webp;base64,${'A'.repeat(THUMBNAIL_MAX_LENGTH)}`;
+
+  it('drops an oversized thumbnail and keeps a normal one', async () => {
+    const fs = new MemoryFS()
+      .addFile('big.png', '', { thumbnail: OVERSIZED_THUMBNAIL })
+      .addFile('ok.png', '', { thumbnail: WEBP });
+
+    const entries = await list(fs);
+
+    expect(entries.find(e => e.name === 'big.png')?.thumbnail).toBeUndefined();
+    expect(entries.find(e => e.name === 'ok.png')?.thumbnail).toBe(WEBP);
+    expect(filterRpcWritableXAttrs({ thumbnail: OVERSIZED_THUMBNAIL }).allowed).toEqual({});
+  });
+
+  it('drops an oversized id, ext and tags', async () => {
+    const fs = new MemoryFS().addFile('a.txt', '', {
+      id: 'i'.repeat(65),
+      ext: 'e'.repeat(65),
+      tags: Array.from({ length: 101 }, (_, i) => `t${i}`),
+    });
+
+    const [entry] = await list(fs);
+
+    expect(entry.id).not.toBe('i'.repeat(65));
+    expect(entry.ext).not.toBe('e'.repeat(65));
+    expect(entry.tags).toEqual([]);
+  });
+
+  it('checks id and tags in the entity stats as well', async () => {
+    const fs = new MemoryFS().addFile('a.txt', '', { id: { not: 'a string' }, tags: 'not a list' });
+
+    const stats = await loadFsEntityStats({ fs: fs.asWritableFS(), fullPath: 'a.txt' });
+
+    expect(typeof stats?.id).toBe('string');
+    expect(stats?.tags).toEqual([]);
+  });
+});

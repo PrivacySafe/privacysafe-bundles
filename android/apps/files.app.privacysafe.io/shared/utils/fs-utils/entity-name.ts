@@ -90,6 +90,28 @@ export function isValidEntityName(name: unknown): name is string {
   );
 }
 
+/*
+ Characters that change how a name looks without being seen: bidi overrides and
+ isolates make 'invoice\u202Efdp.exe' look like 'invoiceexe.pdf'; C1 controls,
+ a zero-width space and a BOM hide parts of a name. The zero-width joiners
+ (U+200C, U+200D) are not here: emoji and some scripts need them.
+*/
+const SPOOFING_CHARACTERS = /[\u007f-\u009f\u200b\u202a-\u202e\u2066-\u2069\ufeff]/;
+
+export function hasSpoofingCharacters(name: string): boolean {
+  return SPOOFING_CHARACTERS.test(name);
+}
+
+/**
+ * A name the user gives to a new or renamed entity: a valid entity name without
+ * characters that disguise it, and not hidden (names starting with '.' are not
+ * listed, so such an entity would vanish). Existing names are checked with
+ * isValidEntityName only.
+ */
+export function isValidNewEntityName(name: unknown): name is string {
+  return isValidEntityName(name) && !name.trimStart().startsWith('.') && !hasSpoofingCharacters(name);
+}
+
 /**
  * A relative path inside an FS: '' for the root, otherwise valid names joined
  * with '/'. Paths with '.', '..' or empty segments are rejected.

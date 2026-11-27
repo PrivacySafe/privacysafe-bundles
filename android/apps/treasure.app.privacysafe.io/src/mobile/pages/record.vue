@@ -134,7 +134,7 @@
       await backToList();
     } catch (err) {
       console.error(
-        `Error saving '${(recordData.value! as TreasurePasswordRecord).name || recordData.value!.resource}' record. `,
+        `Error saving record ${recordData.value!.id}. `,
         err,
       );
       $createNotice({
@@ -175,7 +175,7 @@
         await backToList();
       } catch (err) {
         console.error(
-          `Error deleting '${(recordData.value! as TreasurePasswordRecord).name || recordData.value!.resource}' record. `,
+          `Error deleting record ${recordData.value!.id}. `,
           err,
         );
         $createNotice({

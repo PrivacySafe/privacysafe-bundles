@@ -22,7 +22,7 @@ import isEqual from 'lodash/isEqual';
 import { NOTIFICATIONS_KEY, NotificationsPlugin } from '@v1nt1248/3nclient-lib/plugins';
 import type { Nullable, Ui3nDialogEvent } from '@v1nt1248/3nclient-lib';
 import { includesAddress, toCanonicalAddress } from '@shared/address-utils';
-import { AUTO_DELETE_MESSAGES_BY_ID } from '@shared/constants';
+import { AUTO_DELETE_MESSAGES_BY_ID, autoDeleteOptionIdOf } from '@shared/constants';
 import type { GroupChatView, PersonView } from '~/index';
 import type { ChatInfoDialogProps } from './types';
 import { useAppStore } from '@main/common/store/app.store';
@@ -79,8 +79,7 @@ export function useChatInfo(
 
   const autoDeleteMessageInfo = computed(() => {
     const { settings } = props.chat;
-    const autoDeleteMessagesSettingId = (settings?.autoDeleteMessages || '0') as '0' | '1' | '2' | '3' | '4' | '5';
-    return AUTO_DELETE_MESSAGES_BY_ID[autoDeleteMessagesSettingId];
+    return AUTO_DELETE_MESSAGES_BY_ID[autoDeleteOptionIdOf(settings?.autoDeleteMessages)];
   });
 
   const allContacts = computed(() => {

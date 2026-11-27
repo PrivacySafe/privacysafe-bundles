@@ -39,6 +39,22 @@ import type { CallCollisions } from './call-collisions.ts';
 const log = makeLogger('VideoChatService');
 
 /**
+ * Whether the user has taken this chat up, so that a call in it may ring. Not
+ * for a one-to-one chat the user was invited to and has not accepted, nor for
+ * a group the user has not joined.
+ */
+export function isChatAcceptedHere(chat: ChatDbEntry, ownAddr: string): boolean {
+  if (!chat.isGroupChat) {
+    return chat.status !== 'invited';
+  }
+  if (chat.status === 'invited') {
+    return false;
+  }
+  const ownKey = Object.keys(chat.members ?? {}).find(addr => areAddressesEqual(addr, ownAddr));
+  return !!ownKey && !!chat.members[ownKey]?.hasAccepted;
+}
+
+/**
  * Star signal types that only make sense against a call that exists. Arriving
  * with no call, they are the residue of one that is over — never the early
  * signals of one about to start — so they are consumed rather than buffered,
@@ -236,6 +252,17 @@ export function makeIncomingSignals(
       return;
     }
 
+    // A chat the user has not accepted - an invitation from somebody, possibly
+    // a stranger - does not ring. It used to: sending an invitation and then a
+    // 'start' was enough to make a phone ring for anyone at all.
+    if (!fromOwnDevice && !isChatAcceptedHere(chat, ownAddr)) {
+      removeMessageFromInbox(
+        msgId,
+        `Incoming WebRTC chat message ${msgId} from ${sender} is for chat ${chatId.chatId} not accepted here. Removing it from inbox.`,
+      ).catch(err => w3n.log('error', `Failed to remove WebRTC message of a not accepted chat`, err));
+      return;
+    }
+
     const now = Date.now();
     // Two independent age measurements (see SignalAge in call-state.ts): the
     // sender's own stamp catches a message that sat in the shared inbox, the
@@ -302,7 +329,13 @@ export function makeIncomingSignals(
         // this one rang, and the next copy of it can be half a minute away.
         const by = firstBodyItem?.supersededBy;
         if (by && !calls.has(chatKey) && !isStaleAge(msgAge)
-          && (!chat.isGroupChat || includesAddress(Object.keys(chat.members), by.hostAddr))
+          && (typeof by.hostAddr === 'string')
+          && (chat.isGroupChat
+            ? includesAddress(Object.keys(chat.members), by.hostAddr)
+            // In a one-to-one chat the only other host there can be is the peer:
+            // any other address here would have this device send its offer,
+            // and with it its IP addresses, to whoever the sender named.
+            : areAddressesEqual(by.hostAddr, chat.peerCAddr))
           && !areAddressesEqual(by.hostAddr, ownAddr)) {
           log.info(
             `[${ownAddr}] Call of ${sender} in chat ${chatId.chatId} was withdrawn in favour `
@@ -498,7 +531,12 @@ export function makeIncomingSignals(
     ) {
       // Extract host address from heartbeat payload (for re-join as CLIENT).
       // Fall back to the heartbeat sender for older peers that don't send it.
-      const callHostAddr = hbData?.hostAddr || sender;
+      // Taken only when it names a member: the Join button sends this device's
+      // offer, IP addresses included, to that address.
+      const claimedHost: unknown = hbData?.hostAddr;
+      const callHostAddr = ((typeof claimedHost === 'string') && includesAddress(Object.keys(chat.members), claimedHost))
+        ? claimedHost
+        : sender;
       // For a relayed beat the envelope names the device that passed it on,
       // not the host, and the rules that compare a beat's sender against the
       // host of a finished call (admitsHeartbeat) have to see the host.

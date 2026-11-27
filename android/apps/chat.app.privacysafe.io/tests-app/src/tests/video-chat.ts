@@ -4946,9 +4946,11 @@ describe(`Video Chat Star Architecture`, () => {
 
     itCond(`an address written in another form is not a foreign sender`, async () => {
       // Case and spaces in the user part are the same address, and a peer that
-      // writes it differently is not making a claim about anyone else.
+      // writes it differently is not making a claim about anyone else. Spaces
+      // only there: a space in the domain makes it no address at all
+      // (toCanonicalAddress checks the domain since 6a2b91f).
       const { signal, overridden } = attributeIncomingHostSignal(
-        CLIENT_A_ADDR, { type: 'candidate', fromAddr: ' Client A@3NSoft.net ', data: {} },
+        CLIENT_A_ADDR, { type: 'candidate', fromAddr: ' Client A@3NSoft.net', data: {} },
       );
       expect(signal.fromAddr)
         .withContext(`normalised to the form the channel uses, since maps are keyed on it`)

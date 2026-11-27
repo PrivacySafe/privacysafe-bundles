@@ -73,7 +73,7 @@
       });
       await backToList();
     } catch (err) {
-      console.error(`Error saving '${groupData.value!.name}' group. `, err);
+      console.error(`Error saving group ${groupData.value!.id || '(new)'}. `, err);
       $createNotice({
         type: 'error',
         content: t('list.notifications.error.saving', { entity: 'group', name: groupData.value!.name }),
@@ -116,7 +116,7 @@
 
         await backToList(true);
       } catch (err) {
-        console.error(`Error deleting '${groupData.value!.name}' group. `, err);
+        console.error(`Error deleting group ${groupData.value!.id}. `, err);
         $createNotice({
           type: 'error',
           content: t('list.notifications.error.deleting', { entity: 'group', name: groupData.value!.name }),

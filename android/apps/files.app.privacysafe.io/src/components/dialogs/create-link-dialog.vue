@@ -33,7 +33,7 @@
     type Ui3nDialogEvent,
     type Ui3nRadioValue,
   } from '@v1nt1248/3nclient-lib';
-  import { isValidEntityName } from '@shared/utils/fs-utils/entity-name';
+  import { isValidNewEntityName } from '@shared/utils/fs-utils/entity-name';
   import LinkBadge from '@/components/common/link-badge/link-badge.vue';
   import type { CreateLinkDialogData, LinkTargetType } from '@/utils/create-link';
   import { makeLogger } from '@shared/utils/logger';
@@ -64,7 +64,7 @@
   const isNameTaken = computed(() => !!name.value && takenName.value === name.value);
 
   async function checkName(value: string) {
-    if (!props.checkNameTaken || !isValidEntityName(value)) {
+    if (!props.checkNameTaken || !isValidNewEntityName(value)) {
       isCheckingName.value = false;
       return;
     }
@@ -85,7 +85,7 @@
 
   watch(name, value => {
     clearTimeout(nameCheckTimer);
-    isCheckingName.value = !!props.checkNameTaken && isValidEntityName(value);
+    isCheckingName.value = !!props.checkNameTaken && isValidNewEntityName(value);
     nameCheckTimer = setTimeout(() => checkName(value), 300);
   });
 
@@ -100,7 +100,7 @@
   const isValid = computed(
     () =>
       isNameFieldValid.value &&
-      isValidEntityName(name.value) &&
+      isValidNewEntityName(name.value) &&
       !isNameTaken.value &&
       !isCheckingName.value &&
       !!target.value,
@@ -115,7 +115,7 @@
   }
 
   function checkNameRule(text?: unknown): boolean | string {
-    return !text || isValidEntityName(text) || t('validation.text.invalid_name');
+    return !text || isValidNewEntityName(text) || t('validation.text.invalid_name');
   }
 
   function changeTargetType(value: Ui3nRadioValue) {

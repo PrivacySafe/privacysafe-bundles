@@ -19,7 +19,13 @@ import type { ListingEntryExtended } from '../../../shared/types/index.ts';
 import { formatPath } from '../../../shared/utils/various.ts';
 import { getListFolder } from './get-list-folder.ts';
 import { readLink } from './read-link.ts';
-import { isSafeRelativePath, isValidEntityName, joinEntityPath, pickFreeEntityName } from './entity-name.ts';
+import {
+  isSafeRelativePath,
+  isSameOrInside,
+  isValidEntityName,
+  joinEntityPath,
+  pickFreeEntityName,
+} from './entity-name.ts';
 
 export type RestoreConflict = Pick<ListingEntryExtended, 'fullPath' | 'name' | 'type'>;
 
@@ -28,21 +34,31 @@ export type RestoreConflict = Pick<ListingEntryExtended, 'fullPath' | 'name' | '
  * - 'keep': a free name next to the existing entities (`name_copy.ext`, ...);
  * - 'replace': the original name; `conflict` is the existing entity that has
  *   to be removed before the restored one can take its place.
+ *
+ * The original location comes from xattrs, which other devices and apps can
+ * write. An invalid location, or one in the trash, restores into the root; a
+ * location that is the trash itself is refused, since in 'replace' mode the
+ * trash would be the conflict to remove.
  */
 export async function prepareRestoredPath({
   fs,
   entity,
   mode,
+  trashFolderName = '',
 }: {
   fs: web3n.files.WritableFS;
   entity: ListingEntryExtended;
   mode: 'keep' | 'replace';
+  trashFolderName?: string;
 }): Promise<{ restoredPath: string; conflict?: RestoreConflict }> {
-  // the original location comes from xattrs and is untrusted: an invalid one restores into the root
-  const parentFolder = isSafeRelativePath(formatPath(entity.parentFolder ?? ''))
-    ? formatPath(entity.parentFolder ?? '')
-    : '';
+  const isInTrash = (path: string) => !!trashFolderName && isSameOrInside(path, trashFolderName);
+
+  const storedParent = formatPath(entity.parentFolder ?? '');
+  const parentFolder = isSafeRelativePath(storedParent) && !isInTrash(storedParent) ? storedParent : '';
   const originalName = isValidEntityName(entity.originalName) ? entity.originalName : entity.name;
+  if (isInTrash(joinEntityPath(parentFolder, originalName))) {
+    throw new Error(`'${entity.fullPath}' cannot be restored to the trash folder.`);
+  }
 
   const parentFolderList =
     (await getListFolder({ fs, folderName: parentFolder, vAPI: false, stopErrorPropagate: true })) || [];

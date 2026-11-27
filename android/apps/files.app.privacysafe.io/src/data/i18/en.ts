@@ -76,7 +76,8 @@ export const en = {
     text: {
       required: 'This field is required. ',
       length: 'No more then {length} characters ',
-      invalid_name: "A name must not be '.' or '..' and must not contain '/' or '\\'. ",
+      invalid_name:
+        "A name must not start with '.' and must not contain '/', '\\', control or invisible direction characters. ",
     },
   },
 
@@ -251,6 +252,11 @@ export const en = {
       },
     },
     entity: {
+      risky_file: {
+        text: 'The file "{name}" can run programs or scripts on this computer when it is opened.',
+        question: 'Open it only if you trust where it came from. Open the file?',
+        open: 'Open anyway',
+      },
       sorting_text: 'Sorting',
       info: {
         type: 'Type',
@@ -278,6 +284,11 @@ export const en = {
         restore_keep: 'Keep both',
       },
       message: {
+        info: {
+          restore_replaced:
+            'The replaced object was moved to the Trash: {names}. | The replaced objects were moved to the Trash: {names}.',
+          restore_replaced_item: '"{originalName}" as "{nameInTrash}"',
+        },
         success: {
           delete:
             'The selected object has been successfully deleted. | The selected objects ({count}) have been successfully deleted.',
@@ -385,6 +396,7 @@ export const en = {
         folder_create_conflict: 'An item with this name already exists. Choose another name.',
         folder_target_conflict: 'A file or link with this name already exists. Choose another folder name.',
         folder_unavailable: 'This folder is no longer available. Choose another folder.',
+        root_folder: 'Choose a folder inside the storage: the whole storage cannot be given to an app.',
       },
       success: {
         save_file: 'File saved successfully',

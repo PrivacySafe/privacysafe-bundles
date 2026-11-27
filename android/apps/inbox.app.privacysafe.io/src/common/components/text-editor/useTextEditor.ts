@@ -1,7 +1,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Squire from 'squire-rte';
-import sanitizeHtml from 'sanitize-html';
+import { sanitizeMailHtml } from '@common/utils/sanitize-mail-html';
 import last from 'lodash/last';
 import type { Nullable } from '@v1nt1248/3nclient-lib';
 import type { TextEditorProps, TextEditorEmits } from './types';
@@ -234,20 +234,7 @@ export function useTextEditor(props: TextEditorProps, emits: TextEditorEmits) {
     editor = new Squire(editorEl.value!, {
       blockTag: 'div',
       sanitizeToDOMFragment(html: string) {
-        const sanitizedHtml = sanitizeHtml(html, {
-          allowedClasses: {
-            '*': [
-              'te-font-12',
-              'te-font-18',
-              'te-font-24',
-              'te-font-32',
-              'align-left',
-              'align-right',
-              'align-center',
-              'align-justify',
-            ],
-          },
-        });
+        const sanitizedHtml = sanitizeMailHtml(html);
 
         const doc = new DOMParser().parseFromString(sanitizedHtml, 'text/html');
         const frag = doc.createDocumentFragment();

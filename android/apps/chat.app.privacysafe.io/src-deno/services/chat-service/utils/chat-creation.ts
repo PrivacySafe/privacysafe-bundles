@@ -58,6 +58,7 @@ import { makeMsgDbEntry, removeMessageFromInbox } from './_msgs-related-methods.
 import { processOrphanedForChatCreation } from './handle-incoming-sync.ts';
 import type { ResyncCtx } from './msg-resync.ts';
 import { chatEntityId } from './sync-versions.ts';
+import { findMemberKey, isAddressList, isMembersRecord, normalizeChatName } from './peer-input-checks.ts';
 
 export async function chatCreation({
   data,
@@ -456,6 +457,42 @@ export async function chatCreation({
     await drainOrphanedSyncsOf({ isGroupChat: true, chatId: chat.chatId });
   }
 
+  /**
+   * A group invitation with its members and admins in a shape that can be
+   * stored: valid addresses, canonical keys, no duplicates, admins among the
+   * members, a sane size and name. What the inviter says about who is in the
+   * group cannot be verified here - only that it makes sense.
+   */
+  function checkedGroupInvitation(
+    inviteData: GroupChatParameters,
+  ): (GroupChatParameters & Required<Pick<GroupChatParameters, 'members' | 'admins'>>) | undefined {
+    const { members, admins } = inviteData;
+    if (!isMembersRecord(members) || !isAddressList(admins) || (typeof inviteData.groupChatId !== 'string')) {
+      return;
+    }
+    // Keys stay as sent (other code looks members up by the exact form), but two
+    // spellings of one address would be two members that are one person.
+    const seen = new Set<string>();
+    const checkedMembers: Record<string, { hasAccepted: boolean }> = {};
+    for (const [addr, { hasAccepted }] of Object.entries(members)) {
+      const canon = toCanonicalAddress(addr);
+      if (seen.has(canon)) {
+        return;
+      }
+      seen.add(canon);
+      checkedMembers[addr] = { hasAccepted };
+    }
+    if (!admins.every(a => seen.has(toCanonicalAddress(a)))) {
+      return;
+    }
+    return {
+      ...inviteData,
+      name: normalizeChatName(inviteData.name) ?? '',
+      members: checkedMembers,
+      admins: [...admins],
+    };
+  }
+
   async function handleMalformedInvitation(msgId: string): Promise<void> {
     return await removeMessageFromInbox(
       msgId,
@@ -468,14 +505,24 @@ export async function chatCreation({
     chatMessageId: string,
     chatParams: OneToOneChatParameters,
     msgId: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const chatId = chatIdOfOTOChat(chat);
     const id: ChatMessageId = { chatId, chatMessageId };
 
+    // Only an invitation this user sent can be accepted. A peer that had itself
+    // invited the user ('invited' here) used to switch the chat on by sending an
+    // acceptance of its own, without the user ever deciding.
+    if (chat.status !== 'initiated') {
+      await w3n.log('warning', `Acceptance from ${chat.peerCAddr} of a chat in status ${chat.status}; ignoring it`);
+      await data.scheduleInboxMsgRemoval(msgId);
+      return false;
+    }
+
     // update chat db record
-    if (chat.status !== 'on') {
+    {
+      const name = normalizeChatName(chatParams?.name);
       const updatedChat = await data.updateOTOChatRecord(chat.peerCAddr, {
-        name: chatParams.name,
+        ...(name && { name }),
         status: 'on',
       });
 
@@ -494,6 +541,7 @@ export async function chatCreation({
     }
 
     await data.scheduleInboxMsgRemoval(msgId);
+    return true;
   }
 
   async function handleGroupChatInvitationAcceptance(
@@ -501,11 +549,25 @@ export async function chatCreation({
     chatMessageId: string,
     acceptedInvitation: AcceptedInvitationReference,
     incomingMessage: ChatIncomingMessage,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const chatId = chatIdOfGroupChat(chat);
     const id: ChatMessageId = { chatId, chatMessageId };
 
-    const msg = await data.getMessage(id);
+    // Only somebody who was invited accepts. The group id and the message id
+    // come from the body, and both are known to anybody who ever was in the
+    // group, so without this a removed member put themselves back in - and got
+    // every message the user sent to the group from then on.
+    const senderKey = findMemberKey(chat.members, incomingMessage.sender);
+    if (!senderKey) {
+      await w3n.log(
+        'warning',
+        `Acceptance from ${incomingMessage.sender}, who is not a member of group ${chat.chatId}; ignoring it`,
+      );
+      await data.scheduleInboxMsgRemoval(incomingMessage.msgId);
+      return false;
+    }
+
+    const msg = (typeof chatMessageId === 'string') ? await data.getMessage(id) : undefined;
 
     if (msg && msg.status !== 'read') {
       const updatedMsg = await data.updateMessageRecord(id, {
@@ -520,14 +582,15 @@ export async function chatCreation({
     )?.initiator;
 
     const updatedChatMembers = { ...chat.members };
-    msg && (updatedChatMembers[incomingMessage.sender] = { hasAccepted: true });
+    msg && (updatedChatMembers[senderKey] = { hasAccepted: true });
 
-    const areAllMembersAccepted = !Object.values(updatedChatMembers).some(data => !data.hasAccepted);
+    const areAllMembersAccepted = !Object.values(updatedChatMembers).some(data => !data?.hasAccepted);
+    const ownKey = findMemberKey(updatedChatMembers, ownAddr);
 
     let status: GroupChatStatus | undefined;
     if (
       areAllMembersAccepted ||
-      (!areAllMembersAccepted && chatInitiator !== ownAddr && updatedChatMembers[ownAddr].hasAccepted)
+      (!areAllMembersAccepted && chatInitiator !== ownAddr && !!ownKey && updatedChatMembers[ownKey].hasAccepted)
     ) {
       status = 'on';
     } else {
@@ -566,6 +629,7 @@ export async function chatCreation({
       }, [] as string[]),
       { chatMessageId, inviteData: updateMembersData },
     );
+    return true;
   }
 
   async function handleInvitationAcceptance(
@@ -592,15 +656,19 @@ export async function chatCreation({
       return;
     }
 
-    if (oneToOneChat) {
-      await handleOTOChatInvitationAcceptance(chat as OTOChatDbEntry, chatMessageId, oneToOneChat, message.msgId);
-    } else if (groupChat) {
-      await handleGroupChatInvitationAcceptance(
-        chat as GroupChatDbEntry,
+    let applied = false;
+    if (oneToOneChat && !chat.isGroupChat) {
+      applied = await handleOTOChatInvitationAcceptance(chat, chatMessageId, oneToOneChat, message.msgId);
+    } else if (groupChat && chat.isGroupChat) {
+      applied = await handleGroupChatInvitationAcceptance(
+        chat,
         chatMessageId,
         acceptedInvitation!,
         message,
       );
+    }
+    if (!applied) {
+      return;
     }
 
     await createDisplayableSystemMessage({
@@ -626,20 +694,31 @@ export async function chatCreation({
       return;
     }
 
-    const { members, admins } = chat as GroupChatDbEntry;
-    if (!admins.includes(sender)) {
+    if (!chat.isGroupChat || !includesAddress(chat.admins, sender) || !isAddressList(acceptedMembers)) {
+      await removeMessageFromInbox(
+        incomingMessage.msgId,
+        `Members update ${incomingMessage.msgId} from ${sender} is not from an admin or is malformed. Removing it from inbox.`,
+      );
       return;
     }
+    const { members } = chat;
 
+    // An admin tells who of the known members has accepted. It does not speak
+    // for this user: whether the user accepted is the user's own decision, and
+    // taking it from the list used to switch the chat on before they had.
+    const ownKey = findMemberKey(members, ownAddr);
+    const hasOwnAccepted = !!ownKey && !!members[ownKey]?.hasAccepted;
     const newAcceptedMembers = Object.keys(members).reduce((res, addr) => {
-      const { hasAccepted } = members[addr];
-      if (!hasAccepted && acceptedMembers.includes(addr)) {
+      const hasAccepted = members[addr]?.hasAccepted;
+      if (!hasAccepted && (addr !== ownKey) && includesAddress(acceptedMembers, addr)) {
         res.push(addr);
       }
       return res;
     }, [] as string[]);
 
-    if (newAcceptedMembers.length === 0) {
+    const switchesOn = hasOwnAccepted && includesAddress(acceptedMembers, ownAddr) && (chat.status !== 'on');
+    if ((newAcceptedMembers.length === 0) && !switchesOn) {
+      await data.scheduleInboxMsgRemoval(incomingMessage.msgId);
       return;
     }
 
@@ -660,7 +739,7 @@ export async function chatCreation({
 
     const updatedChat = await data.updateGroupChatRecord(chatId.chatId, {
       members: updatedChatMembers,
-      ...(acceptedMembers.includes(ownAddr) && { status: 'on' }),
+      ...(switchesOn && { status: 'on' }),
     });
 
     updatedChat && emit.chat.updated(updatedChat);
@@ -700,7 +779,7 @@ export async function chatCreation({
         await handleOTOChatInvitation(
           sender,
           chatMessageId,
-          inviteData,
+          { ...inviteData, name: normalizeChatName(inviteData.name) ?? '' },
           msg.msgId,
           deliveryTS,
           neverContactedInitiator,
@@ -709,16 +788,17 @@ export async function chatCreation({
       }
 
       case 'group-chat-invite': {
-        const { members, admins } = inviteData;
+        const params = checkedGroupInvitation(inviteData);
         if (
-          includesAddress(Object.keys(members!), ownAddr) &&
-          includesAddress(Object.keys(members!), sender) &&
-          includesAddress(admins!, sender)
+          params &&
+          includesAddress(Object.keys(params.members), ownAddr) &&
+          includesAddress(Object.keys(params.members), sender) &&
+          includesAddress(params.admins, sender)
         ) {
           await handleGroupChatInvitation(
             sender,
             chatMessageId,
-            inviteData,
+            params,
             msg.msgId,
             deliveryTS,
             neverContactedInitiator,

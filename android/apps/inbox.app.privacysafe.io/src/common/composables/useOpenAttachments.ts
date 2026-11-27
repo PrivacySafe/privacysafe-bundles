@@ -1,5 +1,13 @@
 import { inject, ref } from 'vue';
-import { NOTIFICATIONS_KEY, NotificationsPlugin } from '@v1nt1248/3nclient-lib/plugins';
+import escape from 'lodash/escape';
+import {
+  DIALOGS_KEY,
+  type DialogsPlugin,
+  NOTIFICATIONS_KEY,
+  NotificationsPlugin,
+} from '@v1nt1248/3nclient-lib/plugins';
+import { isRiskyFileName } from '@common/utils/risky-file';
+import ConfirmationDialog from '@common/components/dialogs/confirmation-dialog/confirmation-dialog.vue';
 import { inboxSrv } from '@common/services/services-provider';
 import { attachmentAvailabilityOf } from '@shared/utils/attachment-availability';
 import type { AttachmentInfo } from '@common/types';
@@ -200,6 +208,29 @@ function prepareAttachmentOpen({
 
 export function useOpenAttachments({ t }: { t: (txt: string, placeholder?: Record<string, string>) => string }) {
   const { $createNotice } = inject<NotificationsPlugin>(NOTIFICATIONS_KEY)!;
+  const $dialogs = inject<DialogsPlugin>(DIALOGS_KEY);
+
+  /**
+   * A received file the OS would run is opened only after the user says so:
+   * the sender chose its name, and opening goes to the OS default handler, so
+   * `invoice.pdf.command` was one click from running (audit of 2026-11-26).
+   */
+  async function confirmRiskyOpening(fileName: string): Promise<boolean> {
+    if (!isRiskyFileName(fileName.split('/').pop())) {
+      return true;
+    }
+    if (!$dialogs) {
+      return false;
+    }
+    const res = await $dialogs.$openDialog<boolean>(ConfirmationDialog, {
+      dialogText: t('msg.attachment.opening.risky_text', { fileName: `<b>${escape(fileName)}</b>` }),
+      dialogProps: {
+        title: t('msg.attachment.opening.risky_title'),
+        icon: { icon: 'round-warning', color: 'var(--color-icon-control-warning-default)' },
+      },
+    });
+    return res?.event === 'confirm';
+  }
 
   function isOpenAvailable(): boolean {
     return !!w3n.shell?.mounts && typeof w3n.shell?.openInMounted === 'function';
@@ -237,6 +268,10 @@ export function useOpenAttachments({ t }: { t: (txt: string, placeholder?: Recor
     const mounts = shell?.mounts;
     if (!mounts || !shell?.openInMounted) {
       $createNotice({ type: 'error', content: t('msg.attachment.opening.unavailable') });
+      return;
+    }
+
+    if (!(await confirmRiskyOpening(fileName))) {
       return;
     }
 

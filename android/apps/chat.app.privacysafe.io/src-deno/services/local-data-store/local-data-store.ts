@@ -53,6 +53,29 @@ const INITIAL_CHATS_REASK_MILLIS = 60 * 60 * 1000;
  */
 const INITIAL_CHATS_ASK_WINDOW_MILLIS = 15 * 24 * 60 * 60 * 1000;
 
+/**
+ * How far into the future a received sync stamp may be before the clock stops
+ * following it. Generous on purpose: a device of the same user may have its
+ * wall clock off by hours, and refusing its stamps would break the guarantee
+ * that a change made after seeing it outranks it.
+ */
+const SYNC_STAMP_MAX_FUTURE_MILLIS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Whether a stamp from a received phantom may advance this device's sync clock.
+ *
+ * The clock is persisted and only ever moves forward, so a single wild stamp
+ * spoils it for good: every later change of this device gets stamped past it,
+ * and beyond Number.MAX_SAFE_INTEGER successive stamps collapse onto the same
+ * float and stop ordering the user's own changes at all.
+ */
+export function isPlausibleSyncStamp(ts: unknown, now: number): ts is number {
+  return typeof ts === 'number'
+    && Number.isSafeInteger(ts)
+    && ts > 0
+    && ts <= now + SYNC_STAMP_MAX_FUTURE_MILLIS;
+}
+
 export async function localDataStore(): Promise<LocalDataStore> {
   const proc = new SingleProc();
 
@@ -154,6 +177,10 @@ export async function localDataStore(): Promise<LocalDataStore> {
    * Advances the clock to account for a stamp seen in a received phantom.
    */
   async function observeSyncStamp(ts: number) {
+    if (!isPlausibleSyncStamp(ts, Date.now())) {
+      await w3n.log('warning', `Sync stamp ${ts} is not plausible; the sync clock is not advanced to it`);
+      return;
+    }
     if (ts > (data.lastSyncClockTs ?? 0)) {
       data.lastSyncClockTs = ts;
       await saveOrderly();

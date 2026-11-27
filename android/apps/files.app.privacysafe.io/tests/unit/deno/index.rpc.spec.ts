@@ -413,3 +413,46 @@ describe('RPC restoreEntities: sync queue', () => {
     expect(env.syncQueue).toContain(TRASH);
   });
 });
+
+// Security audit 2026-11: an entity outside of the trash was moved by the marks in its xattrs.
+describe('RPC restoreEntities: only entities in the trash', () => {
+  it.each(['docs/a.txt', TRASH, '', `${TRASH}X/a.txt`])('refuses %j', async path => {
+    env.fs.addFile('docs/a.txt', '', { parentFolder: 'elsewhere', originalName: 'b.txt' });
+
+    await expect(
+      srv.restoreEntities({ fsId: USER_FS, entities: [{ ...env.fs.entry('docs/a.txt'), fullPath: path }] }),
+    ).rejects.toThrow();
+    expect(env.fs.has('docs/a.txt')).toBe(true);
+  });
+});
+
+// The replaced entity is new in the trash: other devices must get it.
+describe('RPC restoreEntities: "replace"', () => {
+  it('queues the replaced entity in the trash and returns it', async () => {
+    env.fs.addFile('docs/a.txt', 'old');
+    const moved = (await srv.deleteEntities({ fsId: USER_FS, entities: [env.fs.entry('docs/a.txt')] })) as Record<
+      string,
+      string
+    >;
+    const pathInTrash = moved['docs/a.txt'];
+    const xattrs = env.fs.xattrsOf(pathInTrash)!;
+    env.fs.addFile('docs/a.txt', 'new');
+    env.syncQueue = [];
+
+    const res = await srv.restoreEntities({
+      fsId: USER_FS,
+      mode: 'replace',
+      entities: [
+        {
+          ...env.fs.entry(pathInTrash),
+          parentFolder: xattrs.parentFolder as string,
+          originalName: xattrs.originalName as string,
+        },
+      ],
+    });
+
+    const replacedPath = res!.replaced['docs/a.txt'];
+    expect(replacedPath.startsWith(`${TRASH}/`)).toBe(true);
+    expect(env.syncQueue).toContain(replacedPath);
+  });
+});

@@ -354,3 +354,12 @@ describe('resolveDbFileConflict: dates', () => {
   });
 
 });
+
+describe('resolveDbFileConflict across spellings of an address', () => {
+  it('takes two spellings of one address as one contact', () => {
+    const local = [{ id: 'l', mail: 'Ann@3NWeb.com', name: 'Ann', timestamp: 2 }] as RawPerson[];
+    const remote = [{ id: 'r', mail: 'ann@3nweb.com', name: 'Ann', timestamp: 1 }] as RawPerson[];
+    const { resolvedContactList } = resolveDbFileConflict(remote, local);
+    expect(resolvedContactList).toHaveLength(1);
+  });
+});

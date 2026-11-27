@@ -1,6 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { MemoryFS } from '../helpers/memory-fs.ts';
-import { findSaveCollision, saveFileFlags } from '../../../src-file-picker/common/utils/folder-operations.ts';
+import {
+  findSaveCollision,
+  isFsRootPath,
+  openFolderTarget,
+  saveFileFlags,
+} from '../../../src-file-picker/common/utils/folder-operations.ts';
 
 // Regression for the picker plan, item 2: collisions were looked up in the
 // shown listing only (no hidden files, case-sensitive), and the file was then
@@ -50,5 +55,34 @@ describe('saveFileFlags', () => {
   it('creates a new file exclusively and overwrites only when confirmed', () => {
     expect(saveFileFlags(false)).toEqual({ create: true, exclusive: true });
     expect(saveFileFlags(true)).toEqual({ create: false, truncate: true });
+  });
+});
+
+// Security audit 2026-11: with nothing selected, "open folder" returned the folder on screen,
+// which is the root of Home when the picker opens. The caller names the button, so one click on
+// "Open" gave it the whole storage as a writable FS.
+describe('openFolderTarget: the root of a storage', () => {
+  it.each(['', '/', ' / ', '//'])('refuses %j', async path => {
+    const writableSubRoot = vi.fn(async () => ({}) as web3n.files.WritableFS);
+    const fs = { writableSubRoot } as unknown as web3n.files.WritableFS;
+
+    await expect(openFolderTarget({ fs, path, name: '' })).rejects.toThrow();
+    expect(writableSubRoot).not.toHaveBeenCalled();
+  });
+
+  it('opens a folder inside the storage', async () => {
+    const writableSubRoot = vi.fn(async () => ({}) as web3n.files.WritableFS);
+    const fs = { writableSubRoot } as unknown as web3n.files.WritableFS;
+
+    await openFolderTarget({ fs, path: 'docs', name: 'docs' });
+
+    expect(writableSubRoot).toHaveBeenCalledWith('docs', { create: false });
+  });
+
+  it('tells the root from other folders', () => {
+    expect(isFsRootPath('')).toBe(true);
+    expect(isFsRootPath('/')).toBe(true);
+    expect(isFsRootPath('docs')).toBe(false);
+    expect(isFsRootPath('/docs/')).toBe(false);
   });
 });

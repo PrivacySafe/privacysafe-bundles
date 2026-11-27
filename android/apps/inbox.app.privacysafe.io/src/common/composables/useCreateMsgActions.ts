@@ -1,5 +1,8 @@
 import { inject } from 'vue';
 import dayjs from 'dayjs';
+import escape from 'lodash/escape';
+import { sameAddress } from '@shared/utils/address-utils';
+import { sanitizeMailHtml } from '@common/utils/sanitize-mail-html';
 import { DialogsPlugin, DIALOGS_KEY } from '@v1nt1248/3nclient-lib/plugins';
 import { getRandomId } from '@v1nt1248/3nclient-lib/utils';
 import { inboxSrv } from '@common/services/services-provider';
@@ -123,13 +126,13 @@ export function useCreateMsgActions() {
       <br/><br/>
       <div>---------- ${t('msg.reply_title')} ----------</div>
       <div>${dayjs(message.deliveryTS).format('YYYY-MM-DD HH:mm')}</div>
-      <div>${t('msg.create.label.from')}: ${message.sender}</div>
-      <div>${t('msg.create.label.to')}: ${message.recipients?.join(', ')}</div>
-      <div>${t('msg.create.label.subject')}: ${message.subject}</div>
-      <blockquote>${message.htmlTxtBody || ''}</blockquote>
+      <div>${t('msg.create.label.from')}: ${escape(message.sender)}</div>
+      <div>${t('msg.create.label.to')}: ${escape(message.recipients?.join(', ') ?? '')}</div>
+      <div>${t('msg.create.label.subject')}: ${escape(message.subject ?? '')}</div>
+      <blockquote>${sanitizeMailHtml(message.htmlTxtBody)}</blockquote>
     `;
 
-    const initialRecipients = (message.recipients || []).filter(address => address !== appStore.user);
+    const initialRecipients = (message.recipients || []).filter(address => !sameAddress(address, appStore.user));
     const recipients = replayForAll ? [message.sender, ...initialRecipients] : [message.sender];
 
     return {
@@ -150,15 +153,18 @@ export function useCreateMsgActions() {
       <br/><br/>
       <div>---------- ${t('msg.forward_title')} ----------</div>
       <div>${message.deliveryTS ? dayjs(message.deliveryTS).format('YYYY-MM-DD HH:mm') : dayjs(message.cTime).format('YYYY-MM-DD HH:mm')}</div>
-      <div>${t('msg.create.label.from')}: ${(message as IncomingMessageView).sender || appStore.user}</div>
-      <div>${t('msg.create.label.to')}: ${message.recipients?.join(', ')}</div>
-      <div>${t('msg.create.label.subject')}: ${message.subject}</div><br/>
-      ${message.htmlTxtBody || ''}
+      <div>${t('msg.create.label.from')}: ${escape((message as IncomingMessageView).sender || appStore.user)}</div>
+      <div>${t('msg.create.label.to')}: ${escape(message.recipients?.join(', ') ?? '')}</div>
+      <div>${t('msg.create.label.subject')}: ${escape(message.subject ?? '')}</div><br/>
+      ${sanitizeMailHtml(message.htmlTxtBody)}
     `;
 
     return {
       id: getRandomId(32),
-      threadId: message.threadId,
+      // A forward is a new conversation with somebody else. Keeping the
+      // original's thread id handed it to the new recipient, who could then put
+      // their own messages into the user's original thread.
+      threadId: getRandomId(32),
       recipients: [],
       subject: `Fwd: ${message.subject}`,
       // An attachment of an incoming message is only findable through the

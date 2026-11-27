@@ -13,3 +13,5 @@ Inbox is a 3NWeb app that sends messages via ASMail messaging protocol, implemen
 [Contact blocking](./contact-blocking.md) — the blacklist belongs to the contacts app; what this one does with it, where mail from a blocked sender is dropped, and why mail received before a blocking is never touched.
 
 [fflate CVE-2026-122146](./security/fflate-cve-2026-122146.md) — how `unzipSync` and `gunzipSync` are kept from allocating whatever size a forged archive declares.
+
+[What a sender, a backup file or a device can make this app do](./security/peer-input-audit-2026-11.md) — the audit of 2026-11-26: the rules for input from senders, archives and phantoms, and where they are checked.

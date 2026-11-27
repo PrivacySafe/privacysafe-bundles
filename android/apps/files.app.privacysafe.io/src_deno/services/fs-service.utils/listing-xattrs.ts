@@ -14,7 +14,7 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
-import { ENTITY_ICON_MAX_LENGTH } from '../../../shared/constants/index.ts';
+import { ENTITY_ICON_MAX_LENGTH, THUMBNAIL_MAX_LENGTH } from '../../../shared/constants/index.ts';
 import { isSafeRelativePath, isValidEntityName } from '../../../shared/utils/fs-utils/entity-name.ts';
 
 /*
@@ -26,12 +26,36 @@ import { isSafeRelativePath, isValidEntityName } from '../../../shared/utils/fs-
 const LISTING_XATTR_VALIDATORS = {
   parentFolder: (v: unknown) => isSafeRelativePath(v),
   originalName: (v: unknown) => isValidEntityName(v),
-  thumbnail: (v: unknown) => isImageDataUrl(v),
+  thumbnail: (v: unknown) => isThumbnailDataUrl(v),
   icon: (v: unknown) => isEntityIconDataUrl(v),
-  favoriteId: (v: unknown) => typeof v === 'string' && v.length > 0 && v.length <= 64,
-  sync: (v: unknown) => typeof v === 'string',
-  hidden: (v: unknown) => typeof v === 'string',
+  favoriteId: (v: unknown) => isShortString(v, 64),
+  sync: (v: unknown) => typeof v === 'string' && v.length <= 64,
+  hidden: (v: unknown) => typeof v === 'string' && v.length <= 64,
 } as const;
+
+function isShortString(value: unknown, maxLength: number): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= maxLength;
+}
+
+/** xattr `id`: an id of an entity, as the GUI sets it. */
+export function isValidEntityIdXAttr(value: unknown): value is string {
+  return isShortString(value, 64);
+}
+
+/** xattr `ext`: the extension shown for a file. */
+export function isValidExtXAttr(value: unknown): value is string {
+  return isShortString(value, 64);
+}
+
+export const MAX_TAGS = 100;
+export const MAX_TAG_LENGTH = 128;
+
+/** xattr `tags`: a bounded list of bounded strings. */
+export function isValidTagsXAttr(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) && value.length <= MAX_TAGS && value.every(tag => isShortString(tag, MAX_TAG_LENGTH))
+  );
+}
 
 export type ListingXAttrName = keyof typeof LISTING_XATTR_VALIDATORS;
 
@@ -51,6 +75,11 @@ export function isImageDataUrl(value: unknown): value is string {
   );
 }
 
+/** A thumbnail of a file (xattr `thumbnail`): an image data URL of a limited size. */
+export function isThumbnailDataUrl(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= THUMBNAIL_MAX_LENGTH && isImageDataUrl(value);
+}
+
 /** A custom icon of an entity (xattr `icon`): an image data URL of a limited size. */
 export function isEntityIconDataUrl(value: unknown): value is string {
   return typeof value === 'string' && value.length <= ENTITY_ICON_MAX_LENGTH && isImageDataUrl(value);
@@ -61,10 +90,10 @@ export function isEntityIconDataUrl(value: unknown): value is string {
  The others are set only by the service itself (favorites, trash, ids of folders).
 */
 const RPC_WRITABLE_XATTR_VALIDATORS: Record<string, (v: unknown) => boolean> = {
-  id: v => typeof v === 'string' && v.length > 0 && v.length <= 64,
+  id: v => isValidEntityIdXAttr(v),
   ext: v => typeof v === 'string' && v.length <= 64,
   mime: v => typeof v === 'string' && v.length <= 255,
-  thumbnail: v => isImageDataUrl(v),
+  thumbnail: v => isThumbnailDataUrl(v),
   icon: v => isEntityIconDataUrl(v),
 };
 

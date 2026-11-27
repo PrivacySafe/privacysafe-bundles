@@ -15,6 +15,7 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
 import { inject } from 'vue';
+import escape from 'lodash/escape';
 import { useI18n } from 'vue-i18n';
 import {
   DIALOGS_KEY,
@@ -154,11 +155,15 @@ export function useBackupRestore() {
     }
 
     const isCompatible = validation.compatible;
+    // The archive's version is read from the file's unencrypted outer layer,
+    // before the user has agreed to anything: escaped, the file may come from
+    // anyone (audit of 2026-11-26).
+    const archiveVersion = escape(validation.archiveVersion || 'unknown');
     const confirmDialogText = isCompatible
-      ? t('backup.restore.confirmText', { version: validation.archiveVersion || 'unknown' })
+      ? t('backup.restore.confirmText', { version: archiveVersion })
       : t('backup.restore.confirmWarningText', {
-          archiveVersion: validation.archiveVersion || 'unknown',
-          appVersion: validation.appVersion,
+          archiveVersion,
+          appVersion: escape(validation.appVersion),
         });
 
     const confirmBtnText = isCompatible

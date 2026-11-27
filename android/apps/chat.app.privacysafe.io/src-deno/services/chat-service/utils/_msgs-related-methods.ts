@@ -47,6 +47,7 @@ import type {
 import { toCanonicalAddress } from '../../../../shared-libs/address-utils.ts';
 import { THUMBNAIL_CACHE_MAX_CHARS } from '../../../../shared-libs/constants/attachment-limits.ts';
 import { inviteChatId, isString } from './_common.ts';
+import { findMemberKey } from './peer-input-checks.ts';
 import { removeMessageFromInbox, removeMsgFromDelivery } from '../../../utils/inbox-utils.ts';
 
 export { removeMessageFromInbox, removeMsgFromDelivery };
@@ -307,7 +308,10 @@ export function canReceiveRegularMessages(chat: ChatDbEntry, ownAddr: string): b
   const { isGroupChat, status } = chat;
   if (isGroupChat) {
     const { members } = chat as GroupChatDbEntry;
-    const { hasAccepted } = members[ownAddr];
+    // No entry for the user is a group the user was removed from (an admin's
+    // members update leaves them out): nothing to receive, not an exception.
+    const ownKey = findMemberKey(members, ownAddr);
+    const hasAccepted = !!ownKey && !!members[ownKey]?.hasAccepted;
     return hasAccepted && ['on', 'partially-on', 'accepted'].includes(status);
   }
 
@@ -480,7 +484,7 @@ export function withRecordingsApplied(
     return attachments;
   }
   return attachments.map(item => {
-    const recorded = recordings[item.name];
+    const recorded = Object.hasOwn(recordings, item.name) ? recordings[item.name] : undefined;
     // The preview does not go into the record - only the kind and duration do.
     return recorded
       ? { ...item, recording: { kind: recorded.kind, durationMs: recorded.durationMs } }

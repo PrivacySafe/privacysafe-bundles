@@ -17,7 +17,8 @@
 <script setup lang="ts">
   import { computed } from 'vue';
   import { useI18n } from 'vue-i18n';
-  import { copyToClipboard, generateColor } from '@v1nt1248/3nclient-lib/utils';
+  import { generateColor } from '@v1nt1248/3nclient-lib/utils';
+  import { copySecret } from '@/common/utils/copy-secret';
   import { Ui3nIcon, Ui3nTooltip } from '@v1nt1248/3nclient-lib';
   import { DEFAULT_GROUP, RECORD_TYPE } from '@shared/constants.ts';
   import type { SyncType, TreasureBankCardRecord, TreasureCardRecord, TreasureRecord } from '@shared/@types';
@@ -69,7 +70,7 @@
       return;
     }
 
-    await copyToClipboard(value);
+    await copySecret(value);
 
     await addRecordToRecent(props.row.id);
     if (props.selectedGroup === DEFAULT_GROUP.RECENT) {

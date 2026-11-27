@@ -87,5 +87,20 @@ export function queryResultToPerson(sqlResult: QueryExecResult, row = 0): Omit<P
     : {};
   // Absent in a row of a table made by an older version of the app.
   person.dates = sanitizeContactDates(person.dates);
+  // The table is not only this app's writing: a db file from another device or
+  // a restored backup may hold a number or a blob in a text column, and a
+  // non-string name took the whole contact list down on every device the file
+  // synced to (audit of 2026-11-26).
+  person.name = textOrUndefined(person.name);
+  person.notice = textOrUndefined(person.notice);
+  person.phone = textOrUndefined(person.phone);
+  person.mail = textOrUndefined(person.mail) ?? '';
   return person;
+}
+
+export function textOrUndefined(value: unknown): string | undefined {
+  if ((value === null) || (value === undefined)) {
+    return undefined;
+  }
+  return (typeof value === 'string') ? value : String(value);
 }

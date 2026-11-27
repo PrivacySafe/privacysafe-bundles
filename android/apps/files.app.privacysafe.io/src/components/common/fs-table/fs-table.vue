@@ -34,7 +34,7 @@
   import { useAbilities } from '@/composables/useAbilities';
   import { useFsTable } from './useFsTable';
   import { useAppStore, useFsStore, useFavoriteStore } from '@/store';
-  import { isValidEntityName } from '@shared/utils/fs-utils/entity-name';
+  import { isValidNewEntityName } from '@shared/utils/fs-utils/entity-name';
   import type { AppGlobalEvents, ListingEntryExtended, FsFolderEntityEvent } from '@shared/types';
   import type { FsTableProps, FsTableEmits, FsTableSlots } from './types';
   import type { FsTableRowProps } from '@/components/common/fs-table-row/types';
@@ -155,7 +155,7 @@
           return;
         }
 
-        if (!isValidEntityName(newName)) {
+        if (!isValidNewEntityName(newName)) {
           revert?.();
           appStore.$createNotice({ type: 'error', withIcon: true, content: t('validation.text.invalid_name') });
           return;

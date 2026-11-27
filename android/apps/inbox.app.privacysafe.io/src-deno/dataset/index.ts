@@ -100,6 +100,21 @@ import {
   isEmpty,
 } from './utils.ts';
 import { makeDbWriter, type DbWriter } from './db-writer.ts';
+import { makeLogger } from '../../shared/utils/logger.ts';
+
+const log = makeLogger('Dataset');
+
+/** How far ahead of this device's clock a received stamp may be. */
+const SYNC_STAMP_MAX_FUTURE_MILLIS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Whether a stamp from a received phantom may advance this device's sync
+ * clock: a positive safe integer, not further in the future than a device of
+ * the same user can plausibly run ahead.
+ */
+export function isPlausibleSyncStamp(ts: unknown, now: number): ts is number {
+  return Number.isSafeInteger(ts) && ((ts as number) > 0) && ((ts as number) <= now + SYNC_STAMP_MAX_FUTURE_MILLIS);
+}
 
 export interface DBProvider {
   getAppState(): AppState;
@@ -856,6 +871,15 @@ export async function dataset(): Promise<DBProvider> {
   }
 
   function observeSyncStamp(ts: number): void {
+    // The clock is persisted and only moves forward: one wild stamp - a device
+    // with a broken clock, a stamp past 2^53 - would spoil it for good, every
+    // later local change stamped past it and, beyond MAX_SAFE_INTEGER, no
+    // longer ordered at all. Generous on the future side: a device of the
+    // same user may be hours off.
+    if (!isPlausibleSyncStamp(ts, Date.now())) {
+      log.warn(`Sync stamp ${ts} is not plausible; the sync clock is not advanced to it`);
+      return;
+    }
     if (ts > lastSyncClockTs) {
       lastSyncClockTs = ts;
       writeSyncDeviceRow();

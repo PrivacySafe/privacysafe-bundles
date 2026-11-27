@@ -29,7 +29,7 @@ import type { OpenChatCmdArg } from '../../../../types/chat-commands.types.ts';
 import type { AttachmentsContainer, ReadonlyFsWithId } from '../../../../types/app.types.ts';
 import type { ChatDbEntry, ChatSrvEmit, DB, FileStoreService, MsgDbEntry } from '../../../types/index.ts';
 import { LOGO_ICON_AS_ARRAY } from '../../../../src-main/common/constants/files.ts';
-import { AUTO_DELETE_MESSAGES_BY_ID, AUTODELETE_OFF } from '../../../../shared-libs/constants/chat-settings.ts';
+import { autoDeleteValueOf, checkedRecordings, checkedRelatedMessage } from './peer-input-checks.ts';
 import { ATTACHMENT_COPY_THRESHOLD } from '../../../../shared-libs/constants/attachment-limits.ts';
 import { addFolderTo, addFileTo } from '../../../../shared-libs/attachments-container.ts';
 import { generateChatMessageId } from '../../../../shared-libs/chat-ids.ts';
@@ -313,8 +313,7 @@ export async function msgSending({
     }
 
     const { settings } = chat;
-    const autoDeleteMessagesId = settings?.autoDeleteMessages as '0' | '1' | '2' | '3' | '4' | '5';
-    const autoDeleteTSValue = AUTO_DELETE_MESSAGES_BY_ID[autoDeleteMessagesId].value || AUTODELETE_OFF;
+    const autoDeleteTSValue = autoDeleteValueOf(settings?.autoDeleteMessages);
 
     const { attachments, attachmentContainer, recordings } = await prepOutgoingAttachments(files);
 
@@ -322,7 +321,7 @@ export async function msgSending({
       groupChatId: chat.isGroupChat ? chat.chatId : null,
       otoPeerCAddr: chat.isGroupChat ? null : chat.peerCAddr,
       timestamp,
-      removeAfter: autoDeleteMessagesId === '0' ? 0 : timestamp + autoDeleteTSValue,
+      removeAfter: autoDeleteTSValue ? timestamp + autoDeleteTSValue : 0,
       body: text,
       attachments,
       relatedMessage: relatedMessage ?? null,
@@ -457,7 +456,8 @@ export async function msgSending({
     chatMsgBody: ChatRegularMsgV1,
   ): Promise<void> {
     const { msgId, sender, plainTxtBody, attachments: attachmentsFS, deliveryTS } = incomingMsg;
-    const { chatMessageId, relatedMessage, recordings } = chatMsgBody;
+    const { chatMessageId } = chatMsgBody;
+    const relatedMessage = checkedRelatedMessage(chatMsgBody.relatedMessage);
     const removeFromInbox = !incomingMsg.attachments;
 
     const chatId = chatIdOfChat(chat);
@@ -472,11 +472,15 @@ export async function msgSending({
       return;
     }
 
-    const attachments = withRecordingsApplied(await infoOfIncomingAttachments(attachmentsFS), recordings);
+    const attachmentsInfo = await infoOfIncomingAttachments(attachmentsFS);
+    // What the peer says about its recordings, kept only for the attachments
+    // this message has; a preview only as an inline image - a URL here was
+    // fetched by the GUI as soon as the message was shown.
+    const recordings = checkedRecordings(chatMsgBody.recordings, (attachmentsInfo ?? []).map(a => a.name));
+    const attachments = withRecordingsApplied(attachmentsInfo, recordings);
 
     const { settings } = chat;
-    const autoDeleteMessagesId = settings?.autoDeleteMessages as '0' | '1' | '2' | '3' | '4' | '5';
-    const autoDeleteTSValue = AUTO_DELETE_MESSAGES_BY_ID[autoDeleteMessagesId].value || AUTODELETE_OFF;
+    const autoDeleteTSValue = autoDeleteValueOf(settings?.autoDeleteMessages);
 
     const msg = makeMsgDbEntry('regular', chatMessageId, {
       isIncomingMsg: true,
@@ -488,7 +492,7 @@ export async function msgSending({
       attachments,
       relatedMessage: relatedMessage ?? null,
       timestamp: deliveryTS,
-      removeAfter: autoDeleteMessagesId === '0' ? 0 : deliveryTS + autoDeleteTSValue,
+      removeAfter: autoDeleteTSValue ? deliveryTS + autoDeleteTSValue : 0,
     });
 
     await data.addMessage(msg);

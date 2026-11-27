@@ -172,6 +172,37 @@ describe('useBackupRestore', () => {
     expect(restoreBackupArchive).not.toHaveBeenCalled();
   });
 
+  // The version is read from the file's unencrypted outer layer and shown
+  // before the user agrees to anything (audit of 2026-11-26).
+  it('escapes the archive\'s version in the confirmation text', async () => {
+    fake.openDialogAnswering(zipSync({
+      [GROUPS_FILE_NAME]: utf8('[]'),
+      [METADATA_FILE_NAME]: makeBackupMetadataBytes({ version: '0.2.<img src=x onerror=alert(1)>' }),
+    }));
+    answers = [{ event: 'cancel' }];
+
+    const { runRestoreWorkflow } = setup();
+    await runRestoreWorkflow();
+
+    const text = opened[0].props.dialogText as string;
+    expect(text).not.toContain('<img');
+    expect(text).toContain('&lt;img');
+  });
+
+  // A version that is not a string used to break the version check.
+  it('shows an archive with a version that is not a string as of unknown version', async () => {
+    fake.openDialogAnswering(zipSync({
+      [GROUPS_FILE_NAME]: utf8('[]'),
+      [METADATA_FILE_NAME]: utf8(JSON.stringify({ version: { toString: 1 }, formatVersion: 1 })),
+    }));
+    answers = [{ event: 'cancel' }];
+
+    const { runRestoreWorkflow } = setup();
+    await expect(runRestoreWorkflow()).resolves.toBe(false);
+
+    expect(opened[0].props.dialogText as string).toContain('unknown');
+  });
+
   // The passphrase is used here, in the window: the service is handed the
   // archive already decrypted, and never sees the passphrase at all.
   it('asks for a passphrase, and decrypts before reaching the service', async () => {

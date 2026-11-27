@@ -132,9 +132,26 @@ function timeOfLine(): string {
   return `${hh}:${mm}:${ss}.${ms}`;
 }
 
+/*
+ Messages quote names and paths that come from other devices and apps. A line
+ break in such a name would start a forged line of the log, so line breaks and
+ other control characters are written as escapes: one call, one line.
+*/
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g;
+
+export function oneLine(text: string): string {
+  return text.replace(CONTROL_CHARACTERS, ch => {
+    if (ch === '\n') return '\\n';
+    if (ch === '\r') return '\\r';
+    if (ch === '\t') return '\\t';
+    return `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`;
+  });
+}
+
 function emit(type: 'error' | 'info' | 'warning', scope: string, msg: string, details?: unknown): void {
   const userPrefix = logUserAddress ? `[${logUserAddress}] ` : '';
-  const line = `${timeOfLine()} ${userPrefix}[${scope}] ${msg}`;
+  const line = `${timeOfLine()} ${userPrefix}[${scope}] ${oneLine(String(msg))}`;
   try {
     w3n.log(type, line, details).catch(() => {
       // Nothing sensible to do about a failing log, and certainly not another log

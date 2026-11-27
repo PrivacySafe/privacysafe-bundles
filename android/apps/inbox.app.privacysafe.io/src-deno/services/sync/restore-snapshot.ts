@@ -305,8 +305,14 @@ export async function applyRestoreSnapshot(
   // Folders first: a message's placement may name one of them, and a record
   // pointing at a folder that is not there yet renders in nothing.
   for (const entry of folders) {
-    if (await applyFolderEntry(entry, input, fallback, ctx)) {
-      res.foldersApplied += 1;
+    // One bad entry must not leave the restore applied halfway: it is reported
+    // and stepped over, as a message entry is below.
+    try {
+      if (await applyFolderEntry(entry, input, fallback, ctx)) {
+        res.foldersApplied += 1;
+      }
+    } catch (err) {
+      log.error(`Failed to apply folder ${String(entry?.folder?.id)} of a snapshot`, err);
     }
     done += 1;
     ctx.onProgress?.(done, total);

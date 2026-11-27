@@ -3,6 +3,7 @@ import {
   isSafeRelativePath,
   isSameOrInside,
   isValidEntityName,
+  isValidNewEntityName,
   joinEntityName,
   joinEntityPath,
   pickFreeEntityName,
@@ -93,5 +94,25 @@ describe('isSameOrInside', () => {
     expect(isSameOrInside('a', 'a')).toBe(true);
     expect(isSameOrInside('ab', 'a')).toBe(false);
     expect(isSameOrInside('anything', '')).toBe(true);
+  });
+});
+
+// Security audit 2026-11: 'invoice‮fdp.exe' is shown as 'invoiceexe.pdf', and a new name
+// starting with '.' vanished from the listing.
+describe('isValidNewEntityName', () => {
+  it.each(['invoice‮fdp.exe', 'a⁦b', 'a​b', 'a\u0085b', 'a\u007fb', '﻿a', '.hidden', ' .hidden'])(
+    'rejects %j',
+    name => {
+      expect(isValidNewEntityName(name)).toBe(false);
+    },
+  );
+
+  it.each(['report.pdf', 'Отчёт 2026', 'family 👨‍👩‍👧', 'نامه‌ها', 'a.b.c'])('accepts %j', name => {
+    expect(isValidNewEntityName(name)).toBe(true);
+  });
+
+  it('leaves existing names to isValidEntityName', () => {
+    expect(isValidEntityName('.hidden')).toBe(true);
+    expect(isValidEntityName('invoice‮fdp.exe')).toBe(true);
   });
 });

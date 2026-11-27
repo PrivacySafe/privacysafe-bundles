@@ -25,6 +25,9 @@ import type {
 } from '../../../../src/common/types/mail.types.ts';
 import type { LabelledFileStore } from '../../file-store/labelled-file-store.ts';
 
+const MAX_SUBJECT_LENGTH = 2000;
+const MAX_RECIPIENTS = 1000;
+
 async function attachmentsToAttachmentsInfo(
   data: web3n.files.ReadonlyFS,
   msgId: string,
@@ -57,15 +60,22 @@ export async function incomingMsgToIncomingMsgView(
     mailFolder,
     status: 'received',
     msgId: data.msgId,
-    threadId: data.jsonBody.threadId!,
+    // Taken as the sender wrote it; whether the message may join that thread is
+    // decided where the thread is known (threadIdForIncoming in receive.ts).
+    threadId: data.jsonBody?.threadId as string,
     msgType: data.msgType,
     deliveryTS: data.deliveryTS,
     sender: data.sender,
-    subject: data.subject,
-    recipients: data.recipients || [],
-    ...(data.plainTxtBody && { plainTxtBody: data.plainTxtBody }),
-    ...(data.htmlTxtBody && { htmlTxtBody: data.htmlTxtBody }),
-    jsonBody: omitThreadId(data.jsonBody),
+    // The rest is the sender's to write, and is taken only in the shape the
+    // app reads it in: a non-array `recipients` broke reply-all and the "To"
+    // line, a non-string body failed the STRICT table and held the watermark.
+    subject: (typeof data.subject === 'string') ? data.subject.substring(0, MAX_SUBJECT_LENGTH) : '',
+    recipients: Array.isArray(data.recipients)
+      ? data.recipients.filter(r => (typeof r === 'string') && !!r).slice(0, MAX_RECIPIENTS)
+      : [],
+    ...((typeof data.plainTxtBody === 'string') && data.plainTxtBody && { plainTxtBody: data.plainTxtBody }),
+    ...((typeof data.htmlTxtBody === 'string') && data.htmlTxtBody && { htmlTxtBody: data.htmlTxtBody }),
+    jsonBody: omitThreadId(data.jsonBody ?? {}),
     attachmentsInfo: [],
   };
 

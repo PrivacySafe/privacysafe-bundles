@@ -75,11 +75,6 @@ const REQ_REPLY_METHODS: (keyof ChatSrv)[] = [
   'setAppSettings',
   'listAutoBackups',
   'restoreFromAutoBackups',
-  // Published so that specs can feed synthesized phantoms to the real
-  // service: a device skips its own phantoms by sourceDeviceId, and the test
-  // stand has no second device of the same user, so there is no other way to
-  // exercise the receiving side of synchronization (P2-8).
-  'handleIncomingMsg',
   'forceRefreshChat',
 ];
 
@@ -166,6 +161,17 @@ export function exposeChatServiceOnIPC(chats: Promise<ChatSrv>): () => void {
       pingSilenced = silenced;
     };
     exposed.push('hangForTest', 'stopPingForTest');
+
+    // Published so that specs can feed synthesized phantoms to the real
+    // service: a device skips its own phantoms by sourceDeviceId, and the test
+    // stand has no second device of the same user, so there is no other way to
+    // exercise the receiving side of synchronization (P2-8). Only here: in a
+    // production run it let anything that reaches this channel hand the
+    // service a message "from the user", past every check of who sent it.
+    facade.handleIncomingMsg = async (...args: Parameters<ChatSrv['handleIncomingMsg']>) => (
+      (await chats).handleIncomingMsg(...args)
+    );
+    exposed.push('handleIncomingMsg');
   }
 
   srvWrapInternal.exposeReqReplyMethods(facade, exposed);

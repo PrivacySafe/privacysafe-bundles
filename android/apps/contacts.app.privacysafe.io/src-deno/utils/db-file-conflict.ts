@@ -19,6 +19,7 @@
 // ~1MB precompiled sqlite-on-3nstorage bundle.
 import { normalizeJsonField } from './obj-processing.ts';
 import { randomStr } from '../../src/common/services/base/random.ts';
+import { canonicalMail } from '@main/common/utils/mail-address.ts';
 import type { Person, RawPerson } from '../../src/types/index.ts';
 
 interface ValidatedContactField {
@@ -141,10 +142,13 @@ export function resolveDbFileConflict(
   const resolvedContactList: RawPerson[] = [];
   let areThereDifferences = false;
   let isLocalAheadOfRemote = false;
-  const remoteMap = new Map(contactListRemote.map(p => [p.mail, p]));
+  // Matched by the canonical address: 'Ann@3NWeb.com' on one device and
+  // 'ann@3nweb.com' on the other are one contact, not two.
+  const mailKey = (p: RawPerson) => canonicalMail(p.mail) ?? p.mail;
+  const remoteMap = new Map(contactListRemote.map(p => [mailKey(p), p]));
 
   for (const localPerson of contactList) {
-    const remotePerson = remoteMap.get(localPerson.mail);
+    const remotePerson = remoteMap.get(mailKey(localPerson));
 
     if (!remotePerson) {
       resolvedContactList.push(localPerson);
@@ -183,7 +187,7 @@ export function resolveDbFileConflict(
 
       resolvedContactList.push(resolvedContact);
 
-      remoteMap.delete(localPerson.mail);
+      remoteMap.delete(mailKey(localPerson));
     }
   }
 

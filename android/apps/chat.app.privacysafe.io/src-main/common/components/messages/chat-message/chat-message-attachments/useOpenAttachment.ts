@@ -16,7 +16,15 @@ this program. If not, see <http://www.gnu.org/licenses/>.
 */
 import { computed, inject } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { NOTIFICATIONS_KEY, NotificationsPlugin } from '@v1nt1248/3nclient-lib/plugins';
+import {
+  DIALOGS_KEY,
+  type DialogsPlugin,
+  NOTIFICATIONS_KEY,
+  NotificationsPlugin,
+} from '@v1nt1248/3nclient-lib/plugins';
+import { isRiskyFileName } from '@main/common/utils/risky-file';
+import { escapeHtml } from '@main/common/utils/escape-html';
+import ConfirmationDialog from '@main/common/components/dialogs/confirmation-dialog.vue';
 import type { AttachmentViewInfo } from './types';
 import { fileLinkStoreSrv } from '@main/common/services/external-services';
 import { useOpenReceivedAttachment } from './useOpenReceivedAttachment';
@@ -29,6 +37,7 @@ export function useOpenAttachment(
 ) {
   const { t } = useI18n();
   const { $createNotice } = inject<NotificationsPlugin>(NOTIFICATIONS_KEY)!;
+  const dialog = inject<DialogsPlugin>(DIALOGS_KEY)!;
   const receivedOpening = useOpenReceivedAttachment({ t });
 
   const isReceivedOpenAvailable = computed(
@@ -64,8 +73,29 @@ export function useOpenAttachment(
     return !!props.incomingMsgId && receivedOpening.isPreparingAttachment(props.incomingMsgId, path);
   }
 
-  async function openReceivedPath(path: string[]): Promise<void> {
+  /**
+   * A received file that the OS would run is opened only after the user says
+   * so: the sender chose its name, and opening goes to the OS default handler.
+   */
+  async function confirmRiskyOpening(name: string | undefined): Promise<boolean> {
+    if (!isRiskyFileName(name)) {
+      return true;
+    }
+    const res = await dialog.$openDialog<boolean>(ConfirmationDialog, {
+      dialogText: t('chat.message.dialog.risky_attachment.text', { name: `<b>${escapeHtml(name)}</b>` }),
+      dialogProps: {
+        title: t('chat.message.dialog.risky_attachment.title'),
+        icon: { icon: 'round-warning', color: 'var(--color-icon-control-warning-default)' },
+      },
+    });
+    return res.event === 'confirm';
+  }
+
+  async function openReceivedPath(path: string[], displayedName?: string): Promise<void> {
     if (!props.incomingMsgId || props.blocked) {
+      return;
+    }
+    if ((path.length > 0) && !(await confirmRiskyOpening(displayedName ?? path[path.length - 1]))) {
       return;
     }
     await receivedOpening.openAttachment(props.incomingMsgId, path);
@@ -80,7 +110,7 @@ export function useOpenAttachment(
       return;
     }
     if (props.incomingMsgId) {
-      await openReceivedPath([props.item.id || props.item.name]);
+      await openReceivedPath([props.item.id || props.item.name], props.item.isFolder ? undefined : props.item.name);
       return;
     }
 

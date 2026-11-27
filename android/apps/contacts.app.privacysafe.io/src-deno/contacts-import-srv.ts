@@ -31,6 +31,10 @@ const IMPORT_TTL_MILLIS = 30 * 60_000;
  * open this app with the returned id in the 'import-contacts' command; the
  * window then takes read contacts and decides on each of them with the user.
  */
+/** A file of thousands of contacts with their pictures is well below this. */
+const MAX_SHARED_CONTACTS_FILE_SIZE = 64 * 1024 * 1024;
+const MAX_PENDING_IMPORTS = 5;
+
 export function contactsImportSrv() {
   const imports = new Map<string, ImportedContact[]>();
 
@@ -39,6 +43,15 @@ export function contactsImportSrv() {
   ): Promise<{ importId: string; contactsCount: number }> {
     if (!file || (typeof file.readBytes !== 'function')) {
       throw new Error('No file with shared contacts is given');
+    }
+    // The whole file is read and its contacts kept in memory until the window
+    // takes them: bounded, so that a caller cannot fill this process up.
+    if (imports.size >= MAX_PENDING_IMPORTS) {
+      throw new Error('Too many imports of shared contacts are waiting');
+    }
+    const { size } = await file.stat();
+    if ((typeof size !== 'number') || (size > MAX_SHARED_CONTACTS_FILE_SIZE)) {
+      throw new Error('File with shared contacts is too large');
     }
 
     const bytes = await file.readBytes();

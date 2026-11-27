@@ -567,6 +567,18 @@ export const es = {
           text: '¿Eliminar el mensaje seleccionado?',
           additional_text: '¿Eliminar para todos?',
         },
+        link_mismatch: {
+          title: 'Abrir enlace',
+          text: 'El texto de este enlace no coincide con su destino. Abre {url}',
+        },
+        mention_mismatch: {
+          title: 'Iniciar chat',
+          text: 'Esta mención no coincide con su dirección. ¿Iniciar un chat con {addr}?',
+        },
+        risky_attachment: {
+          title: 'Abrir archivo',
+          text: '{name} puede ejecutar un programa en este dispositivo. Ábralo solo si confía en el remitente.',
+        },
         forward: {
           title: 'Reenviar mensaje',
           section: {

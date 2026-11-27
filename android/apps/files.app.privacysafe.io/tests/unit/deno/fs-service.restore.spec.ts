@@ -82,7 +82,7 @@ describe('fsService.restoreEntities, mode "keep"', () => {
 
     const res = await srv.restoreEntities({ fsId, entities: [first, second] });
 
-    expect(Object.values(res!).sort()).toEqual(['docs/a.txt', 'docs/a_copy.txt']);
+    expect(Object.values(res!.restored).sort()).toEqual(['docs/a.txt', 'docs/a_copy.txt']);
     expect(fs.paths().filter(p => p.startsWith(`${TRASH}/`))).toEqual([]);
   });
 
@@ -131,7 +131,7 @@ describe('fsService.restoreEntities, mode "replace"', () => {
 
     const res = await srv.restoreEntities({ fsId, entities: [entity], mode: 'replace' });
 
-    expect(res).toEqual({ [entity.fullPath]: 'docs/a.txt' });
+    expect(res).toEqual({ restored: { [entity.fullPath]: 'docs/a.txt' }, replaced: {} });
   });
 });
 
@@ -145,7 +145,7 @@ describe('fsService.restoreEntities with untrusted xattrs', () => {
 
     const res = await srv.restoreEntities({ fsId, entities: [entity] });
 
-    expect(res).toEqual({ [entity.fullPath]: 'a_1.txt' });
+    expect(res?.restored).toEqual({ [entity.fullPath]: 'a_1.txt' });
   });
 });
 
@@ -162,6 +162,67 @@ describe('fsService.restoreEntities when the trash marks cannot be removed', () 
     const res = await srv.restoreEntities({ fsId, entities: [entity] });
 
     expect(fs.has('docs/a.txt')).toBe(true);
-    expect(Object.values(res ?? {})).toEqual(['docs/a.txt']);
+    expect(Object.values(res?.restored ?? {})).toEqual(['docs/a.txt']);
+  });
+});
+
+// Security audit 2026-11: the trash marks can be written by another device or app. In
+// "replace" mode the entity at the stored location used to be removed for good, so a
+// forged location erased the trash, the restored entity itself or any folder.
+describe('fsService.restoreEntities with forged trash marks', () => {
+  it('refuses to restore onto the trash folder itself', async () => {
+    const fs = new MemoryFS().addFile(`${TRASH}/keep.txt`).addFile(`${TRASH}/x`);
+    const entity = fs.entry(`${TRASH}/x`, { parentFolder: '', originalName: TRASH });
+    const { srv, fsId } = createFsService({ fs });
+
+    const res = await srv.restoreEntities({ fsId, entities: [entity], mode: 'replace' });
+
+    expect(res).toEqual({ restored: {}, replaced: {} });
+    expect(fs.has(`${TRASH}/keep.txt`)).toBe(true);
+    expect(fs.has(`${TRASH}/x`)).toBe(true);
+  });
+
+  it('restores into the root when the stored folder is in the trash', async () => {
+    const fs = new MemoryFS().addFile(`${TRASH}/a.txt`);
+    const entity = fs.entry(`${TRASH}/a.txt`, { parentFolder: TRASH, originalName: 'a.txt' });
+    const { srv, fsId } = createFsService({ fs });
+
+    const res = await srv.restoreEntities({ fsId, entities: [entity], mode: 'replace' });
+
+    expect(res?.restored).toEqual({ [`${TRASH}/a.txt`]: 'a.txt' });
+    expect(fs.has('a.txt')).toBe(true);
+  });
+
+  it('moves the replaced entity to the trash instead of erasing it', async () => {
+    const fs = new MemoryFS().addFile('Work/plan.txt', 'precious').addFile(`${TRASH}/bait`, 'bait');
+    const entity = fs.entry(`${TRASH}/bait`, { parentFolder: '', originalName: 'Work' });
+    const { srv, fsId } = createFsService({ fs });
+
+    const res = await srv.restoreEntities({ fsId, entities: [entity], mode: 'replace' });
+
+    const kept = fs.paths().filter(p => p.startsWith(`${TRASH}/`) && p.endsWith('/plan.txt'));
+    expect(kept).toHaveLength(1);
+    expect(new TextDecoder().decode(await fs.readBytes(kept[0]))).toBe('precious');
+    // the user is told where the replaced folder went
+    expect(res?.replaced).toEqual({ Work: kept[0].slice(0, -'/plan.txt'.length) });
+  });
+});
+
+// Live check of the audit fix: "replace" moved the newer file to the trash under a free name, and
+// the user, looking at the trash, took it for the restored file that was renamed and stayed.
+describe('fsService.restoreEntities, mode "replace": the result names the replaced entity', () => {
+  it('reports the path in the trash of the replaced file', async () => {
+    const fs = new MemoryFS().addFolder(TRASH).addFile('Dst/a.txt', 'old');
+    const entity = await trashed(fs, 'Dst/a.txt');
+    fs.addFile('Dst/a.txt', 'new');
+    const { srv, fsId } = createFsService({ fs });
+
+    const res = await srv.restoreEntities({ fsId, entities: [entity], mode: 'replace' });
+
+    expect(res?.restored).toEqual({ [entity.fullPath]: 'Dst/a.txt' });
+    const pathInTrash = res!.replaced['Dst/a.txt'];
+    expect(pathInTrash.startsWith(`${TRASH}/a_`)).toBe(true);
+    expect(new TextDecoder().decode(await fs.readBytes(pathInTrash))).toBe('new');
+    expect(new TextDecoder().decode(await fs.readBytes('Dst/a.txt'))).toBe('old');
   });
 });

@@ -107,3 +107,19 @@ describe('file dialog requests', () => {
     expect(closeSelf).not.toHaveBeenCalled();
   });
 });
+
+// Security audit 2026-11: a second request on the same connection replaced the mode, texts and
+// answer of the dialog on screen, e.g. "open file" became "open folder" under the same button.
+describe('file dialog requests: one at a time', () => {
+  it('rejects a second request and keeps the first one', async () => {
+    const dialogRequest = setup();
+    const first = handlers['w3n.shell.fileDialogs.openFileDialog']('Pick a photo', 'Open', false);
+
+    const second = handlers['w3n.shell.fileDialogs.openFolderDialog']('Pick a photo', 'Open', false);
+
+    await expect(second).rejects.toThrow('already open');
+    expect(dialogRequest).toMatchObject({ mode: 'openFile', title: 'Pick a photo', btnLabel: 'Open' });
+    settleDialog(dialogRequest, []);
+    await expect(first).resolves.toEqual([]);
+  });
+});

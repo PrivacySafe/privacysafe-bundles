@@ -21,6 +21,7 @@ import { en } from '../../src/common/data/i18/en.ts';
 import { es } from '../../src/common/data/i18/es.ts';
 import { fr } from '../../src/common/data/i18/fr.ts';
 import type { DateReminder } from './date-reminders.ts';
+import { boundedText } from './contact-input-checks.ts';
 
 type ReminderTexts = typeof en.reminders;
 
@@ -29,6 +30,8 @@ const TEXTS: Record<string, ReminderTexts> = {
   es: es.reminders,
   fr: fr.reminders,
 };
+
+const MAX_NOTIFIED_NAME_LENGTH = 80;
 
 /** The command a click on the notification starts the window with. */
 export const OPEN_CONTACT_CMD = 'open-contact';
@@ -43,7 +46,9 @@ function fill(template: string, values: Record<string, string | number>): string
 
 export function reminderNotificationTexts(reminder: DateReminder, lang: string): { title: string; body: string } {
   const texts = (TEXTS[lang] ?? TEXTS.en).birthday;
-  const values = { name: reminder.displayName, age: reminder.age ?? '' };
+  // One line of a sane length: the name is whatever the contact record holds.
+  const name = boundedText(String(reminder.displayName ?? ''), MAX_NOTIFIED_NAME_LENGTH, true);
+  const values = { name, age: reminder.age ?? '' };
 
   return {
     title: fill(texts.title, values),

@@ -35,6 +35,13 @@ const SALT_BYTES = 16;
 /** AES-GCM is specified for a 96-bit nonce; longer ones are hashed down. */
 const IV_BYTES = 12;
 const PBKDF2_ITERATIONS = 250000;
+/**
+ * The most an archive may ask for. The count is read from the file, before the
+ * passphrase is checked: without a ceiling, a crafted archive hangs the window
+ * deriving a key (audit of 2026-11-26). Forty times today's cost leaves room to
+ * raise it.
+ */
+export const PBKDF2_MAX_ITERATIONS = 10_000_000;
 
 /**
  * Whether this runtime can encrypt at all. Checked rather than assumed: a
@@ -160,7 +167,7 @@ export async function decryptPayload(
   // Taken from the archive rather than from the constant, so that raising the
   // cost of the kdf later does not make today's archives unreadable.
   const iterations = Number(params.iterations);
-  if (!Number.isFinite(iterations) || iterations < 1) {
+  if (!Number.isSafeInteger(iterations) || iterations < 1 || iterations > PBKDF2_MAX_ITERATIONS) {
     throw new Error('Unsupported encryption parameters in the backup archive');
   }
 

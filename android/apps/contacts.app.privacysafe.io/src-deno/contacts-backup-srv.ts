@@ -42,6 +42,7 @@ import {
   checkBackupFormatCompatibility, checkBackupVersionCompatibility,
 } from './utils/check-backup-version.ts';
 import type { FilesStoreService } from './file-store-service/files-store-service.ts';
+import { isAvatarDataURL, isImageId } from './utils/contact-input-checks.ts';
 import type {
   BackupArchiveError, BackupValidationResult, ContactEvent, RawPerson,
 } from '../src/types/index.ts';
@@ -590,6 +591,12 @@ export async function contactsBackupSrv({
         for (let i = 0; i < images.length; i++) {
           const { name, bytes } = images[i];
           const txt = fromUtf8(bytes);
+          // An avatar is a data URL of a raster image; any other text from the
+          // archive is not written, as the GUI puts avatars into CSS url().
+          if (!isImageId(name) || !isAvatarDataURL(txt.trim())) {
+            await w3n.log('warning', `Restore: left out images/${name}, not an avatar`);
+            continue;
+          }
 
           const existing = await filesSrv.getFile(name);
           // '' means "listed, but the bytes are still on the server" - not a

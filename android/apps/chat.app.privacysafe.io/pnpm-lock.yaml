@@ -169,6 +169,9 @@ importers:
       '@dbushell/hyperless':
         specifier: 0.35.0
         version: 0.35.0
+      '@types/punycode':
+        specifier: ^2.1.4
+        version: 2.1.4
       '@v1nt1248/3nclient-lib':
         specifier: 0.4.18
         version: 0.4.18(pinia@3.0.4(typescript@6.0.3)(vue@3.5.46(typescript@6.0.3)))(vue@3.5.46(typescript@6.0.3))
@@ -190,6 +193,9 @@ importers:
       pinia:
         specifier: 3.0.4
         version: 3.0.4(typescript@6.0.3)(vue@3.5.46(typescript@6.0.3))
+      punycode:
+        specifier: ^2.3.1
+        version: 2.3.1
       vue:
         specifier: 3.5.46
         version: 3.5.46(typescript@6.0.3)
@@ -1193,6 +1199,9 @@ packages:
 
   '@types/node@24.19.2':
     resolution: {integrity: sha512-93d49wCWJkCyN87MxLpNN6KXPCwFw7bVUg79mGUV1OS40JGWwVCr8n61DXCSqz7CV6/VfPkb7xec7uP2M+QHWQ==}
+
+  '@types/punycode@2.1.4':
+    resolution: {integrity: sha512-trzh6NzBnq8yw5e35f8xe8VTYjqM3NE7bohBtvDVf/dtUer3zYTLK1Ka3DG3p7bdtoaOHZucma6FfVKlQ134pQ==}
 
   '@types/sanitize-html@2.16.2':
     resolution: {integrity: sha512-kuAbgDCFv418flrp3z4o/4ufLA/5ovmXRH0L419iZCPGO7w00znjeDI5Wy/KZWNIBpDQc7hucCK+J5almB6FyA==}
@@ -3328,6 +3337,8 @@ snapshots:
   '@types/node@24.19.2':
     dependencies:
       undici-types: 7.24.6
+
+  '@types/punycode@2.1.4': {}
 
   '@types/sanitize-html@2.16.2':
     dependencies:

@@ -17,8 +17,13 @@
 export function htmlToText({ value, length = 150 }: { value?: string; length?: number }): string {
   if (!value) {return '';}
 
-  const divEl = document.createElement('div');
-  divEl.innerHTML = value;
-  const text = divEl.innerText || divEl.textContent || '';
+  // Parsed into a document of its own, never into an element of the window's.
+  // An element created by `document` - attached or not - starts loading an
+  // <img> as soon as it is parsed, so `<img src=x onerror=...>` in a received
+  // mail ran its handler in this window the moment the message list showed it,
+  // without the user opening anything (audit of 2026-11-26). A DOMParser
+  // document runs no scripts and loads nothing.
+  const doc = new DOMParser().parseFromString(value, 'text/html');
+  const text = doc.body?.textContent || '';
   return text.slice(0, length);
 }

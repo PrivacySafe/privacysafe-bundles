@@ -306,6 +306,9 @@ export const en = {
     progress: 'Imported {number} of {total} contacts',
     notFound: 'This import of contacts is already finished, or has expired. Open the file again.',
     result: 'Import of contacts is finished: added {added}, updated {updated}, skipped {skipped}',
+    newContacts: {
+      title: 'The file adds {count} new contact(s). Check the addresses before adding them:',
+    },
     field: {
       avatar: 'Avatar',
       birthday: 'Birthday',
@@ -318,6 +321,8 @@ export const en = {
       applyToAll: 'Apply to all remaining matches',
     },
     btn: {
+      addNew: 'Add',
+      skipNew: 'Don’t add',
       abort: 'Stop',
       keep: 'Keep current',
       incoming: 'Take received',

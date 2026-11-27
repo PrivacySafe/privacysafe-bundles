@@ -23,7 +23,8 @@ import { debounce } from '../shared/utils/debounce.ts';
 import { setupGlobalReportingOfUnhandledErrors } from './utils/error-handling.ts';
 import { syncUpload } from './utils/sync-upload.ts';
 import { checkServerConnection } from './utils/check-server-connection.ts';
-import { treasureFileSrv } from './treasure-file-srv.ts';
+import { assertSafeFileId, treasureFileSrv } from './treasure-file-srv.ts';
+import { isSafeFileId } from './utils/record-input-checks.ts';
 import { treasureSyncSrv } from './treasure-sync-srv.ts';
 import { treasureBackupSrv } from './treasure-backup-srv.ts';
 import { handleFolderChangeSyncStatus } from './utils/handle-folder-change-sync-status.ts';
@@ -265,6 +266,7 @@ async function treasureDenoSrv(): Promise<TreasureDenoSrv> {
   }
 
   async function deleteImages(imageIds: string[]): Promise<void> {
+    imageIds.forEach(assertSafeFileId);
     const fileNames = imageIds.map(id => `${IMAGES_FOLDER}/${id}`);
     return fileSrv.deleteFiles(fileNames);
   }
@@ -302,9 +304,12 @@ async function treasureDenoSrv(): Promise<TreasureDenoSrv> {
   }
 
   async function deleteRecord(data: TreasureRecord, withoutUploadParentFolder?: boolean): Promise<boolean> {
-    const reference = data.reference;
-    const source = data.source;
-    const images: string[] = JSON.parse(JSON.stringify((data as TreasureCardRecord).images || []));
+    // Ids in a record name files: one that came from another device or a
+    // backup must not name a file that is not its own (audit of 2026-11-26).
+    assertSafeFileId(data.id);
+    const reference = isSafeFileId(data.reference) ? data.reference : undefined;
+    const source = isSafeFileId(data.source) ? data.source : undefined;
+    const images: string[] = ((data as TreasureCardRecord).images || []).filter(isSafeFileId);
 
     await fileSrv.deleteFile(data.id);
     if (reference) {
@@ -354,6 +359,9 @@ async function treasureDenoSrv(): Promise<TreasureDenoSrv> {
   }
 
   async function getRecord(id: string): Promise<TreasureRecord | null> {
+    if (!isSafeFileId(id)) {
+      return null;
+    }
     const record = await fileSrv.getFile<TreasureRecord>(id);
     if (!record) {
       return null;

@@ -14,6 +14,7 @@ import {
   createFolderTarget,
   getFolderTargetStats,
   hasFileExceptionFlag,
+  isFsRootPath,
   openFolderTarget,
   type PickerFolderTarget,
 } from '@picker/common/utils/folder-operations';
@@ -74,6 +75,10 @@ export function usePickerDialogActions(
     if (dialogRequest.mode === 'openFolder') {
       const paths = rows.filter(row => row.isFolder).map(row => row.id);
       if (!paths.length) {
+        if (isFsRootPath(picker.currentWindow.value.currentPath)) {
+          showError('file_picker.notification.error.root_folder');
+          return;
+        }
         paths.push(picker.currentWindow.value.currentPath);
       }
       await runAction(async () => {
@@ -206,6 +211,10 @@ export function usePickerDialogActions(
         return;
       }
       if (!name) {
+        if (isFsRootPath(target.path)) {
+          showError('file_picker.notification.error.root_folder');
+          return;
+        }
         // "Use folder": the user has chosen the current folder explicitly
         settleDialog(dialogRequest, await openFolderTarget(target));
         return;

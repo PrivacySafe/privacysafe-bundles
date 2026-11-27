@@ -116,7 +116,7 @@ export async function msgStatusUpdating({
     { chatMessageId, status }: UpdatedMsgStatusSysMsgData['value'],
     timestamp: number,
   ): Promise<void> {
-    if (status !== 'sent' && status !== 'read') {
+    if ((status !== 'sent' && status !== 'read') || (typeof chatMessageId !== 'string')) {
       return;
     }
     const chatId = chatIdOfChat(chat);
@@ -130,6 +130,11 @@ export async function msgStatusUpdating({
     // avoid a redundant own-device sync phantom below.
     // XXX this should still add to history, without changing status
     if (msg.status === 'read' || msg.status === status) {
+      return;
+    }
+    // A message the user cancelled stays cancelled: a peer's word that it was
+    // read must not make it look delivered.
+    if (msg.status === 'canceled') {
       return;
     }
 

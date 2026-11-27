@@ -28,6 +28,7 @@ import { getListFolder, makeLinkAwareFs, type FsLocation, type LinkAwareFS } fro
 import { isFsRootVisible } from '@shared/utils/fs-grouping';
 import { formatPath, prepareFolderPath } from '@shared/utils/various';
 import { makeLogger } from '@shared/utils/logger';
+import { isRiskyFileName } from '@/utils/risky-file';
 
 const log = makeLogger('FsStore');
 
@@ -389,6 +390,31 @@ export const useFsStore = defineStore('fs', () => {
     return files.length - failedNames.length;
   }
 
+  /**
+   * "Replace" moves the entities that stood in the way to the trash under free
+   * names (e.g. 'a_1795699556746.txt'). Without a word about it, a new entity in
+   * the trash looks as if the restored one was renamed and stayed there.
+   */
+  function notifyAboutReplacedEntities(replaced: Record<string, string> | undefined) {
+    const entries = Object.entries(replaced ?? {});
+    if (entries.length === 0) {
+      return;
+    }
+    const names = entries
+      .map(([originalPath, pathInTrash]) => {
+        const originalName = originalPath.split('/').pop();
+        const nameInTrash = pathInTrash.split('/').pop();
+        return t('fs.entity.message.info.restore_replaced_item', { originalName, nameInTrash });
+      })
+      .join(', ');
+    $createNotice({
+      type: 'info',
+      withIcon: true,
+      duration: 10000,
+      content: t('fs.entity.message.info.restore_replaced', { names }, entries.length),
+    });
+  }
+
   async function restoreEntities({ fsId, entities }: { fsId: string; entities: ListingEntryExtended[] }) {
     if (![USER_FS, USER_LOCAL_FS].includes(fsId)) {
       return;
@@ -453,7 +479,8 @@ export const useFsStore = defineStore('fs', () => {
 
       const { event, data } = res;
       if (event === 'confirm') {
-        await _restoreEntities({ fsId, entities: entitiesForRestore.extra, mode: data });
+        const result = await _restoreEntities({ fsId, entities: entitiesForRestore.extra, mode: data });
+        notifyAboutReplacedEntities(result?.replaced);
       }
     }
 
@@ -489,7 +516,34 @@ export const useFsStore = defineStore('fs', () => {
     }
   }
 
+  /**
+   * Files come from other devices, other people and other apps, and opening one
+   * hands it to the OS default handler. A file that may run code is opened only
+   * after the user confirms it.
+   */
+  async function confirmOpeningRiskyFile(name: string | undefined): Promise<boolean> {
+    if (!isRiskyFileName(name)) {
+      return true;
+    }
+    const component = defineAsyncComponent(() => import('@/components/dialogs/confirmation-dialog.vue'));
+    const res = await $dialogs.open(component, {
+      dialogText: t('fs.entity.risky_file.text', { name }),
+      additionalDialogText: t('fs.entity.risky_file.question'),
+      dialogProps: {
+        title: t('dialog.warning.title'),
+        confirmButtonText: t('fs.entity.risky_file.open'),
+        confirmButtonBackground: 'var(--error-content-default)',
+        confirmButtonColor: 'var(--error-fill-default)',
+      },
+    });
+    return res?.event === 'confirm';
+  }
+
   async function openFile(fsId: string, fullPath: string, isLinkPath = false) {
+    if (!(await confirmOpeningRiskyFile(fullPath.split('/').pop()))) {
+      return;
+    }
+
     const shell = w3n.shell;
     const openInMounted = shell?.openInMounted;
     // the mounted FS is the root FS: a path through a link to a folder is not a path in it
@@ -624,6 +678,11 @@ export const useFsStore = defineStore('fs', () => {
       const file = isLinkPath
         ? ((await (await fs.readLink(fullPath)).target()) as FileW)
         : await (isWritable ? fs.writableFile(fullPath) : fs.readonlyFile(fullPath));
+
+      // a link may have a harmless name and point to a file that is not
+      if (isLinkPath && file.name !== fullPath.split('/').pop() && !(await confirmOpeningRiskyFile(file.name))) {
+        return;
+      }
 
       await shell.openFile(file);
     } catch (err) {

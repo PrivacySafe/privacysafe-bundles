@@ -97,7 +97,7 @@
         content: t('list.notifications.success.saving'),
       });
     } catch (err) {
-      console.error(`Error saving '${(data as TreasurePasswordRecord)!.name || data!.resource}' record. `, err);
+      console.error(`Error saving record ${data!.id}. `, err);
       $createNotice({
         type: 'error',
         content: t('list.notifications.error.saving', {
@@ -112,7 +112,7 @@
     try {
       await removeRecord(data.id);
     } catch (err) {
-      console.error(`Error deleting '${(data as TreasurePasswordRecord)!.name || data!.resource}' record. `, err);
+      console.error(`Error deleting record ${data!.id}. `, err);
       $createNotice({
         type: 'error',
         content: t('list.notifications.error.deleting', {
@@ -160,7 +160,7 @@
     try {
       await upsertGroup(data!);
     } catch (err) {
-      console.error(`Error saving '${data!.name}' group. `, err);
+      console.error(`Error saving group ${data!.id || '(new)'}. `, err);
       $createNotice({
         type: 'error',
         content: t('list.notifications.error.saving', { entity: 'group', name: data!.name }),
@@ -172,7 +172,7 @@
     try {
       await deleteGroup(group.id);
     } catch (err) {
-      console.error(`Error deleting '${group!.name}' group. `, err);
+      console.error(`Error deleting group ${group!.id}. `, err);
       $createNotice({
         type: 'error',
         content: t('list.notifications.error.deleting', { entity: 'group', name: group!.name }),

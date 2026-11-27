@@ -18,6 +18,7 @@ import dayjs from 'dayjs';
 import escape from 'lodash/escape';
 import type { IncomingMessageView } from '@common/types';
 import { REASONS_MAP } from './constants';
+import { sanitizeMailHtml } from '@common/utils/sanitize-mail-html';
 
 export type ReportTranslate = (key: string, placeholders?: Record<string, string>) => string;
 
@@ -74,7 +75,11 @@ export function prepareReportMsgBody({
   }
 
   if (includeMessage) {
-    const quoted = message.htmlTxtBody || escape(message.plainTxtBody || '').replaceAll('\n', '<br/>');
+    // Sanitized like in the reading view: the report goes to somebody else,
+    // and the raw body would deliver the reported sender's payload to them.
+    const quoted = message.htmlTxtBody
+      ? sanitizeMailHtml(message.htmlTxtBody)
+      : escape(message.plainTxtBody || '').replaceAll('\n', '<br/>');
     parts.push(
       `<br/><br/>`,
       `<div>---------- ${t('dialog.report-dialog.content.reportedMessageTitle')} ----------</div>`,

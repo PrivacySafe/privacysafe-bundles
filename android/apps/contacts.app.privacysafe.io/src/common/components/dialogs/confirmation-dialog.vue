@@ -30,7 +30,9 @@ const vUi3nHtml = Ui3nHtml;
   <ui3n-dialog v-bind="dialogProps">
     <template #body>
       <div :class="$style.confirmationDialog">
-        <div v-ui3n-html="dialogText" />
+        <!-- Sanitized as well as escaped by the callers: texts carry values that -->
+        <!-- others chose - a contact's name, a backup's version (audit of 2026-11-26). -->
+        <div v-ui3n-html:sanitize="dialogText" />
         <div v-if="additionalDialogText">
           {{ additionalDialogText }}
         </div>

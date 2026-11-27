@@ -16,13 +16,13 @@
 */
 // @deno-types="../../shared-libs/sqlite-on-3nstorage/index.d.ts"
 import { SQLiteOn3NStorage } from '../../shared-libs/sqlite-on-3nstorage/index.js';
-import { ContactDB, objectFromQueryExecResult } from '../dataset/contacts-db.ts';
+import { ContactDB, contactRowsOf } from '../dataset/contacts-db.ts';
 import { CONTACTS_DB_FILE, IMAGES_FOLDER } from '../constants.ts';
 import { syncUpload } from './sync-upload.ts';
 import {
   ensureUniqueContactIds, normalizeContactRow, resolveDbFileConflict,
 } from './db-file-conflict.ts';
-import type { ContactEvent, RawPerson } from '../../src/types/index.ts';
+import type { ContactEvent } from '../../src/types/index.ts';
 
 // Re-exported for existing importers; the implementation moved to the pure
 // db-file-conflict module, so that the backup service can reach it without
@@ -60,12 +60,11 @@ async function absorbRemoteDbFile(
   }
 
   const sqliteRemote = await SQLiteOn3NStorage.makeReadonly(bytes);
-  const [sqlValueRemote] = sqliteRemote.db.exec('SELECT * FROM contacts');
-  const [sqlValue] = sqlite.db.exec('SELECT * FROM contacts');
-  const contactListRemote = objectFromQueryExecResult<RawPerson>(sqlValueRemote)
-    .map(normalizeContactRow);
-  const contactList = objectFromQueryExecResult<RawPerson>(sqlValue)
-    .map(normalizeContactRow);
+  // Read defensively: the remote file was written by another device, and a
+  // table that is missing or empty there used to throw here and leave the
+  // conflict unresolved for good.
+  const contactListRemote = contactRowsOf(sqliteRemote.db).map(normalizeContactRow);
+  const contactList = contactRowsOf(sqlite.db).map(normalizeContactRow);
 
   const { resolvedContactList } = resolveDbFileConflict(contactListRemote, contactList);
   // Rewritten unconditionally, unlike in handleDbFileSyncStatus: there the

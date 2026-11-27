@@ -23,6 +23,7 @@ import {
   deleteFolder,
   deleteLink,
   getEntityNameAndParent,
+  isSameOrInside,
   moveFsEntity as moveWithinFs,
 } from '../../../shared/utils/fs-utils/index.ts';
 import { formatPath } from '../../../shared/utils/various.ts';
@@ -197,7 +198,17 @@ export async function deleteFsEntities({
   favoritesSrv: FavoritesService;
 }): Promise<Record<string, string> | true> {
   const { entity: fs, fsId } = fsListItem;
-  const removeCompletely = completely || (!!trashFolderName && entities[0].fullPath.startsWith(trashFolderName));
+  const paths = entities.map(e => formatPath(e.fullPath));
+  // the root and the trash itself are never deleted: with removeContent they would be erased for good
+  if (paths.some(path => !path || (!!trashFolderName && path === trashFolderName))) {
+    throw new Error('The root folder or the trash folder cannot be deleted.');
+  }
+  // Removal from the trash is complete; the batch must be all in the trash or all outside of it.
+  const inTrash = paths.map(path => !!trashFolderName && isSameOrInside(path, trashFolderName));
+  if (inTrash.some(Boolean) && !inTrash.every(Boolean)) {
+    throw new Error('Entities in the trash and outside of it cannot be deleted together.');
+  }
+  const removeCompletely = completely || inTrash.every(Boolean);
   const failedPaths: string[] = [];
 
   const logFailure = async (entity: ListingEntryExtended, err: unknown) => {

@@ -19,6 +19,7 @@
 // rather than a store, because it needs the dialogs plugin.
 import { inject } from 'vue';
 import { useI18n } from 'vue-i18n';
+import escape from 'lodash/escape';
 import {
   DIALOGS_KEY,
   NOTIFICATIONS_KEY,
@@ -155,8 +156,10 @@ export function useBackupRestore() {
         current: contactsStore.contacts.length,
       })
       : t('backup.restore.confirmWarningText', {
-        archiveVersion: validation.archiveVersion || t('backup.restore.unknownVersion'),
-        appVersion: validation.appVersion,
+        // From the archive's metadata, shown before the user has agreed to
+        // anything: escaped, the archive may come from anywhere.
+        archiveVersion: escape(validation.archiveVersion || t('backup.restore.unknownVersion')),
+        appVersion: escape(validation.appVersion),
       });
 
     const res = await dialog.$openDialog<boolean>(ConfirmationDialog, {

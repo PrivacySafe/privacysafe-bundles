@@ -53,8 +53,10 @@
   >
     <template #body>
       <div :class="$style.confirmationDialog">
-        <div v-ui3n-html="text" />
-        <span v-ui3n-html="additionalDialogText" />
+        <!-- Sanitized as well as escaped by the callers: texts carry values -->
+        <!-- chosen by peers, such as a chat name (audit of 2026-11-26). -->
+        <div v-ui3n-html:sanitize="text" />
+        <span v-ui3n-html:sanitize="additionalDialogText" />
       </div>
     </template>
   </ui3n-dialog>

@@ -34,16 +34,21 @@ describe('toCanonicalAddress', () => {
     .toBe('contactsapptester1@3nweb.com');
   });
 
-  it('treats an address without @ as a bare domain', () => {
-    expect(toCanonicalAddress('no-at-here')).toBe('@no-at-here');
+  // Since the audit of 2026-11-26 the address is checked, not only reshaped:
+  // a shared-contacts file or another app could put "x" into the book as "@x".
+  it('refuses what is not an address', () => {
+    for (const notAddr of ['no-at-here', '@3nweb.com', 'a@b c.com', 'a@evil.com/x', 'a@ex_ample.com', 'a@xn--p1ai']) {
+      expect(() => toCanonicalAddress(notAddr), notAddr).toThrow(/not an address/);
+    }
   });
 
-  // Asymmetry worth pinning: whitespace is removed from the user part only,
-  // so a trailing space in the domain survives canonicalisation and makes two
-  // otherwise identical addresses compare as different.
-  it('does not strip whitespace from the domain part', () => {
-    expect(toCanonicalAddress('a@B.c  ')).toBe('a@b.c  ');
-    expect(areAddressesEqual('a@b.c ', 'a@b.c')).toBe(false);
+  it('accepts an internationalized domain', () => {
+    expect(toCanonicalAddress('Ann@München.de')).toBe('ann@münchen.de');
+  });
+
+  it('trims the domain part, so a trailing space is the same address', () => {
+    expect(toCanonicalAddress('a@B.c  ')).toBe('a@b.c');
+    expect(areAddressesEqual('a@b.c ', 'a@b.c')).toBe(true);
   });
 
   it('throws on an empty address', () => {
@@ -68,9 +73,10 @@ describe('areAddressesEqual', () => {
   // run, so the guard is dead code and callers get an exception where the
   // written contract promises `false`. One of the two has to give: either the
   // guard goes, or toCanonicalAddress stops throwing here.
-  it('throws instead of returning false for an empty argument', () => {
-    expect(() => areAddressesEqual('', 'ann@3nweb.com')).toThrow(/not an address/);
-    expect(() => areAddressesEqual('ann@3nweb.com', '')).toThrow(/not an address/);
+  it('answers false, not an exception, for something that is not an address', () => {
+    expect(areAddressesEqual('', 'ann@3nweb.com')).toBe(false);
+    expect(areAddressesEqual('ann@3nweb.com', '')).toBe(false);
+    expect(areAddressesEqual('x', 'x')).toBe(false);
   });
 
 });

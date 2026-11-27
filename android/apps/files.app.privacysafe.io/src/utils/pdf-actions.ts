@@ -22,7 +22,9 @@ export async function createPdfThumbnail(byteArray: Uint8Array, targetSize: numb
     // !!! in this code line byte array is already empty
     const page1 = await pdf.getPage(1);
     const viewport = page1.getViewport({ scale: 1 });
-    const scaledViewport = page1.getViewport({ scale: targetSize / viewport.width });
+    // A page size is written by the PDF author: a 1 × 14400 pt page scaled to the
+    // target width would need a huge canvas, so the longer side is bounded too.
+    const scaledViewport = page1.getViewport({ scale: pdfThumbnailScale(viewport.width, viewport.height, targetSize) });
 
     const canvas = document.createElement('canvas');
     canvas.width = scaledViewport.width;
@@ -46,4 +48,19 @@ export async function createPdfThumbnail(byteArray: Uint8Array, targetSize: numb
       await loadingTask.destroy();
     }
   }
+}
+
+/** The longest side of a PDF thumbnail canvas, in multiples of the target size. */
+export const PDF_THUMBNAIL_MAX_ASPECT = 4;
+
+/**
+ * The scale that makes the page `targetSize` wide, unless its longer side would
+ * then exceed PDF_THUMBNAIL_MAX_ASPECT × targetSize (then the longer side is that).
+ */
+export function pdfThumbnailScale(width: number, height: number, targetSize: number): number {
+  if (!(width > 0) || !(height > 0)) {
+    return 1;
+  }
+  const maxSide = targetSize * PDF_THUMBNAIL_MAX_ASPECT;
+  return Math.min(targetSize / width, maxSide / Math.max(width, height));
 }

@@ -25,6 +25,14 @@ import { CONTACTS_DB_FILE, IMAGES_FOLDER } from '../constants.ts';
 import { ensureUniqueContactIds } from './db-file-conflict.ts';
 import { randomStr } from '../../src/common/services/base/random.ts';
 import { canonicalMail } from '@main/common/utils/mail-address.ts';
+import { checkAndTransformAddress } from '../../shared-libs/address-utils.ts';
+import {
+  boundedText,
+  isImageId,
+  MAX_CONTACT_NAME_LENGTH,
+  MAX_CONTACT_NOTICE_LENGTH,
+  MAX_CONTACT_PHONE_LENGTH,
+} from './contact-input-checks.ts';
 import type { RawPerson } from '../../src/types/index.ts';
 
 /** Always stored unencrypted, so an archive can be identified without a key. */
@@ -218,8 +226,11 @@ export function prepareRestoredContactRows(
   const byMail = new Map<string, RawPerson>();
 
   for (const row of rows) {
+    // A backup is a file the user was handed: its rows get the checks any
+    // other contact gets (audit of 2026-11-26) - an address that is one, text
+    // columns that are strings of bounded length, an avatar id with no path.
     const mail = (typeof row?.mail === 'string') ? row.mail.trim() : '';
-    if (!mail) {
+    if (!mail || !checkAndTransformAddress(mail)) {
       dropped += 1;
       continue;
     }
@@ -228,7 +239,16 @@ export function prepareRestoredContactRows(
       ? row.id.trim()
       : randomStr(8);
     const timestamp = Number(row.timestamp) || 0;
-    const normalized: RawPerson = { ...row, id, mail, timestamp };
+    const normalized: RawPerson = {
+      ...row,
+      id,
+      mail,
+      timestamp,
+      name: restoredText(row.name, MAX_CONTACT_NAME_LENGTH, true),
+      notice: restoredText(row.notice, MAX_CONTACT_NOTICE_LENGTH, false),
+      phone: restoredText(row.phone, MAX_CONTACT_PHONE_LENGTH, true),
+      avatarId: ((typeof row.avatarId === 'string') && isImageId(row.avatarId)) ? row.avatarId : undefined,
+    };
 
     const key = mailKey(mail);
     const seen = byMail.get(key);
@@ -288,4 +308,8 @@ export function backupFileName(date: Date, appVersion?: string): string {
   return version
     ? `contacts-backup-${version}-${stamp}.zip`
     : `contacts-backup-${stamp}.zip`;
+}
+
+function restoredText(value: unknown, max: number, oneLine: boolean): string | undefined {
+  return ((typeof value === 'string') && value) ? boundedText(value, max, oneLine) : undefined;
 }

@@ -14,7 +14,7 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
-import { computed, type ComputedRef, ref, watch } from 'vue';
+import { computed, type ComputedRef, ref, shallowRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { defineStore, storeToRefs } from 'pinia';
 import isEmpty from 'lodash/isEmpty';
@@ -28,6 +28,7 @@ import type { Nullable } from '@v1nt1248/3nclient-lib';
 import {
   type DragKind,
   type DragSource,
+  type DraggedEntities,
   getEffectiveMoveMode,
   isDropIntoItself,
   shouldResetMoveMode,
@@ -69,6 +70,8 @@ export const useRunModeInfoStore = defineStore('run-mode-info', () => {
   const dragKind = ref<Nullable<DragKind>>(null);
   // the folders being dragged: they can be dropped neither into themselves nor into their subfolders
   const dragSource = ref<Nullable<DragSource>>(null);
+  // what is being dragged, taken at the start of a drag in this app (see entitiesOfDrop)
+  const draggedItems = shallowRef<Nullable<DraggedEntities>>(null);
 
   const effectiveMoveMode = computed(() =>
     getEffectiveMoveMode({
@@ -147,6 +150,7 @@ export const useRunModeInfoStore = defineStore('run-mode-info', () => {
 
   function resetDragState() {
     isDragging.value = false;
+    draggedItems.value = null;
     isMoveModeQuick.value = false;
     dragKind.value = null;
     dragSource.value = null;
@@ -216,9 +220,11 @@ export const useRunModeInfoStore = defineStore('run-mode-info', () => {
     window: 1 | '1' | 2 | '2',
     kind: DragKind = 'selection',
     source: Nullable<DragSource> = null,
+    dragged: Nullable<DraggedEntities> = null,
   ) {
     dragKind.value = kind;
     dragSource.value = source;
+    draggedItems.value = dragged;
     await selectActiveWindow(window);
     isDragging.value = true;
   }
@@ -306,6 +312,7 @@ export const useRunModeInfoStore = defineStore('run-mode-info', () => {
   }
 
   return {
+    draggedItems,
     isDragging,
     isMoveMode,
     isMoveModeQuick,

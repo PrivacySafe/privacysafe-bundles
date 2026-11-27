@@ -24,6 +24,9 @@ import type {
 import type { OpenChatCmdArg } from '../../../../types/chat-commands.types.ts';
 
 export function inviteChatId(sender: string, inviteData: InvitationProcessMsgData): ChatIdObj | undefined {
+  if (!inviteData || (typeof inviteData !== 'object')) {
+    return;
+  }
   if (inviteData.type === 'group-chat-invite') {
     return chatIdFromGroupChatInvite(inviteData);
   }
@@ -36,7 +39,10 @@ export function inviteChatId(sender: string, inviteData: InvitationProcessMsgDat
   }
 
   if (inviteData.type === 'updated-members-invitation-data') {
-    return inviteData.chatId;
+    const { chatId } = inviteData;
+    return (chatId && (chatId.isGroupChat === true) && (typeof chatId.chatId === 'string'))
+      ? { isGroupChat: true, chatId: chatId.chatId }
+      : undefined;
   }
 
   const { groupChat, oneToOneChat } = inviteData;
@@ -50,8 +56,13 @@ export function inviteChatId(sender: string, inviteData: InvitationProcessMsgDat
   }
 }
 
-export function chatIdFromGroupChatInvite({ groupChatId }: GroupChatParameters): ChatIdObj | undefined {
-  return !groupChatId.includes('@') ? { isGroupChat: true, chatId: groupChatId } : undefined;
+export function chatIdFromGroupChatInvite(groupChat: GroupChatParameters | undefined): ChatIdObj | undefined {
+  // A body from a peer: anything but a non-empty string id is a malformed
+  // invitation, not an exception that leaves the message in the inbox for good.
+  const groupChatId = groupChat?.groupChatId as unknown;
+  return ((typeof groupChatId === 'string') && groupChatId && !groupChatId.includes('@'))
+    ? { isGroupChat: true, chatId: groupChatId }
+    : undefined;
 }
 
 export function serializeInvitation(inviteParams: StoredInvitationParams): string {

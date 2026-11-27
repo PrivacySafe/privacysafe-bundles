@@ -20,8 +20,43 @@ import type { InboxEmit } from '../events.ts';
 import { incomingMsgToIncomingMsgView } from './transform-message.ts';
 import { notifyNewIncomingMail } from './notifications.ts';
 import { makeLogger } from '../../../../shared/utils/logger.ts';
+import { sameAddress } from '../../../../shared/utils/address-utils.ts';
 
 const log = makeLogger('InboxReceive');
+
+/**
+ * The thread an incoming message goes into.
+ *
+ * `threadId` is in the body, so the sender chooses it. A thread id is not a
+ * secret - every recipient of a thread has it, and forwarding used to hand it
+ * on - and joining a thread placed a stranger's message among the user's own,
+ * under the thread's row in the list, where one tick of a checkbox selects
+ * the whole thread for deletion (audit of 2026-11-26). So a message joins an
+ * existing thread only when its sender is already in that thread, as its
+ * sender or one of its recipients; otherwise, and for an id that is not one,
+ * it starts a thread of its own. The fallback is derived from the message id,
+ * so every device of the user files the message the same way.
+ */
+export function threadIdForIncoming(
+  db: Pick<DBProvider, 'getMessagesByThread'>,
+  msg: { msgId: string; sender: string; threadId?: unknown },
+): string {
+  const ownThread = `in-${msg.msgId}`;
+  const claimed = msg.threadId;
+  if ((typeof claimed !== 'string') || !claimed || (claimed.length > 200)) {
+    return ownThread;
+  }
+  const threadMsgs = db.getMessagesByThread(claimed);
+  if (threadMsgs.length === 0) {
+    return claimed;
+  }
+  const isParticipant = threadMsgs.some(m => {
+    const { sender, recipients } = m as { sender?: string; recipients?: string[] };
+    return (!!sender && sameAddress(sender, msg.sender))
+      || (Array.isArray(recipients) && recipients.some(r => sameAddress(r, msg.sender)));
+  });
+  return isParticipant ? claimed : ownThread;
+}
 
 /**
  * Stores an incoming mail message.
@@ -61,6 +96,9 @@ export async function persistIncomingMail(
 
   const existing = db.getMessageById(msg.msgId);
   const msgData = await incomingMsgToIncomingMsgView(msg);
+  // A message already filed keeps its thread: the decision is made once, on
+  // arrival, against the thread as it was then.
+  msgData.threadId = existing?.threadId ?? threadIdForIncoming(db, msgData);
 
   if (existing) {
     // `status` and `mailFolder` carry the two aspects that belong to the USER

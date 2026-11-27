@@ -39,6 +39,7 @@ import { chatService } from '@main/common/services/external-services';
 import { ChatListItemView, ChatMessageView, SingleChatView } from '~/chat.types';
 import type { ChatMessageId } from '~/asmail-msgs.types.ts';
 import ConfirmationDialog from '@main/common/components/dialogs/confirmation-dialog.vue';
+import { escapeHtml } from '@main/common/utils/escape-html';
 import ChatRenameDialog from '@main/common/components/dialogs/chat-rename-dialog.vue';
 import ChatInfoDialog from '@main/common/components/dialogs/chat-info-dialog/chat-info-dialog.vue';
 import ManageBlocksDialog from '@main/common/components/dialogs/manage-blocks-dialog/manage-blocks-dialog.vue';
@@ -302,7 +303,7 @@ export function useChatHeader({
 
   async function runChatDeleting() {
     const res = await dialog.$openDialog<boolean>(ConfirmationDialog, {
-      dialogText: t('chat.dialog.delete.text', { chatName: `<b>${chat.value.name}</b>` }),
+      dialogText: t('chat.dialog.delete.text', { chatName: `<b>${escapeHtml(chat.value.name)}</b>` }),
       dialogProps: {
         title: t('chat.dialog.delete.title'),
         ...(isMobileMode && { width: 300 }),

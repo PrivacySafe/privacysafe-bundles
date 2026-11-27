@@ -17,7 +17,8 @@
 <script setup lang="ts">
   import { computed } from 'vue';
   import { useI18n } from 'vue-i18n';
-  import { copyToClipboard, generateColor } from '@v1nt1248/3nclient-lib/utils';
+  import { generateColor } from '@v1nt1248/3nclient-lib/utils';
+  import { copySecret } from '@/common/utils/copy-secret';
   import { Ui3nIcon, Ui3nRipple as vUi3nRipple } from '@v1nt1248/3nclient-lib';
   import { useRecordStore } from '@/common/stores/record.store';
   import type {
@@ -77,7 +78,7 @@
       return;
     }
 
-    await copyToClipboard(text);
+    await copySecret(text);
 
     if (props.selectedGroup !== DEFAULT_GROUP.RECENT) {
       await addRecordToRecent(props.item.id);

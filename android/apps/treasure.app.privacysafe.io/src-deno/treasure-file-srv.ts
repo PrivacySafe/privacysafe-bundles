@@ -17,8 +17,19 @@
 import { SingleProc } from '../shared/processes/single.ts';
 import { randomStr } from '../shared/utils/random-str.ts';
 import { GROUPS_FILE_NAME, IMAGES_FOLDER, RECENT_FILE_NAME } from '../shared/constants.ts';
+import { isSafeFileId } from './utils/record-input-checks.ts';
 import type { TreasureGroup, TreasureRecord } from '../shared/@types/common.types.ts';
 import type { TreasureFileSrv } from './srv.types.ts';
+
+/**
+ * Ids found in records - the record's own, its images' - are used as file names
+ * (audit of 2026-11-26).
+ */
+export function assertSafeFileId(id: unknown): asserts id is string {
+  if (!isSafeFileId(id)) {
+    throw new Error(`Not a valid file id: ${JSON.stringify(id)}`);
+  }
+}
 
 export async function treasureFileSrv(
   fs: web3n.files.WritableFS,
@@ -35,7 +46,6 @@ export async function treasureFileSrv(
   }
 
   async function saveFile(data: TreasureRecord | TreasureGroup[], fileName?: string): Promise<string> {
-    // console.log('💾 SAVE_FILE => ', fileName, JSON.stringify(data));
     if (!data) {
       w3n.log('error', 'There is no data to save to the file');
       throw new Error('There is no data to save to the file');
@@ -45,6 +55,11 @@ export async function treasureFileSrv(
       !(data as TreasureRecord).id || (data as TreasureRecord).id === 'new'
         ? randomStr(20)
         : (data as TreasureRecord).id;
+    // A record's id comes from its own data, which another device or a backup
+    // may have written: it names the file, so it must not name another one.
+    if (!fileName) {
+      assertSafeFileId(itemId);
+    }
     const fileNameUsed = fileName || itemId;
 
     try {
@@ -76,6 +91,9 @@ export async function treasureFileSrv(
     if (!fileNameUsed) {
       w3n.log('error', 'The filename argument is missing');
       throw new Error('The filename argument is missing');
+    }
+    if (!fileName && !Array.isArray(data)) {
+      assertSafeFileId(fileNameUsed);
     }
 
     await fileProc.startOrChain(async () => fs.writeJSONFile(fileNameUsed, data));
@@ -110,6 +128,7 @@ export async function treasureFileSrv(
 
   async function saveImage(data: { bytes: Uint8Array; id?: string }): Promise<string> {
     const fileId = data.id || randomStr(20);
+    assertSafeFileId(fileId);
     try {
       await fileProc.startOrChain(async () => await fs.writeBytes(`${IMAGES_FOLDER}/${fileId}`, data.bytes));
       return fileId;
@@ -120,6 +139,7 @@ export async function treasureFileSrv(
   }
 
   async function loadImage(fileId: string): Promise<Uint8Array | undefined> {
+    assertSafeFileId(fileId);
     try {
       return await fileProc.startOrChain(async () => fs.readBytes(`${IMAGES_FOLDER}/${fileId}`));
     } catch (err) {

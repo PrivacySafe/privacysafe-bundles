@@ -29,6 +29,8 @@
   const props = defineProps<{
     text?: string;
     dialogProps?: Ui3nDialogComponentProps<boolean>;
+    // Off where the other side would not honour it (canDeleteForEveryone).
+    canDeleteForEveryone?: boolean;
   }>();
   const emits = defineEmits<{
     (event: 'action', value: { event: Ui3nDialogEvent; data?: boolean }): void;
@@ -57,6 +59,7 @@
         </div>
 
         <ui3n-checkbox
+          v-if="canDeleteForEveryone !== false"
           v-model="deleteForEveryone"
           :class="$style.messageDeleteDialogCheckbox"
           @change="onFlagChange"

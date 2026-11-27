@@ -44,6 +44,43 @@ export function orderedByChangeTime<T extends { ts: number; id: number }>(entrie
   return [...entries].sort((a, b) => (a.ts - b.ts) || (a.id - b.id));
 }
 
+/**
+ * More waiting phantoms than this are not a race between two deliveries but a
+ * device sending things that never come; past it new ones are dropped.
+ */
+export const MAX_ORPHANED_SYNCS = 20_000;
+
+/**
+ * The phantom as it is to be replayed for one message.
+ *
+ * A bulk event used to be buffered whole once per missing id, and a drain
+ * replayed it whole, buffering every id still missing once more: a move of
+ * N messages, delayed, grew the table by N² copies of the event (audit of
+ * 2026-11-26). Narrowed to the one id, an entry replays only what it waits for.
+ */
+export function narrowedToMsg(syncMsg: MailSyncMsg, targetMsgId: string): MailSyncMsg {
+  if (syncMsg.v !== 1) {
+    return syncMsg;
+  }
+  const event = syncMsg.event;
+  switch (event.kind) {
+    case 'msg-read':
+    case 'msg-deleted':
+      return { ...syncMsg, event: { ...event, msgIds: [targetMsgId] } };
+    case 'msg-placement':
+      return {
+        ...syncMsg,
+        event: {
+          ...event,
+          msgIds: [targetMsgId],
+          incoming: (event.incoming ?? []).filter(id => id === targetMsgId),
+        },
+      };
+    default:
+      return syncMsg;
+  }
+}
+
 export async function bufferOrphanedSync(
   db: DBProvider,
   targetMsgId: string,
@@ -52,10 +89,14 @@ export async function bufferOrphanedSync(
   // A failure to buffer must not stop the rest of the inbox from being
   // processed: the phantom is lost, and the state stays as it was.
   try {
+    if (db.countOrphanedSyncs() >= MAX_ORPHANED_SYNCS) {
+      log.warn(`Not buffering a ${syncMsg.event.kind} phantom for ${targetMsgId}: the buffer is full.`);
+      return;
+    }
     await db.addOrphanedSync({
       targetMsgId,
       ts: syncMsg.timestamp,
-      rawPayload: JSON.stringify(syncMsg),
+      rawPayload: JSON.stringify(narrowedToMsg(syncMsg, targetMsgId)),
       bufferedAt: Date.now(),
     });
     log.debug(

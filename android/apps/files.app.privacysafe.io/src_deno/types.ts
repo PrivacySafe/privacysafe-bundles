@@ -5,6 +5,7 @@ import type {
   FsListItem,
   ListingEntryExtended,
   RootFsFolderView,
+  RestoreResult,
   StorageAppConfig,
   StorageEvent,
   SyncQueueItem,
@@ -178,7 +179,7 @@ export interface FsService {
     fsId: string;
     entities: ListingEntryExtended[];
     mode?: 'keep' | 'replace';
-  }) => Promise<Record<string, string> | undefined>;
+  }) => Promise<RestoreResult | undefined>;
 }
 
 export interface StorageAppDenoService

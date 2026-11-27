@@ -160,8 +160,13 @@ describe(`Synced file system`, () => {
   // Collection is EVENTUAL: an orphan whose upload is in flight is left for the
   // next sweep, because deleting it makes the core reject its own background
   // removeCurrentVersion as unhandled.
+  // The orphan is written straight into the folder, as a file another device
+  // or an older version left behind. One made by addImage would not do: the
+  // service keeps every image added in its session out of the sweep until the
+  // next start (see addImage), so it could never be an orphan here.
   itCond(`removes an orphaned image file from the folder`, async () => {
-    const orphanId = await appContactsSrvProxy.addImage({ base64: IMG_BASE64 });
+    const orphanId = `spec-orphan-${Date.now()}`;
+    await fs.writeTxtFile(`${IMAGES_FOLDER}/${orphanId}`, IMG_BASE64);
     expect((await fs.listFolder(IMAGES_FOLDER)).map(e => e.name))
     .withContext(`orphan is there before the sweep`).toContain(orphanId);
 

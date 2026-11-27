@@ -20,7 +20,7 @@ import { getFsStat } from '../../../shared/utils/fs-utils/get-fs-stat.ts';
 import { readLink } from '../../../shared/utils/fs-utils/read-link.ts';
 import { getXAttrs, listXAttrs } from './actions-on-x-attrs.ts';
 import type { ListingEntryExtended } from '../../../shared/types/index.ts';
-import { isValidListingXAttrValue } from './listing-xattrs.ts';
+import { isValidEntityIdXAttr, isValidListingXAttrValue, isValidTagsXAttr } from './listing-xattrs.ts';
 
 export async function loadFsEntityStats({
   fs,
@@ -49,9 +49,8 @@ export async function loadFsEntityStats({
       ...(version && { flags: { remoteVersion: version } }),
     });
 
-    const id = isThisFsDevice
-      ? prepareFsEntityId(fs, fullPath)
-      : (await getXAttrs<string>({ fs, fullPath, attrName: 'id', version })) || prepareFsEntityId(fs, fullPath);
+    const idXAttr = isThisFsDevice ? undefined : await getXAttrs<unknown>({ fs, fullPath, attrName: 'id', version });
+    const id = isValidEntityIdXAttr(idXAttr) ? idXAttr : prepareFsEntityId(fs, fullPath);
 
     const attrs = isThisFsWithVersioned
       ? await listXAttrs({ fs, path: fullPath, version }).catch(() => [])
@@ -102,7 +101,7 @@ export async function loadFsEntityStats({
       id,
       name,
       fullPath,
-      tags: value.tags || [],
+      tags: isValidTagsXAttr(value.tags) ? value.tags : [],
       type,
       ...(isValidListingXAttrValue('favoriteId', value.favoriteId) && { favoriteId: value.favoriteId }),
       ...(stats?.isFile && { ext: getFileExtension(name) }),

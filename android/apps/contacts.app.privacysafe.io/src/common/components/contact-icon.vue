@@ -15,6 +15,7 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 -->
 <script lang="ts" setup>
+  import { cssImageUrl } from '@main/common/utils/css-image-url';
   import { computed } from 'vue';
   import { Ui3nIcon } from '@v1nt1248/3nclient-lib';
   import { generateColor } from '@main/common/utils/generate-color';
@@ -55,8 +56,9 @@
       backgroundColor: generateColor(contactLetters.value),
     };
 
-    if (props.photo) {
-      styles.backgroundImage = `url(${props.photo})`;
+    const photoUrl = cssImageUrl(props.photo);
+    if (photoUrl) {
+      styles.backgroundImage = photoUrl;
     }
 
     return styles;

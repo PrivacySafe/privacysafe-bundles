@@ -62,3 +62,16 @@ export const AUTO_DELETE_MESSAGES_BY_ID = {
 } as const;
 
 export type AutoDeleteOptionId = keyof typeof AUTO_DELETE_MESSAGES_BY_ID;
+/**
+ * Id of an auto-delete option, or '0' (off) for anything that is not one.
+ *
+ * Settings travel between users, and an id this version does not know - an
+ * older peer's bug, a newer version's option, a hostile peer - must neither
+ * throw (it used to stop a chat from sending and receiving) nor resolve to an
+ * inherited property like 'toString'.
+ */
+export function autoDeleteOptionIdOf(id: unknown): AutoDeleteOptionId {
+  return ((typeof id === 'string') && Object.prototype.hasOwnProperty.call(AUTO_DELETE_MESSAGES_BY_ID, id))
+    ? id as AutoDeleteOptionId
+    : '0';
+}

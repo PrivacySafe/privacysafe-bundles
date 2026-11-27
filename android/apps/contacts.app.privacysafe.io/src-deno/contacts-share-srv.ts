@@ -55,17 +55,17 @@ function checkAbortSignal(signal: CancelSignal): void {
 
 /**
  * Only what describes the contact goes out. Things that are this user's own
- * business stay here: blocking settings, the history of activities, and
- * whether this user wants to be reminded of the contact's dates.
+ * business stay here: notes about the contact, blocking settings, the history
+ * of activities, and whether this user wants to be reminded of the contact's
+ * dates. Notes were sent along until the audit of 2026-11-26.
  */
 function toSharedPerson(contact: Omit<Person, 'avatarImage'>, hasAvatar: boolean): SharedPerson {
-  const { name, mail, avatarId, notice, phone, timestamp } = contact;
+  const { name, mail, avatarId, phone, timestamp } = contact;
   const dates = withoutReminders(contact.dates);
   return {
     name,
     mail,
     ...(hasAvatar && avatarId ? { avatarId } : {}),
-    notice,
     phone,
     ...(dates.length ? { dates } : {}),
     timestamp,

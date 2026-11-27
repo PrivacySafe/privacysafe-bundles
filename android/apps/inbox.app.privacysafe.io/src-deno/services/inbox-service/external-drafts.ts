@@ -16,6 +16,7 @@
 */
 import { makeLogger } from '../../../shared/utils/logger.ts';
 import { randomIdStr } from '../../../shared/utils/random-id.ts';
+import { MAX_ATTACHMENT_SIZE } from '../../../shared/constants/attachment-limits.ts';
 import type { AttachmentInfo, PreparedMessageData } from '../../../src/common/types/mail.types.ts';
 import type { ExternalDraftFile } from '../../../src/common/types/external-inbox.types.ts';
 import type { InboxSrv } from '../../types/inbox-srv.types.ts';
@@ -29,6 +30,11 @@ const log = makeLogger('ExternalDrafts');
  * its copied files would otherwise stay in the store forever.
  */
 const DRAFT_TTL_MILLIS = 10 * 60_000;
+
+const MAX_DRAFT_RECIPIENTS = 1000;
+const MAX_DRAFT_FILES = 100;
+/** Drafts are taken by the window a moment after they are made. */
+const MAX_PENDING_DRAFTS = 20;
 
 /**
  * Drafts of messages that other apps (e.g. Contacts sharing contacts) hand to
@@ -61,8 +67,17 @@ export function externalDrafts(fileStore: Pick<InboxSrv, 'addFile' | 'deleteFile
   async function prepareDraft(
     { recipients, subject, files }: { recipients: string[]; subject?: string; files: ExternalDraftFile[] },
   ): Promise<{ draftId: string }> {
-    if (!Array.isArray(recipients) || recipients.some(r => !r || (typeof r !== 'string'))) {
+    if (!Array.isArray(recipients) || (recipients.length > MAX_DRAFT_RECIPIENTS)
+      || recipients.some(r => !r || (typeof r !== 'string'))) {
       throw new Error(`Invalid recipients of an external draft`);
+    }
+    // Another app calls this; files are copied into this app's store, so what it
+    // may hand over is bounded like what the user may attach (audit of 2026-11-26).
+    if ((files || []).length > MAX_DRAFT_FILES) {
+      throw new Error(`Too many files in an external draft`);
+    }
+    if (drafts.size >= MAX_PENDING_DRAFTS) {
+      throw new Error(`Too many external drafts waiting to be opened`);
     }
 
     const draftId = randomIdStr(32);
@@ -71,6 +86,9 @@ export function externalDrafts(fileStore: Pick<InboxSrv, 'addFile' | 'deleteFile
       for (const { file, name } of files || []) {
         const fileName = name || file.name;
         const { size = 0 } = await file.stat();
+        if (size > MAX_ATTACHMENT_SIZE) {
+          throw new Error(`A file of an external draft is larger than an attachment may be`);
+        }
         // A copy, not a link: the caller's file is a temporary one, and it is
         // removed as soon as this call returns.
         const id = await fileStore.addFile(file, { fileName, messages: [draftId] });

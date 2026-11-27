@@ -23,10 +23,47 @@ import { FAVORITES_DATA_FILE } from '../constants.ts';
 import { randomStr } from '../../shared/utils/random.ts';
 import { isIpcConnectionLost } from '../../shared/utils/ipc/ipc-connection-lost.ts';
 import { makeLogger } from '../../shared/utils/logger.ts';
+import { isSafeRelativePath } from '../../shared/utils/fs-utils/entity-name.ts';
+import { formatPath } from '../../shared/utils/various.ts';
 
 const log = makeLogger('FavoritesService');
 
 type FavoritesData = Record<string, FavoriteFolder>;
+
+/** A favorites file is written by hand only; more entries than this are not a list of favorites. */
+export const MAX_FAVORITES = 1000;
+
+/**
+ * The favorites file is synced from the user's other devices, so any of them,
+ * buggy or older, can write anything there. Only entries of the expected shape
+ * are taken; anything else in the file is ignored.
+ */
+export function checkedFavoritesData(data: unknown): FavoritesData {
+  const result = {} as FavoritesData;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return result;
+  }
+
+  let count = 0;
+  for (const [key, value] of Object.entries(data)) {
+    if (count >= MAX_FAVORITES) {
+      break;
+    }
+    const { favId, fsId, fullPath } = (value ?? {}) as Partial<Record<keyof FavoriteFolder, unknown>>;
+    if (
+      key !== '__proto__' &&
+      favId === key &&
+      typeof fsId === 'string' &&
+      fsId.length > 0 &&
+      typeof fullPath === 'string' &&
+      isSafeRelativePath(formatPath(fullPath))
+    ) {
+      result[key] = { favId, fsId, fullPath };
+      count += 1;
+    }
+  }
+  return result;
+}
 
 // events of our own upload/download progress: reacting to them only causes extra sync rounds
 const IGNORED_FILE_EVENTS = new Set([
@@ -109,7 +146,7 @@ export async function favoritesService({
         });
         const localFileData = await appSyncedFs.readJSONFile<FavoritesData>(FAVORITES_DATA_FILE);
 
-        favorites = mergeFavorites(localFileData || {}, remoteFileData || {});
+        favorites = mergeFavorites(checkedFavoritesData(localFileData), checkedFavoritesData(remoteFileData));
         await saveFavoritesFileData();
         await sync.upload(FAVORITES_DATA_FILE, { uploadVersion: remoteVersion + 1 });
         break;
@@ -156,9 +193,19 @@ export async function favoritesService({
       });
   }
 
+  /**
+   * A file that cannot be read gives no favorites, rather than an error: the file
+   * is synced, and an error here would stop the service on every device. The file
+   * is left as it is until the user changes the favorites.
+   */
   async function loadFavoritesFileData() {
-    const data = await appSyncedFs.readJSONFile<FavoritesData>(FAVORITES_DATA_FILE);
-    favorites = data || ({} as FavoritesData);
+    try {
+      const data = await appSyncedFs.readJSONFile<unknown>(FAVORITES_DATA_FILE);
+      favorites = checkedFavoritesData(data);
+    } catch (err) {
+      log.error('Error reading the favorites file: no favorites are shown. ', err);
+      favorites = {} as FavoritesData;
+    }
     isLoaded = true;
     emitFavoritesUpdate();
   }

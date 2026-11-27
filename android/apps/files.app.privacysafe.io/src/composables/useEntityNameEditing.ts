@@ -18,7 +18,7 @@ import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { Ui3nEditableExpose } from '@v1nt1248/3nclient-lib';
 import { useAppStore } from '@/store';
-import { isValidEntityName } from '@shared/utils/fs-utils/entity-name';
+import { isValidNewEntityName } from '@shared/utils/fs-utils/entity-name';
 
 /**
  * The name field of an FS entity (table row, tile). An invalid name is rejected
@@ -32,7 +32,7 @@ export function useEntityNameEditing() {
   const editableEl = ref<Ui3nEditableExpose>();
 
   function validateName(name: string): true | string {
-    return isValidEntityName(name) || t('validation.text.invalid_name');
+    return isValidNewEntityName(name) || t('validation.text.invalid_name');
   }
 
   function onInvalidName(message: string) {

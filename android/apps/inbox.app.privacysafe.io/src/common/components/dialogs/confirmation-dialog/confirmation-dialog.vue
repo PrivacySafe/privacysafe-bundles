@@ -34,10 +34,12 @@
   >
     <template #body>
       <div :class="$style.confirmationDialog">
-        <div v-ui3n-html="text" />
+        <!-- Sanitized as well as escaped by the callers: texts carry values -->
+        <!-- chosen by others, such as a sender's address (audit of 2026-11-26). -->
+        <div v-ui3n-html:sanitize="text" />
         <span
           v-if="additionalDialogText"
-          v-ui3n-html="additionalDialogText"
+          v-ui3n-html:sanitize="additionalDialogText"
         />
       </div>
     </template>

@@ -232,6 +232,11 @@ export const es = {
       },
     },
     entity: {
+      risky_file: {
+        text: 'El archivo "{name}" puede ejecutar programas o scripts en este equipo al abrirse.',
+        question: 'Ábrelo solo si confías en su origen. ¿Abrir el archivo?',
+        open: 'Abrir de todos modos',
+      },
       sorting_text: 'Ordenar',
       info: {
         type: 'Tipo',
@@ -255,6 +260,11 @@ export const es = {
         restore_keep: 'Conservar ambos',
       },
       message: {
+        info: {
+          restore_replaced:
+            'El objeto reemplazado se movió a la Papelera: {names}. | Los objetos reemplazados se movieron a la Papelera: {names}.',
+          restore_replaced_item: '"{originalName}" como "{nameInTrash}"',
+        },
         success: {
           delete:
             'El elemento seleccionado se ha eliminado correctamente. | Los elementos seleccionados ({count}) se han eliminado correctamente.',
@@ -368,6 +378,7 @@ export const es = {
         folder_target_conflict:
           'Ya existe un archivo o enlace con este nombre. Elige otro nombre para la carpeta.',
         folder_unavailable: 'Esta carpeta ya no está disponible. Elige otra carpeta.',
+        root_folder: 'Elige una carpeta dentro del almacenamiento: no se puede dar todo el almacenamiento a una aplicación.',
       },
       success: {
         save_file: 'Archivo guardado correctamente',

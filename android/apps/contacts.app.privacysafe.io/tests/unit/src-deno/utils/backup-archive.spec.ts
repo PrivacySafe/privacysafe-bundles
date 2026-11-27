@@ -183,6 +183,19 @@ describe('splitArchiveEntries', () => {
 
 describe('prepareRestoredContactRows', () => {
 
+  // A backup is a file the user was handed (audit of 2026-11-26).
+  it('drops rows whose mail is not an address, and avatar ids with a path', () => {
+    const { rows, dropped } = prepareRestoredContactRows([
+      rawPerson({ id: 'a', mail: 'x' }),
+      rawPerson({ id: 'b', mail: 'bob@3nweb.com', avatarId: '../contacts.db', name: 42 as unknown as string }),
+    ], OWN, 100);
+
+    expect(dropped).toBe(1);
+    const bob = rows.find(r => r.mail === 'bob@3nweb.com')!;
+    expect(bob.avatarId).toBeUndefined();
+    expect(bob.name).toBeUndefined();
+  });
+
   // updateContactsTable DROPs the table before its first insert, so a row that
   // fails halfway leaves the address book truncated. Each case below is a row
   // that WOULD fail an insert.

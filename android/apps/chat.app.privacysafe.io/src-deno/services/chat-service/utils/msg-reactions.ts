@@ -19,6 +19,7 @@ import type { ChatMessageHistory, ChatMessageReaction } from '../../../../types/
 import type { ChatSrvEmit, DB } from '../../../types/index.ts';
 import { makeSystemEventPhantom, queueSyncPhantom } from '../../mail-sending-service/index.ts';
 import { msgEntityId } from './sync-versions.ts';
+import { capHistory, findMemberKey, isReaction } from './peer-input-checks.ts';
 
 export async function msgReactions({
   data,
@@ -126,10 +127,33 @@ export async function msgReactions({
     chatId: ChatIdObj;
     chatMessageId: string;
     timestamp: number;
-    reactions: Record<string, ChatMessageReaction>;
+    reactions: unknown;
   }): Promise<void> {
+    const msg = await data.getMessage({ chatId, chatMessageId });
+    if (msg && (msg.chatMessageType !== 'regular')) {
+      await w3n.log('warning', `Reactions from ${user} to a ${msg.chatMessageType} record ${chatMessageId}; ignoring them`);
+      return;
+    }
     const { reactions: oldReactions, history } = await getNecessaryMsgData({ chatId, chatMessageId });
-    if (JSON.stringify(oldReactions) === JSON.stringify(reactions)) {
+
+    // A peer sends the whole map as it sees it, but speaks only for itself: the
+    // reactions of everybody else are theirs to send. Taking the map as sent let
+    // any peer put words - reactions - in the mouth of the user and of other
+    // members, or take theirs away.
+    const sentKey = (reactions && (typeof reactions === 'object'))
+      ? findMemberKey(reactions as Record<string, unknown>, user)
+      : undefined;
+    const sentReaction = sentKey ? (reactions as Record<string, unknown>)[sentKey] : undefined;
+    const ownKey = findMemberKey(oldReactions, user);
+    const before = ownKey ? oldReactions[ownKey] : undefined;
+    const after = isReaction(sentReaction) ? sentReaction : undefined;
+    const updatedReactions = { ...oldReactions };
+    if (after) {
+      updatedReactions[ownKey ?? user] = after;
+    } else if (ownKey) {
+      delete updatedReactions[ownKey];
+    }
+    if (JSON.stringify(before) === JSON.stringify(after)) {
       // Already applied - see the matching comment in handleUpdateOfMessageBody()
       // (msg-editing.ts).
       return;
@@ -142,7 +166,10 @@ export async function msgReactions({
       value: oldReactions,
     });
 
-    const updatedMsg = await data.updateMessageRecord({ chatId, chatMessageId }, { history, reactions });
+    const updatedMsg = await data.updateMessageRecord(
+      { chatId, chatMessageId },
+      { history: capHistory(history), reactions: updatedReactions },
+    );
 
     // Peer-originated change - see the matching comment in
     // handleUpdateChatName() (chat-renaming.ts) on the token used here.

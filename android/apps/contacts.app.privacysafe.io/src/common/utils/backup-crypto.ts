@@ -35,6 +35,8 @@ const SALT_BYTES = 16;
 /** AES-GCM is specified for a 96-bit nonce; longer ones are hashed down. */
 const IV_BYTES = 12;
 const PBKDF2_ITERATIONS = 250000;
+// Room to raise the cost later many times over, not enough to hang the GUI.
+const PBKDF2_MAX_ITERATIONS = 10_000_000;
 
 /**
  * Whether this runtime can encrypt at all.
@@ -160,8 +162,10 @@ export async function decryptPayload(
   const iv = base64ToBytes(params.iv);
   // Taken from the archive rather than from the constant, so that raising the
   // cost of the kdf later does not make today's archives unreadable.
+  // Bounded from above too: the archive may come from anywhere, and a count in
+  // the billions keeps the restore spinning for hours with no way to tell why.
   const iterations = Number(params.iterations);
-  if (!Number.isFinite(iterations) || iterations < 1) {
+  if (!Number.isSafeInteger(iterations) || (iterations < 1) || (iterations > PBKDF2_MAX_ITERATIONS)) {
     throw new Error('Unsupported encryption parameters in the backup archive');
   }
 

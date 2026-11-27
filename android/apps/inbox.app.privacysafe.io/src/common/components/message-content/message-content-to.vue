@@ -15,7 +15,7 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 -->
 <script lang="ts" setup>
-  import { inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+  import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
   import { useI18n } from 'vue-i18n';
   import size from 'lodash/size';
   import { VUEBUS_KEY, VueBusPlugin } from '@v1nt1248/3nclient-lib/plugins';
@@ -71,7 +71,17 @@
     }, 250);
   }
 
+  // The recipients of a received message are the sender's word: the platform
+  // vouches for who sent it, not for whom else it went to. Shown as plain
+  // addresses and marked as such - under the user's own contact names a made-up
+  // list looked confirmed, and "reply all" then sent the user's reply, quote
+  // included, to people who never got the original (audit of 2026-11-26).
+  const isIncoming = computed(() => !!(props.message as IncomingMessageView).sender);
+
   function getContactDisplayName(mail: string): string {
+    if (isIncoming.value) {
+      return mail;
+    }
     const contact = props.contactList.find(c => c.mail === mail);
     return contact ? contact.displayName : mail;
   }
@@ -107,7 +117,11 @@
 <template>
   <div :class="$style.msgTo">
     <div :class="$style.label">
-      {{ t('msg.create.label.to') }}:
+      {{ t('msg.create.label.to') }}<span
+        v-if="isIncoming"
+        :class="$style.claimed"
+        :title="t('msg.content.recipients_claimed_hint')"
+      > ({{ t('msg.content.recipients_claimed') }})</span>:
     </div>
 
     <div
@@ -178,6 +192,11 @@
     justify-content: flex-start;
     align-items: flex-start;
     column-gap: var(--spacing-xs);
+  }
+
+  .claimed {
+    font-weight: 400;
+    color: var(--color-text-control-secondary-default);
   }
 
   .label {

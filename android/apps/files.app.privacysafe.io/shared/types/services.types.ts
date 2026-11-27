@@ -28,3 +28,13 @@ export interface SyncQueueItem {
   lastError?: string;
   lastChanged: number;
 }
+
+export interface RestoreResult {
+  /** restored entities: path in the trash → restored path */
+  restored: Record<string, string>;
+  /**
+   * In 'replace' mode, the entities that stood in the way: they are moved to
+   * the trash, not erased. Original path → path in the trash.
+   */
+  replaced: Record<string, string>;
+}

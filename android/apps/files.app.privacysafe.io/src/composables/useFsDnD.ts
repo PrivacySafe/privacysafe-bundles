@@ -6,6 +6,7 @@ import type { ListingEntryExtended } from '@shared/types';
 import { useFsWindowState } from '@/composables/useFsWindowState';
 import { useAbilities } from '@/composables/useAbilities';
 import { useAppStore, useRunModeInfoStore } from '@/store';
+import { entitiesOfDrop } from '@/utils/drag-and-drop';
 
 export function useFsDnD(fsWindowNumber: ComputedRef<'1' | '2'>, selectedEntities: Ref<ListingEntryExtended[]>) {
   const { operatingSystem } = storeToRefs(useAppStore());
@@ -20,20 +21,6 @@ export function useFsDnD(fsWindowNumber: ComputedRef<'1' | '2'>, selectedEntitie
 
   const { currentWindowFsId, currentWindowRootFolderId } = useFsWindowState(fsWindowNumber);
   const { canDrop } = useAbilities();
-
-  function parseDraggedData(
-    text: string | undefined,
-  ): Nullable<{ fsId: string; value: ListingEntryExtended[] }> {
-    if (!text) {
-      return null;
-    }
-    try {
-      const data = JSON.parse(text);
-      return typeof data?.fsId === 'string' && Array.isArray(data?.value) ? data : null;
-    } catch {
-      return null;
-    }
-  }
 
   function getGhostElementText(data: ListingEntryExtended[]): string {
     if (size(data) === 0) return '';
@@ -65,10 +52,15 @@ export function useFsDnD(fsWindowNumber: ComputedRef<'1' | '2'>, selectedEntitie
       ev.dataTransfer.effectAllowed = 'copyMove';
       ev.dataTransfer.setDragImage(ghostEl.value!, -8, 0);
 
-      await onDragStart(fsWindowNumber.value, isFromSelection ? 'selection' : 'quick', {
-        fsId: currentWindowFsId.value as string,
-        folderPaths: entities.filter(e => e.type === 'folder').map(e => e.fullPath),
-      });
+      await onDragStart(
+        fsWindowNumber.value,
+        isFromSelection ? 'selection' : 'quick',
+        {
+          fsId: currentWindowFsId.value as string,
+          folderPaths: entities.filter(e => e.type === 'folder').map(e => e.fullPath),
+        },
+        { fsId: currentWindowFsId.value as string, entities: [...entities] },
+      );
     }
   }
 
@@ -115,15 +107,17 @@ export function useFsDnD(fsWindowNumber: ComputedRef<'1' | '2'>, selectedEntitie
 
     try {
       const isDropAvailable = canDrop(currentWindowFsId.value, currentWindowRootFolderId.value);
-      // text dropped from another app is not ours: it is ignored
-      const source = isDropAvailable ? parseDraggedData(ev.dataTransfer?.getData('text/plain')) : null;
+      // only a drag started in this app is dropped; text dropped from elsewhere is ignored
+      const source = isDropAvailable
+        ? entitiesOfDrop(runModeInfoStore.draggedItems, runModeInfoStore.isDragging)
+        : null;
 
       if (source) {
         const target = !draggedEntities.value.includes(entity.fullPath) ? entity : null;
 
         await onDragEnd({
           sourceFsId: source.fsId,
-          data: source.value,
+          data: source.entities,
           targetFsId: currentWindowFsId.value as string,
           target,
         });

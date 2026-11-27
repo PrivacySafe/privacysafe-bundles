@@ -1,82 +1,109 @@
 /*
- Copyright (C) 2024 - 2025 3NSoft Inc.
-
+ Copyright (C) 2016, 2020, 2026 3NSoft Inc.
+ 
  This program is free software: you can redistribute it and/or modify it under
  the terms of the GNU General Public License as published by the Free Software
  Foundation, either version 3 of the License, or (at your option) any later
  version.
-
+ 
  This program is distributed in the hope that it will be useful, but
  WITHOUT ANY WARRANTY; without even the implied warranty of
  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  See the GNU General Public License for more details.
-
+ 
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-export function areAddressesEqual(a: string, b: string): boolean {
-  const canonicalA = toCanonicalAddress(a);
-  if (!canonicalA) {
-    return false;
-  }
+// Default import: the package's CommonJS entry, which Deno picks, has no named
+// exports it can detect; bundlers take the ESM entry, which has both.
+import punycode from 'punycode/';
 
-  const canonicalB = toCanonicalAddress(b);
-  if (!canonicalB) {
-    return false;
-  }
-
-  return canonicalA === canonicalB;
+/**
+ * @param address
+ * @return a canonical form of a given address.
+ * If given address is not ok, exception is thrown.
+ */
+export function toCanonicalAddress(address: string): string {
+	const indOfAt = address.indexOf('@');
+	let user: string;
+	let domain: string;
+	if (indOfAt < 0) {
+		throw makeParseExc(address, `No @ in given string`);
+	} else {
+		domain = address.substring(indOfAt+1);
+		user = address.substring(0, indOfAt).replace(whiteSpace, '');
+	}
+	if (domain.endsWith('.')) {
+		domain = domain.substring(0, domain.length - 1);
+	}
+	checkDomainString(domain, address);
+	return (user+'@'+domain).toLowerCase();
 }
 
 const whiteSpace = /\s/g;
+const invalidInDomain = /[^a-zA-Z0-9\-.]/;
 
-export function ensureIsAddressString(address: string): void {
-  if (!address || !address.includes('@')) {
-    throw new Error(`Value is not an address`);
-  }
-
-  // ToDo We need to add other checks
+function checkDomainString(d: string, addrForErrMsg: string): void {
+	if (d.length === 0) { throw makeParseExc(addrForErrMsg, `Domain is empty`); }
+	if (d.startsWith('xn--')) { throw makeParseExc(addrForErrMsg,
+		`Domain can't be in puny code`); }
+	let ascii: string;
+	try {
+		ascii = punycode.toASCII(d);
+	} catch (err) {
+		throw makeParseExc(addrForErrMsg, err);
+	}
+	if (invalidInDomain.test(ascii)) {
+		throw makeParseExc(addrForErrMsg);
+	}
 }
 
-export function toCanonicalAddress(address: string): string {
-  ensureIsAddressString(address);
-
-  const indOfAt = address.indexOf('@');
-  let user: string;
-  let domain: string;
-
-  if (indOfAt < 0) {
-    domain = address;
-    user = '';
-  } else {
-    domain = address.substring(indOfAt + 1);
-    user = address.substring(0, indOfAt).replace(whiteSpace, '');
-  }
-
-  return `${user}@${domain}`.toLowerCase().trim();
+function makeParseExc(address: string, cause?: unknown): UserIdParseException {
+	return {
+		runtimeException: true,
+		type: 'user-id-parse',
+		address,
+		message: `Can't parse given address as valid user id`,
+		cause
+	};
 }
 
-export function includesAddress(arr: string[], address: string): boolean {
-  const canonAddr = toCanonicalAddress(address);
-  return arr.map(toCanonicalAddress).includes(canonAddr);
+export interface UserIdParseException extends web3n.RuntimeException {
+	type: 'user-id-parse';
+	address: string;
+}
+
+export function areAddressesEqual(a: string, b: string): boolean {
+	const canonicalA = checkAndTransformAddress(a);
+	if (!canonicalA) { return false; }
+	const canonicalB = checkAndTransformAddress(b);
+	if (!canonicalB) { return false; }
+	return (canonicalA === canonicalB);
 }
 
 /**
- * areAddressesEqual() for values that came off the wire.
- *
- * The difference is that this one cannot throw. `areAddressesEqual` canonicalizes
- * through `ensureIsAddressString`, which throws on anything without an '@' - so
- * its own `if (!canonicalA)` guards are unreachable, and an empty string, a
- * `screen:x:y` pseudo-address or a non-string all raise instead of answering.
- *
- * That matters wherever the compared value is chosen by whoever sent the
- * message: for a signal handler on the host, "this is not an address" is an
- * answer (no, it does not match), not an exceptional condition. On the
- * DataChannel path the throw would be swallowed by the JSON parse's catch and
- * read as a malformed message; on the ASMail path it would escape as an
- * unhandled rejection.
+ * @param address
+ * @return if given address is ok, its canonical form is returned.
+ * Otherwise, undefined is returned.
  */
+export function checkAndTransformAddress(address: string): string|undefined {
+	try {
+		return toCanonicalAddress(address);
+	} catch {
+		// Not an address: the caller gets undefined, as documented above.
+		return undefined;
+	}
+}
+
+export function includesAddress(arr: string[], address: string): boolean {
+  const canonAddr = checkAndTransformAddress(address);
+	if (!canonAddr) {
+		return false;
+	}
+	return arr.map(checkAndTransformAddress).includes(canonAddr);
+}
+
 export function sameAddress(a: unknown, b: unknown): boolean {
   if (!a || !b || (typeof a !== 'string') || (typeof b !== 'string')) {
     return false;
@@ -85,5 +112,11 @@ export function sameAddress(a: unknown, b: unknown): boolean {
     return areAddressesEqual(a, b);
   } catch {
     return false;
+  }
+}
+
+export function ensureIsAddressString(address: string): void {
+  if (!checkAndTransformAddress(address)) {
+    throw new Error(`Value is not an address`);
   }
 }

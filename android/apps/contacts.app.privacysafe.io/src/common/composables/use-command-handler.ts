@@ -24,6 +24,9 @@ import {
   type NotificationsPlugin,
 } from '@v1nt1248/3nclient-lib/plugins';
 import { NEW_POPULATED_CONTACT_ID } from '../constants';
+import { checkAndTransformAddress } from '@shared/address-utils';
+
+const MAX_PREFILLED_NAME_LENGTH = 200;
 import { useContactsStore } from '../store/contacts.store';
 import { storeToRefs } from 'pinia';
 import ImportContactsDialog, {
@@ -46,8 +49,27 @@ export function useCommandHandler() {
     name?: string;
   }
 
+  /**
+   * Prefills the form of a NEW contact from the command, and only that.
+   *
+   * Any app may start this command. The argument used to be spread over the
+   * new contact, so an `id` in it turned the "new contact" form into an edit of
+   * an existing one: the user saw an empty Alice, pressed Save, and Alice's
+   * address became the caller's (audit of 2026-11-26). Only an address and a
+   * one-line name are taken.
+   */
   async function addNewContact(cmdArg: OpenContactCmdArg) {
-    contactDataFromCmd.value = { id: NEW_POPULATED_CONTACT_ID, timestamp: Date.now(), ...cmdArg };
+    const mail = checkAndTransformAddress(cmdArg?.mail) ? (cmdArg.mail as string).trim() : '';
+    const name = (typeof cmdArg?.name === 'string')
+      // eslint-disable-next-line no-control-regex
+      ? cmdArg.name.replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ').trim().substring(0, MAX_PREFILLED_NAME_LENGTH)
+      : undefined;
+    contactDataFromCmd.value = {
+      id: NEW_POPULATED_CONTACT_ID,
+      timestamp: Date.now(),
+      mail,
+      ...(name && { name }),
+    };
     await router.push({ name: 'contacts' });
     setTimeout(() => router.push({
       name: 'contact',

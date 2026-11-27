@@ -35,6 +35,7 @@ import { useChatStore } from '@main/common/store/chat.store';
 import { useMessagesStore } from '@main/common/store/messages.store';
 import { chatBlockingStateOf } from '@main/common/utils/chat-ui.helper';
 import MessageDeleteDialog from '@main/common/components/dialogs/message-delete-dialog.vue';
+import { canDeleteForEveryone } from '@main/common/utils/delete-for-everyone';
 import { useChatViewMentions } from '@main/common/composables/useChatViewMentions';
 import { useChatViewAttachments } from '@main/common/composables/useChatViewAttachments';
 import { useChatViewComposer } from '@main/common/composables/useChatViewComposer';
@@ -131,6 +132,11 @@ export function useChatView(navigationUtils: () => NavigationUtils) {
 
     const res = await dialog.$openDialog<boolean>(MessageDeleteDialog, {
       text: t('chat.messages.bulk.delete'),
+      canDeleteForEveryone: canDeleteForEveryone(
+        currentChat.value,
+        selectedMessages.value.map(id => currentChatMessages.value.find(m => m.chatMessageId === id)),
+        user.value,
+      ),
       dialogProps: {
         title: t('chat.messages.bulk.delete'),
         ...(isMobileMode.value && { width: 300 }),

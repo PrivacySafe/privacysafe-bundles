@@ -13,7 +13,7 @@
 */
 import { describe, expect, it } from 'vitest';
 import {
-  decryptPayload, encryptPayload, isSubtleCryptoAvailable,
+  decryptPayload, encryptPayload, isSubtleCryptoAvailable, PBKDF2_MAX_ITERATIONS,
 } from '@/common/utils/backup-crypto';
 
 const PASSPHRASE = 'correct horse battery staple';
@@ -83,6 +83,22 @@ describe('backup encryption', () => {
     await expect(decryptPayload(cipher, PASSPHRASE, {
       ...params, iterations: 0,
     })).rejects.toThrow(/Unsupported encryption parameters/);
+  }, TIMEOUT);
+
+  // The count is read from the file before the passphrase is checked: a huge
+  // one would hang the window deriving a key (audit of 2026-11-26).
+  it('refuses an iteration count above the ceiling, without deriving', async () => {
+    const { cipher, params } = await encryptPayload(payload(), PASSPHRASE);
+    const started = Date.now();
+
+    await expect(decryptPayload(cipher, PASSPHRASE, {
+      ...params, iterations: PBKDF2_MAX_ITERATIONS + 1,
+    })).rejects.toThrow(/Unsupported encryption parameters/);
+    await expect(decryptPayload(cipher, PASSPHRASE, {
+      ...params, iterations: 1.5,
+    })).rejects.toThrow(/Unsupported encryption parameters/);
+
+    expect(Date.now() - started).toBeLessThan(1000);
   }, TIMEOUT);
 
   // Taken from the archive rather than from the constant, so that raising the

@@ -25,7 +25,13 @@ import { getFsStat, readLink } from '../../../shared/utils/fs-utils/index.ts';
 import { getXAttrs, listXAttrs } from './actions-on-x-attrs.ts';
 import { loadFolderContentList } from './load-folder-content-list.ts';
 import { mapWithConcurrency } from '../../../shared/utils/processes/map-with-concurrency.ts';
-import { isListingXAttr, isValidListingXAttrValue } from './listing-xattrs.ts';
+import {
+  isListingXAttr,
+  isValidEntityIdXAttr,
+  isValidExtXAttr,
+  isValidListingXAttrValue,
+  isValidTagsXAttr,
+} from './listing-xattrs.ts';
 import type { ListingEntry, ListingEntryExtended } from '../../../shared/types/index.ts';
 import { makeLogger } from '../../../shared/utils/logger.ts';
 
@@ -152,17 +158,17 @@ export async function loadFolderContentListPrepared({
         xAttrs.map(async xAttr => {
           if (xAttr === 'id') {
             const value = await readAttr<unknown>('id');
-            if (typeof value === 'string' && value) {
+            if (isValidEntityIdXAttr(value)) {
               fields.id = value;
             }
           } else if (xAttr === 'ext') {
             const value = await readAttr<unknown>('ext');
-            if (item.isFile && typeof value === 'string' && value) {
+            if (item.isFile && isValidExtXAttr(value)) {
               fields.ext = value;
             }
           } else if (xAttr === 'tags') {
             const value = await readAttr<unknown>('tags');
-            if (Array.isArray(value) && value.every(tag => typeof tag === 'string')) {
+            if (isValidTagsXAttr(value)) {
               fields.tags = value;
             }
           } else if (isListingXAttr(xAttr)) {

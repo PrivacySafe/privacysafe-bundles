@@ -14,7 +14,7 @@ const OS_SPECIFIC_PATH = /^(?:[A-Za-z]:[\\/]|~[\\/]|\\\\)/;
  * The path is relative to the Home root ('/' marks that root). A trailing
  * separator means a folder without a file name. Paths of the caller's OS give
  * only the file name, and paths through '.', '..' or hidden folders (e.g. the
- * trash) give only the file name too. A folder that does not exist is handled
+ * trash) give only the file name too. A hidden file name gives nothing. A folder that does not exist is handled
  * by the picker: it falls back to the root and keeps the file name.
  */
 export function parseDefaultSaveLocation(defaultPath?: string): DefaultSaveLocation {
@@ -33,6 +33,11 @@ export function parseDefaultSaveLocation(defaultPath?: string): DefaultSaveLocat
 
   const fileName = pointsToFolder ? '' : segments.pop()!;
   if (fileName === '.' || fileName === '..') {
+    return EMPTY;
+  }
+  // A hidden name is not proposed: the caller could point the dialog at hidden
+  // entities the user does not see, like the trash folder. The user can still type one.
+  if (fileName.startsWith('.')) {
     return EMPTY;
   }
 

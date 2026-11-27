@@ -566,6 +566,18 @@ export const fr = {
           text: 'Supprimer le message sélectionné ?',
           additional_text: 'Supprimer pour tout le monde ?',
         },
+        link_mismatch: {
+          title: 'Ouvrir le lien',
+          text: 'Le texte de ce lien ne correspond pas à sa destination. Il ouvre {url}',
+        },
+        mention_mismatch: {
+          title: 'Démarrer une discussion',
+          text: 'Cette mention ne correspond pas à son adresse. Démarrer une discussion avec {addr} ?',
+        },
+        risky_attachment: {
+          title: 'Ouvrir le fichier',
+          text: '{name} peut exécuter un programme sur cet appareil. Ne l’ouvrez que si vous faites confiance à son expéditeur.',
+        },
         forward: {
           title: 'Transférer le message',
           section: {

@@ -249,3 +249,41 @@ describe('favoritesService', () => {
     expect(await srv.getFavorites()).toEqual([fav('a')]);
   });
 });
+
+// Security audit 2026-11: the favorites file is synced from other devices; an error while
+// reading it used to stop the service at startup on every device.
+describe('favoritesService with a broken favorites file', () => {
+  it('starts with no favorites when the file cannot be parsed', async () => {
+    const appFs = createAppSyncedFs({ file: {} });
+    appFs.raw.readJSONFile = async () => {
+      throw new SyntaxError('Unexpected end of JSON input');
+    };
+
+    const srv = await favoritesService({ appSyncedFs: appFs.fs, emitStorageEvent: () => {} });
+
+    expect(await srv.getFavorites()).toEqual([]);
+    expect(appFs.raw.writeJSONFile).not.toHaveBeenCalled();
+  });
+
+  it('takes only entries of the expected shape', async () => {
+    const file = {
+      ok: fav('ok', 'Docs/Work'),
+      wrongKey: fav('other'),
+      noPath: { favId: 'noPath', fsId: 'user-synced' },
+      numberPath: { favId: 'numberPath', fsId: 'user-synced', fullPath: 42 },
+      escaping: fav('escaping', '../outside'),
+      noFs: { favId: 'noFs', fsId: '', fullPath: 'a' },
+      nullEntry: null,
+    } as unknown as FavoritesData;
+
+    const { srv } = await setup({ file });
+
+    expect(await srv.getFavorites()).toEqual([fav('ok', 'Docs/Work')]);
+  });
+
+  it.each([[[]], ['text'], [42]])('treats %j as an empty list', async data => {
+    const { srv } = await setup({ file: data as unknown as FavoritesData });
+
+    expect(await srv.getFavorites()).toEqual([]);
+  });
+});

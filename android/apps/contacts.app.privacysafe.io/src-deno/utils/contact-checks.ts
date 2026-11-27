@@ -14,7 +14,7 @@
  You should have received a copy of the GNU General Public License along with
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
-import { toCanonicalAddress } from '../../shared-libs/address-utils.ts';
+import { checkAndTransformAddress, toCanonicalAddress } from '../../shared-libs/address-utils.ts';
 import type { AddressCheckResult } from '../../src/types/index.ts';
 
 type ASMailSendException = web3n.asmail.ASMailSendException;
@@ -24,6 +24,12 @@ type ConnectException = web3n.ConnectException;
 export async function checkAddressExistenceForASMail(
   addr: string,
 ): Promise<AddressCheckResult> {
+  // Not an address at all: nowhere to deliver to. Answered here rather than
+  // thrown, since the strict check (audit of 2026-11-26) refuses strings the
+  // platform's service locating used to be asked about.
+  if (!checkAndTransformAddress(addr)) {
+    return 'no-service-for-domain';
+  }
   try {
     toCanonicalAddress(addr);
     await w3n.mail!.delivery.preFlight(addr);

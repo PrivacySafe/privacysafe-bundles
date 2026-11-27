@@ -15,7 +15,7 @@
  this program. If not, see <http://www.gnu.org/licenses/>.
 */
 /// <reference path="../../../@types/platform-defs/injected-w3n.d.ts" />
-import type { FsListItem, ListingEntryExtended } from '../../../shared/types/index.ts';
+import type { FsListItem, ListingEntryExtended, RestoreResult } from '../../../shared/types/index.ts';
 import type { FavoritesService } from '../../types.ts';
 import { moveFsEntity, prepareRestoredPath } from '../../../shared/utils/fs-utils/index.ts';
 import { deleteFsEntities } from './delete-fs-entities.ts';
@@ -47,7 +47,8 @@ async function readTrashMarks(
  * Restores trashed entities one by one. Each entity is resolved against the
  * current state of its original folder, so entities restored earlier in the
  * same batch are taken into account. A failure of one entity is logged and
- * does not stop the others; the result contains only restored entities.
+ * does not stop the others; the result contains only restored entities, and
+ * the entities they replaced (moved to the trash, so the user must be told).
  */
 export async function restoreFsEntities({
   fsListItem,
@@ -61,23 +62,33 @@ export async function restoreFsEntities({
   trashFolderName: string;
   mode: 'keep' | 'replace';
   favoritesSrv: FavoritesService;
-}): Promise<Record<string, string>> {
+}): Promise<RestoreResult> {
   const { entity: fs, fsId } = fsListItem;
   const mappingPathToRestorePath = {} as Record<string, string>;
+  const replaced = {} as Record<string, string>;
 
   for (const entity of entities) {
     try {
       const marks = await readTrashMarks(fs, entity);
-      const { restoredPath, conflict } = await prepareRestoredPath({ fs, entity: { ...entity, ...marks }, mode });
+      const { restoredPath, conflict } = await prepareRestoredPath({
+        fs,
+        entity: { ...entity, ...marks },
+        mode,
+        trashFolderName,
+      });
 
       if (mode === 'replace' && conflict) {
-        await deleteFsEntities({
+        // The conflict's location comes from xattrs others can write: it goes to the trash,
+        // so that a forged location cannot erase anything for good.
+        const moved = await deleteFsEntities({
           fsListItem,
           entities: [conflict as ListingEntryExtended],
           trashFolderName,
-          completely: true,
           favoritesSrv,
         });
+        if (moved !== true && moved[conflict.fullPath]) {
+          replaced[conflict.fullPath] = moved[conflict.fullPath];
+        }
       }
 
       await moveFsEntity({ fs, src: entity.fullPath, dst: restoredPath });
@@ -95,5 +106,5 @@ export async function restoreFsEntities({
     }
   }
 
-  return mappingPathToRestorePath;
+  return { restored: mappingPathToRestorePath, replaced };
 }

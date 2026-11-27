@@ -60,6 +60,7 @@ import { announceSnapshot, readSnapshotFromDb } from '../chat-service/utils/snap
 import { mergeTombstonesOfFiles } from './auto-backup-merge.ts';
 import { chatEntityId, msgEntityId, parseMsgEntityId } from '../chat-service/utils/sync-versions.ts';
 import { isNewerToken } from '../chat-service/utils/sync-versions.ts';
+import { checkedBackedUpChat, isBackedUpMsgShape } from '../chat-service/utils/peer-input-checks.ts';
 import {
   archiveMsgKey,
   chatIdOfChatEntry,
@@ -253,7 +254,16 @@ export function chatBackupSrv({
     if (!Array.isArray(chats) || !Array.isArray(msgs) || !Array.isArray(tombstones)) {
       throw new Error('Backup archive records are not of the expected shape');
     }
-    return { chats, msgs, tombstones };
+    // Entries are checked one by one, not only the arrays: an archive is a file
+    // the user was given, and what it says about a chat - its name, its members,
+    // its settings - lands in the database as if this app had written it.
+    const checkedChats = chats.map(checkedBackedUpChat).filter((c): c is BackedUpChat => !!c);
+    const checkedMsgs = msgs.filter(isBackedUpMsgShape);
+    const dropped = (chats.length - checkedChats.length) + (msgs.length - checkedMsgs.length);
+    if (dropped > 0) {
+      w3n.log('warning', `Backup archive: ${dropped} record(s) of an unexpected shape left out`).catch(() => {});
+    }
+    return { chats: checkedChats, msgs: checkedMsgs, tombstones };
   }
 
   /**

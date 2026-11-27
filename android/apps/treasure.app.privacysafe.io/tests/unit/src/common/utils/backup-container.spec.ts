@@ -164,6 +164,34 @@ describe('openBackupContainer', () => {
     expect(opened.metadata).toBeUndefined();
   });
 
+  // The metadata sits outside the encryption: whoever made the file wrote it
+  // (audit of 2026-11-26).
+  it('keeps metadata fields only when they have the type they are read as', async () => {
+    const opened = await openBackupContainer(plainArchive({
+      version: 7, formatVersion: '1', recordsCount: -1, groupsCount: 2,
+    }));
+
+    expect(opened.metadata?.version).toBe('');
+    expect(opened.metadata?.formatVersion).toBe(0);
+    expect(opened.metadata?.recordsCount).toBeUndefined();
+    expect(opened.metadata?.groupsCount).toBe(2);
+  });
+
+  it('reports metadata that is not an object as invalid', async () => {
+    const bytes = zipSync({
+      [GROUPS_FILE_NAME]: utf8('[]'),
+      [METADATA_FILE_NAME]: utf8('[1,2]'),
+    });
+    const opened = await openBackupContainer(bytes);
+
+    expect(opened.metadataInvalid).toBe(true);
+    expect(opened.metadata).toBeUndefined();
+  });
+
+  it('refuses an appDomain that is there but is not a string', async () => {
+    expect(await failureOf(plainArchive({ appDomain: 1, version: APP_VERSION }))).toBe('foreign_archive');
+  });
+
   describe('a backup of another app', () => {
 
     it('is refused by its appDomain', async () => {

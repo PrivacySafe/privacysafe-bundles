@@ -51,3 +51,18 @@ describe('makeLogger', () => {
     expect(() => makeLogger('X').info('line')).not.toThrow();
   });
 });
+
+// Security audit 2026-11: a name with a line break, coming from another device, forged log lines.
+describe('makeLogger: one line per call', () => {
+  beforeEach(() => w3nLog().mockClear());
+
+  it('escapes line breaks and control characters of the message', () => {
+    makeLogger('X').error("Error deleting 'a\n12:00:00.000 [Y] fake\r\u0007'. ");
+
+    const line = w3nLog().mock.calls[0][1] as string;
+    expect(line).not.toContain('\n');
+    expect(line).not.toContain('\r');
+    expect(line).not.toContain('\u0007');
+    expect(line).toContain("'a\\n12:00:00.000 [Y] fake\\r\\u0007'");
+  });
+});

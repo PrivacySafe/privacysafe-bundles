@@ -41,7 +41,7 @@ import type {
 } from '../../../../types/asmail-msgs.types.ts';
 import type { GroupChatStatus, SingleChatStatus } from '../../../../types/chat.types.ts';
 import type { ChatSrvEmit, DB, FileStoreService, OrphanedMsgDbEntry } from '../../../types/index.ts';
-import { AUTODELETE_OFF, AUTO_DELETE_MESSAGES_BY_ID } from '../../../../shared-libs/constants/chat-settings.ts';
+import { autoDeleteValueOf } from './peer-input-checks.ts';
 import {
   isTerminalStatus,
   makeMsgDbEntry,
@@ -479,8 +479,7 @@ async function handleRegularSync({
   }
 
   const timestamp = syncMsg.timestamp || Date.now();
-  const autoDeleteMessagesId = chat.settings?.autoDeleteMessages as '0' | '1' | '2' | '3' | '4' | '5';
-  const autoDeleteTSValue = AUTO_DELETE_MESSAGES_BY_ID[autoDeleteMessagesId].value || AUTODELETE_OFF;
+  const autoDeleteTSValue = autoDeleteValueOf(chat.settings?.autoDeleteMessages);
 
   const msg = makeMsgDbEntry('regular', chatMessageId, {
     // A record of an incoming message arrives only as a resync answer; keep
@@ -497,7 +496,7 @@ async function handleRegularSync({
     attachments: attachments?.length ? attachments : null,
     relatedMessage: relatedMessage || null,
     timestamp,
-    removeAfter: autoDeleteMessagesId === '0' ? 0 : timestamp + autoDeleteTSValue,
+    removeAfter: autoDeleteTSValue ? timestamp + autoDeleteTSValue : 0,
     status: syncedStatus,
     history: history || null,
     settings: { msgOwnersDeviceId: sourceDeviceId },
